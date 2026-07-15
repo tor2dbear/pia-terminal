@@ -106,9 +106,11 @@ export class Terminal {
     this.kbd.addEventListener("keydown", this.onKeyDown);
     this.kbd.addEventListener("input", this.onInput);
     this.kbd.addEventListener("compositionend", this.flushKbd);
-    this.root.addEventListener("pointerup", this.focusKbd);
+    this.root.addEventListener("pointerup", this.onRootTap);
     this.root.addEventListener("pointerdown", this.onGestureStart);
     this.root.addEventListener("pointerup", this.onGestureEnd);
+    window.visualViewport?.addEventListener("resize", this.syncViewport);
+    window.visualViewport?.addEventListener("scroll", this.syncViewport);
 
     this.focusKbd();
     this.renderInput();
@@ -120,14 +122,46 @@ export class Terminal {
     this.kbd.removeEventListener("keydown", this.onKeyDown);
     this.kbd.removeEventListener("input", this.onInput);
     this.kbd.removeEventListener("compositionend", this.flushKbd);
-    this.root.removeEventListener("pointerup", this.focusKbd);
+    this.root.removeEventListener("pointerup", this.onRootTap);
     this.root.removeEventListener("pointerdown", this.onGestureStart);
     this.root.removeEventListener("pointerup", this.onGestureEnd);
+    window.visualViewport?.removeEventListener("resize", this.syncViewport);
+    window.visualViewport?.removeEventListener("scroll", this.syncViewport);
   }
 
   /** Focus the hidden field so a soft keyboard appears (needs a user gesture). */
   private focusKbd = (): void => {
     this.kbd.focus({ preventScroll: true });
+  };
+
+  /**
+   * Tapping content raises the keyboard, but tapping a control (key bar, ghost,
+   * cursor) must not — that's what let the keyboard pop up unexpectedly and
+   * cover the bar. preventDefault on those buttons preserves existing focus.
+   */
+  private onRootTap = (e: PointerEvent): void => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        "button, .term-ghost, .term-more, .term-cursor, .term-keybar",
+      )
+    ) {
+      return;
+    }
+    this.focusKbd();
+  };
+
+  /**
+   * Ride the key bar above the on-screen keyboard and shrink the app to the
+   * space above it. iOS Safari ignores `interactive-widget`, so we track the
+   * visual viewport ourselves.
+   */
+  private syncViewport = (): void => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    this.root.style.height = overlap > 0 ? `${vv.height}px` : "";
+    this.keybarEl.style.transform = overlap > 0 ? `translateY(-${overlap}px)` : "";
   };
 
   // ---- swipe gestures -------------------------------------------------------
@@ -218,7 +252,6 @@ export class Terminal {
       const accept = (e: Event): void => {
         e.preventDefault();
         this.acceptSuggestion();
-        this.focusKbd();
       };
       cursorEl.addEventListener("pointerdown", accept);
       restEl.addEventListener("pointerdown", accept);
@@ -231,7 +264,6 @@ export class Terminal {
         moreEl.addEventListener("pointerdown", (e) => {
           e.preventDefault();
           this.cycleSuggestion();
-          this.focusKbd();
         });
         typed.append(moreEl);
       }
@@ -698,7 +730,6 @@ export class Terminal {
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         key.run();
-        this.focusKbd();
       });
       this.keybarEl.append(btn);
     }
