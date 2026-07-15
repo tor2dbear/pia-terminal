@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# Safety net: TypeScript output belongs in dist/, never next to sources.
+src/**/*.js
+!src/**/*.config.js

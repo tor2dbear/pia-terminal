@@ -152,3 +152,49 @@ hej. skriv 'help' för att börja.
 
 user@vera:~$ ▮
 ```
+
+---
+
+## Kom igång (implementation)
+
+Kärnan (Nivå 0) är scaffoldad och körbar.
+
+```bash
+npm install
+npm run dev        # starta dev-servern (Vite + HMR)
+npm test           # kör testsviten (Vitest)
+npm run typecheck  # typkontroll utan bygge
+npm run build      # produktionsbygge till dist/
+```
+
+### Varför TypeScript + Vite (och inte vanilj JS)?
+
+Arkitekturen vilar på **kontrakt** — `StorageAdapter`/`AuthAdapter` är interfaces
+och varje kommando är ett typat `{ name, help, run(args, ctx) }`. TS upprätthåller
+de kontrakten åt oss, så backend-steget blir ett *byte, inte en omskrivning*. Vite
+följer nästan gratis (kör TS + ger HMR för snabb finjustering av boot/markör/färg).
+
+### Kodstruktur
+
+```
+src/
+  vfs/          virtuellt filsystem (träd + sökvägsupplösning)
+  storage/      StorageAdapter-interface + LocalStorage/Memory-implementationer
+  commands/     command registry + Nivå 0-kommandon (fs.ts, system.ts)
+  terminal/     terminal-kärnan (input, markör, history, Tab) + input-parser
+  boot.ts       boot-sekvens
+  main.ts       entry point (kopplar ihop allt)
+```
+
+### Vad som finns (Nivå 0)
+
+Kommandon: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
+`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv`. Blinkande blockmarkör,
+command-history (pil upp/ner), Tab-komplettering (kommandon + sökvägar),
+boot-sekvens, och persistens via `LocalStorageAdapter`. 37 tester täcker VFS,
+parser, kommandon och den tangentbordsdrivna terminalen.
+
+### Nästa steg
+
+`edit` (mini-editor) · `AuthAdapter` med riktig fejk-login · tema-växling/config.
+Se roadmap ovan — härifrån är det mesta "ännu ett kommando".
