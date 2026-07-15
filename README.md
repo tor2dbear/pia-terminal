@@ -197,14 +197,18 @@ src/
 ### What exists (Level 0)
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
-`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `edit`. Blinking block cursor,
-command history (arrow up/down), Tab-completion (commands + paths), a soft-
-keyboard capture field for mobile, a full-screen `edit`or (^S save, ^X exit),
-the boot sequence, and persistence via `LocalStorageAdapter`. 43 tests cover the
-VFS, parser, commands, the keyboard-driven terminal, and the editor.
+`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `edit` · `login` · `logout`.
+Blinking block cursor, command history (arrow up/down), Tab-completion (commands
++ paths), a soft-keyboard capture field for mobile, a full-screen `edit`or (^S
+save, ^X exit, tappable on mobile), fake auth with per-user home directories
+(`AuthAdapter`), the boot sequence, and persistence via `LocalStorageAdapter`.
+52 tests cover the VFS, parser, commands, auth, the keyboard-driven terminal,
+and the editor.
+
+Level 0 is complete.
 
 ### Next steps
 
-`AuthAdapter` with a real fake `login`/`logout` · theme switching / config ·
-Level 1 goodies (`grep`/`find`, pipes, `.md` rendering). From here most of it is
-"just another command".
+Theme switching / config · Level 1 goodies (`grep`/`find`, pipes, `.md`
+rendering) · a first Level 2 screen-app (a game). Backend (Level 3) swaps
+`LocalStorageAdapter`/`FakeAuthAdapter` for Supabase behind the same interfaces.

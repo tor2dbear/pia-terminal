@@ -13,6 +13,10 @@ export class VfsError extends Error {}
  * StorageAdapter, which serializes {@link root}.
  */
 export class VFS {
+  /** The current user's home directory, that `~` expands to. Session state,
+   *  not part of the serialized tree — the terminal sets it on login/logout. */
+  home = HOME;
+
   constructor(public root: DirNode) {}
 
   /** A fresh default tree with a home directory and a welcome file. */
@@ -37,7 +41,7 @@ export class VFS {
   resolve(cwd: string, input: string): string {
     let path = input.trim();
     if (path === "~" || path.startsWith("~/")) {
-      path = HOME + path.slice(1);
+      path = this.home + path.slice(1);
     }
     const start = path.startsWith("/") ? [] : cwd.split("/").filter(Boolean);
     const segments = [...start, ...path.split("/")];

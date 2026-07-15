@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Terminal } from "./terminal.js";
 import { VFS } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
+import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "../commands/index.js";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -16,6 +17,7 @@ function mount(): HTMLElement {
     vfs: VFS.seed(),
     adapter: new MemoryStorageAdapter(),
     registry: buildRegistry(),
+    auth: new MemoryAuthAdapter(),
     session: { user: "guest" },
   });
   return root;
@@ -116,5 +118,18 @@ describe("Terminal (driven via keyboard)", () => {
     type(root, "lss");
     press(root, "Backspace");
     expect(typed(root).trimEnd()).toBe("ls");
+  });
+
+  it("login changes the prompt to the new user at their home", async () => {
+    const root = mount();
+    await runLine(root, "login alice");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@vera:~$");
+  });
+
+  it("logout returns the prompt to guest", async () => {
+    const root = mount();
+    await runLine(root, "login alice");
+    await runLine(root, "logout");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
   });
 });

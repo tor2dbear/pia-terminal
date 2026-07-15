@@ -10,11 +10,13 @@ import {
 } from "../commands/registry.js";
 import { tokenize } from "./parse.js";
 import type { ScreenApp, ScreenAppFactory } from "./screen.js";
+import type { AuthAdapter } from "../auth/adapter.js";
 
 export interface TerminalOptions {
   vfs: VFS;
   adapter: StorageAdapter;
   registry: CommandRegistry;
+  auth: AuthAdapter;
   session: Session;
 }
 
@@ -45,6 +47,7 @@ export class Terminal {
   private readonly vfs: VFS;
   private readonly adapter: StorageAdapter;
   private readonly registry: CommandRegistry;
+  private readonly auth: AuthAdapter;
   private readonly session: Session;
 
   private cwd = HOME;
@@ -61,7 +64,14 @@ export class Terminal {
     this.vfs = opts.vfs;
     this.adapter = opts.adapter;
     this.registry = opts.registry;
+    this.auth = opts.auth;
     this.session = opts.session;
+
+    // Point home and cwd at whoever is logged in, creating the home if needed.
+    const home = `/home/${this.session.user}`;
+    this.vfs.mkdirp(home);
+    this.vfs.home = home;
+    this.cwd = home;
 
     this.kbd = document.createElement("input");
     this.kbd.className = "term-kbd";
@@ -127,7 +137,10 @@ export class Terminal {
   // ---- prompt + input rendering --------------------------------------------
 
   private promptText(): string {
-    const shown = this.cwd === HOME ? "~" : this.cwd.replace(HOME, "~");
+    const home = this.vfs.home;
+    let shown = this.cwd;
+    if (shown === home) shown = "~";
+    else if (shown.startsWith(`${home}/`)) shown = `~${shown.slice(home.length)}`;
     return `${this.session.user}@vera:${shown}$`;
   }
 
@@ -399,6 +412,7 @@ export class Terminal {
     return {
       vfs: this.vfs,
       session: this.session,
+      auth: this.auth,
       registry: this.registry,
       get cwd() {
         return term.cwd;

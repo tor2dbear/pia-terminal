@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { VFS, HOME } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
+import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
 import type { CommandContext, LineClass } from "./registry.js";
 
@@ -15,6 +16,7 @@ function harness() {
   const ctx: CommandContext = {
     vfs,
     registry,
+    auth: new MemoryAuthAdapter(),
     session: { user: "guest" },
     get cwd() {
       return cwd;
@@ -121,5 +123,52 @@ describe("system commands", () => {
     await h.run("touch d/f");
     await h.run("rm -r d");
     expect(h.vfs.getNode(`${HOME}/d`)).toBeNull();
+  });
+});
+
+describe("auth commands", () => {
+  it("login switches the user, home, and cwd", async () => {
+    const h = harness();
+    await h.run("login alice");
+    expect(h.ctx.session.user).toBe("alice");
+    expect(h.vfs.home).toBe("/home/alice");
+    expect(h.cwd).toBe("/home/alice");
+  });
+
+  it("login creates the user's home directory", async () => {
+    const h = harness();
+    await h.run("login bob");
+    expect(h.vfs.getNode("/home/bob")).not.toBeNull();
+  });
+
+  it("login rejects an empty or invalid username", async () => {
+    const h = harness();
+    await h.run("login");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    await h.run("login bad/name");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    expect(h.ctx.session.user).toBe("guest");
+  });
+
+  it("logout returns to guest at the guest home", async () => {
+    const h = harness();
+    await h.run("login alice");
+    await h.run("logout");
+    expect(h.ctx.session.user).toBe("guest");
+    expect(h.vfs.home).toBe(HOME);
+    expect(h.cwd).toBe(HOME);
+  });
+
+  it("logout as guest is an error", async () => {
+    const h = harness();
+    await h.run("logout");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
+  it("files created while logged in live under that user's home", async () => {
+    const h = harness();
+    await h.run("login alice");
+    await h.run("touch notes.txt");
+    expect(h.vfs.getNode("/home/alice/notes.txt")).not.toBeNull();
   });
 });

@@ -1,12 +1,10 @@
 import type { VFS } from "../vfs/vfs.js";
 import type { ScreenAppFactory } from "../terminal/screen.js";
+import type { AuthAdapter, Session } from "../auth/adapter.js";
+
+export type { Session };
 
 export type LineClass = "normal" | "dim" | "accent" | "error";
-
-/** The session's identity. Fake for now; a real AuthAdapter lands later. */
-export interface Session {
-  user: string;
-}
 
 /**
  * Everything a command is handed when it runs. Commands talk to the world
@@ -15,6 +13,8 @@ export interface Session {
 export interface CommandContext {
   vfs: VFS;
   session: Session;
+  /** Auth backend, for login/logout. */
+  auth: AuthAdapter;
   /** Current working directory, absolute. */
   cwd: string;
   /** Change the working directory (validated by the caller of the command). */
