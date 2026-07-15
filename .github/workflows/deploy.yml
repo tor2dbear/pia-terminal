@@ -28,12 +28,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # Cloud config comes from the committed .env.production (public client
+      # keys; RLS protects the data). No env passthrough here, or an unset
+      # repo Variable's empty string would clobber it back to dormant.
       - run: npm run build
-        env:
-          # Set these as repository Variables to enable the cloud backend.
-          # Unset → the build stays fully local (guest mode).
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -31,6 +31,11 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     }
     const { data, error } = await this.client.auth.signUp({ email, password });
     if (error) throw new Error(error.message);
+    // With email confirmation on, sign-up creates no session yet.
+    const { data: session } = await this.client.auth.getSession();
+    if (!session.session) {
+      throw new Error("account created — confirm via the email link, then run login");
+    }
     return { user: handle(data.user?.email) };
   }
 

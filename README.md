@@ -218,26 +218,23 @@ terminal, the editor, the snake game logic, and the Supabase adapters.
 Level 0 is complete; Level 1 (pipes, grep/find) and the first Level 2 screen-app
 game are in.
 
-### Backend (Supabase) — built, dormant
+### Backend (Supabase) — live
 
-The cloud path is fully coded behind a config flag. With no Supabase config the
-app is 100% local (guest + `LocalStorageAdapter`) and Supabase is tree-shaken
-out of the bundle. Provide the two env vars and it activates: real accounts
-(`register`/`login <email> <password>`), and files that follow you between
-devices. Guests stay local; logged-in users get cloud storage (`HybridStorageAdapter`).
+Real accounts (`register`/`login <email> <password>`) and files that follow you
+between devices. Guests stay on localStorage; logged-in users get cloud storage
+(`HybridStorageAdapter`). The cloud path loads via dynamic import, so
+`supabase-js` is a lazy chunk — the base bundle never pays for it.
 
-To turn it on:
+Config lives in the committed [`.env.production`](.env.production) — the URL and
+the Supabase **publishable** key. These are client-side keys that ship in the
+public bundle regardless; **Row-Level Security** (see
+[`supabase/schema.sql`](supabase/schema.sql)) is what protects the data. With no
+config present the app falls back to fully local (guest) mode and Supabase is
+tree-shaken out.
 
-1. Create a free Supabase project.
-2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql) (a
-   per-user `filesystems` table with Row-Level Security).
-3. Authentication → Providers → enable **Email** (turn off email confirmation
-   for the simplest start).
-4. Settings → API → copy the **Project URL** and **anon public** key.
-5. Local dev: copy `.env.example` to `.env.local` and fill both in.
-   Deploy: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as GitHub
-   repository **Variables** (they are safe to be public; RLS protects the data).
-6. Push — the deploy workflow bakes them into the build.
+Note: the app expects email confirmation to be **off** (Authentication →
+Sign-in → Email) so `register` logs you straight in; otherwise it tells you to
+confirm via the email link first, then `login`.
 
 ### Next steps
 
