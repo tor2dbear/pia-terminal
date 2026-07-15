@@ -279,4 +279,56 @@ describe("inline autosuggestion (ghost text)", () => {
     press(root, "ArrowLeft");
     expect(ghost(root)).toBe("");
   });
+
+  it("shows a +N chip and cycles matches with Tab", () => {
+    const root = mount();
+    type(root, "c"); // cat, cd, clear
+    expect(ghost(root)).toBe("at");
+    expect(root.querySelector(".term-more")?.textContent).toContain("+2");
+    press(root, "Tab");
+    expect(ghost(root)).toBe("d"); // cd
+    press(root, "Tab");
+    expect(ghost(root)).toBe("lear"); // clear
+  });
+
+  it("cycles when the +N chip is tapped", () => {
+    const root = mount();
+    type(root, "c");
+    root
+      .querySelector(".term-more")!
+      .dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(ghost(root)).toBe("d");
+  });
+});
+
+describe("swipe gestures", () => {
+  function swipe(root: HTMLElement, fromX: number, toX: number): void {
+    root.dispatchEvent(
+      new MouseEvent("pointerdown", { clientX: fromX, clientY: 40, bubbles: true }),
+    );
+    root.dispatchEvent(
+      new MouseEvent("pointerup", { clientX: toX, clientY: 42, bubbles: true }),
+    );
+  }
+
+  it("scrubs the cursor left with a horizontal swipe", () => {
+    const root = mount();
+    type(root, "hello");
+    swipe(root, 200, 130); // ~3 chars left
+    type(root, "X");
+    expect(typed(root)).toContain("heXllo");
+  });
+
+  it("ignores a mostly-vertical drag (leaves it to scroll)", () => {
+    const root = mount();
+    type(root, "hello");
+    root.dispatchEvent(
+      new MouseEvent("pointerdown", { clientX: 100, clientY: 20, bubbles: true }),
+    );
+    root.dispatchEvent(
+      new MouseEvent("pointerup", { clientX: 108, clientY: 120, bubbles: true }),
+    );
+    type(root, "X");
+    expect(typed(root)).toContain("helloX"); // cursor stayed at the end
+  });
 });

@@ -29,6 +29,8 @@ body {
   padding-bottom: 3.5rem;
   font-size: 14px;
   line-height: 1.5;
+  /* Vertical scroll stays native; horizontal drags are ours (cursor scrub). */
+  touch-action: pan-y;
 }
 
 /* Hidden field that captures the (soft) keyboard. Invisible but focusable —
@@ -103,6 +105,17 @@ body {
 .term-ghost {
   color: var(--dim);
   cursor: pointer;
+}
+
+/* "+N other matches" chip — tap to cycle to the next suggestion. */
+.term-more {
+  color: var(--bg);
+  background: var(--dim);
+  border-radius: 4px;
+  padding: 0 0.35ch;
+  margin-left: 0.5ch;
+  cursor: pointer;
+  font-size: 0.85em;
 }
 
 .term-cursor.hidden {

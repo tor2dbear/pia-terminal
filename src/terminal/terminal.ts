@@ -56,6 +56,7 @@ export class Terminal {
   private cursor = 0;
   private history: string[] = [];
   private historyIndex = 0; // points one past the last entry when not browsing
+  private suggestionIndex = 0; // which of several matches the ghost shows
   private busy = false;
 
   constructor(
@@ -106,6 +107,8 @@ export class Terminal {
     this.kbd.addEventListener("input", this.onInput);
     this.kbd.addEventListener("compositionend", this.flushKbd);
     this.root.addEventListener("pointerup", this.focusKbd);
+    this.root.addEventListener("pointerdown", this.onGestureStart);
+    this.root.addEventListener("pointerup", this.onGestureEnd);
 
     this.focusKbd();
     this.renderInput();
@@ -118,11 +121,46 @@ export class Terminal {
     this.kbd.removeEventListener("input", this.onInput);
     this.kbd.removeEventListener("compositionend", this.flushKbd);
     this.root.removeEventListener("pointerup", this.focusKbd);
+    this.root.removeEventListener("pointerdown", this.onGestureStart);
+    this.root.removeEventListener("pointerup", this.onGestureEnd);
   }
 
   /** Focus the hidden field so a soft keyboard appears (needs a user gesture). */
   private focusKbd = (): void => {
     this.kbd.focus({ preventScroll: true });
+  };
+
+  // ---- swipe gestures -------------------------------------------------------
+
+  private gestureX = 0;
+  private gestureY = 0;
+  private gesturing = false;
+
+  private onGestureStart = (e: PointerEvent): void => {
+    // Not while an app owns the screen, and not when starting on a tappable
+    // control (bar key, ghost, +N) — those are taps, not swipes.
+    if (this.activeApp) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("button, .term-ghost, .term-more")) return;
+    this.gesturing = true;
+    this.gestureX = e.clientX;
+    this.gestureY = e.clientY;
+  };
+
+  /** A horizontal swipe scrubs the cursor; vertical is left to native scroll. */
+  private onGestureEnd = (e: PointerEvent): void => {
+    if (!this.gesturing) return;
+    this.gesturing = false;
+    const dx = e.clientX - this.gestureX;
+    const dy = e.clientY - this.gestureY;
+    if (Math.abs(dx) < 24 || Math.abs(dx) <= Math.abs(dy)) return;
+    const steps = Math.round(dx / 22); // ~one character per 22px
+    const next = Math.max(0, Math.min(this.buffer.length, this.cursor + steps));
+    if (next !== this.cursor) {
+      this.cursor = next;
+      this.suggestionIndex = 0;
+      this.renderInput();
+    }
   };
 
   // ---- output ---------------------------------------------------------------
@@ -165,10 +203,11 @@ export class Terminal {
     const typed = document.createElement("span");
     typed.className = "term-typed";
 
-    const ghost = this.suggestion();
-    if (ghost) {
+    const state = this.suggestionState();
+    if (state) {
       // Cursor sits on the first ghost char; the rest trails dimmed. The whole
       // suggestion is tappable to accept it (fish-style, but for touch).
+      const ghost = state.suffix;
       typed.append(document.createTextNode(this.buffer));
       const cursorEl = document.createElement("span");
       cursorEl.className = "term-cursor";
@@ -184,6 +223,18 @@ export class Terminal {
       cursorEl.addEventListener("pointerdown", accept);
       restEl.addEventListener("pointerdown", accept);
       typed.append(cursorEl, restEl);
+      if (state.more > 0) {
+        // Tappable "+N" chip: how many other matches; tap to cycle to the next.
+        const moreEl = document.createElement("span");
+        moreEl.className = "term-more";
+        moreEl.textContent = ` +${state.more}`;
+        moreEl.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          this.cycleSuggestion();
+          this.focusKbd();
+        });
+        typed.append(moreEl);
+      }
     } else {
       const before = this.buffer.slice(0, this.cursor);
       const atChar = this.buffer[this.cursor] ?? " ";
@@ -215,13 +266,20 @@ export class Terminal {
     return { fragment, candidates };
   }
 
-  /** The ghost suffix to show after the cursor, or "" when there is none. */
-  private suggestion(): string {
-    if (this.cursor !== this.buffer.length) return ""; // only at end of line
+  /** The current suggestion: the ghost suffix plus how many other matches. */
+  private suggestionState(): { suffix: string; more: number } | null {
+    if (this.cursor !== this.buffer.length) return null; // only at end of line
     const { fragment, candidates } = this.completions(this.buffer);
-    if (fragment === "" || candidates.length === 0) return "";
-    const first = candidates[0];
-    return first.startsWith(fragment) ? first.slice(fragment.length) : "";
+    if (fragment === "" || candidates.length === 0) return null;
+    const chosen = candidates[this.suggestionIndex % candidates.length];
+    if (!chosen.startsWith(fragment)) return null;
+    const suffix = chosen.slice(fragment.length);
+    if (suffix === "") return null; // already fully typed
+    return { suffix, more: candidates.length - 1 };
+  }
+
+  private suggestion(): string {
+    return this.suggestionState()?.suffix ?? "";
   }
 
   /** Accept the current ghost suggestion, appending it to the line. */
@@ -230,7 +288,25 @@ export class Terminal {
     if (!ghost) return;
     this.buffer += ghost;
     this.cursor = this.buffer.length;
+    this.suggestionIndex = 0;
     this.renderInput();
+  }
+
+  /** Cycle the ghost to the next match (for the +N indicator and Tab). */
+  private cycleSuggestion(): void {
+    this.suggestionIndex++;
+    this.renderInput();
+  }
+
+  /** Tab: accept a lone match, cycle when there are several, else list. */
+  private onTab(): void {
+    const state = this.suggestionState();
+    if (state) {
+      if (state.more === 0) this.acceptSuggestion();
+      else this.cycleSuggestion();
+      return;
+    }
+    this.completeTab(); // mid-line or after a space
   }
 
   /** Move the cursor right, or accept the suggestion when already at the end. */
@@ -272,6 +348,7 @@ export class Terminal {
           this.buffer =
             this.buffer.slice(0, this.cursor - 1) + this.buffer.slice(this.cursor);
           this.cursor--;
+          this.suggestionIndex = 0;
           this.renderInput();
         }
         return;
@@ -279,6 +356,7 @@ export class Terminal {
         e.preventDefault();
         this.buffer =
           this.buffer.slice(0, this.cursor) + this.buffer.slice(this.cursor + 1);
+        this.suggestionIndex = 0;
         this.renderInput();
         return;
       case "ArrowLeft":
@@ -310,7 +388,7 @@ export class Terminal {
         return;
       case "Tab":
         e.preventDefault();
-        this.completeTab();
+        this.onTab();
         return;
     }
 
@@ -354,18 +432,21 @@ export class Terminal {
     this.buffer =
       this.buffer.slice(0, this.cursor) + text + this.buffer.slice(this.cursor);
     this.cursor += text.length;
+    this.suggestionIndex = 0;
     this.renderInput();
   }
 
   private resetLine(): void {
     this.buffer = "";
     this.cursor = 0;
+    this.suggestionIndex = 0;
     this.historyIndex = this.history.length;
     this.renderInput();
   }
 
   private recallHistory(direction: -1 | 1): void {
     if (this.history.length === 0) return;
+    this.suggestionIndex = 0;
     const next = this.historyIndex + direction;
     if (next < 0) return;
     if (next >= this.history.length) {
@@ -422,6 +503,7 @@ export class Terminal {
     this.buffer =
       this.buffer.slice(0, start) + replacement + this.buffer.slice(this.cursor);
     this.cursor = start + replacement.length;
+    this.suggestionIndex = 0;
     this.renderInput();
   }
 
@@ -570,7 +652,7 @@ export class Terminal {
       run: () => this.insertText(ch),
     });
     return [
-      { label: "Tab", run: () => this.completeTab() },
+      { label: "Tab", run: () => this.onTab() },
       { label: "↑", run: () => this.recallHistory(-1) },
       { label: "↓", run: () => this.recallHistory(1) },
       { label: "←", run: () => this.moveCursor(-1) },
