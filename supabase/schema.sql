@@ -25,7 +25,10 @@ create policy "own filesystem - update"
 
 -- Keep updated_at current on every write.
 create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+set search_path = ''  -- pinned search_path (security hardening)
+as $$
 begin
   new.updated_at = now();
   return new;
