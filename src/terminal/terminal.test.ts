@@ -60,7 +60,7 @@ afterEach(() => {
 describe("Terminal (driven via keyboard)", () => {
   it("boots with a prompt showing the user and home", () => {
     const root = mount();
-    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 
   it("exposes a hidden field to capture the soft keyboard", () => {
@@ -71,7 +71,7 @@ describe("Terminal (driven via keyboard)", () => {
   it("echoes a typed command and prints its output", async () => {
     const root = mount();
     await runLine(root, "echo hej");
-    expect(root.textContent).toContain("guest@vera:~$ echo hej");
+    expect(root.textContent).toContain("guest@pia:~$ echo hej");
     const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
     expect(lines).toContain("hej");
   });
@@ -88,7 +88,7 @@ describe("Terminal (driven via keyboard)", () => {
     await runLine(root, "mkdir proj");
     await runLine(root, "cd proj");
     expect(root.querySelector(".term-prompt")?.textContent).toBe(
-      "guest@vera:~/proj$",
+      "guest@pia:~/proj$",
     );
   });
 
@@ -123,14 +123,14 @@ describe("Terminal (driven via keyboard)", () => {
   it("login changes the prompt to the new user at their home", async () => {
     const root = mount();
     await runLine(root, "login alice");
-    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@vera:~$");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$");
   });
 
   it("logout returns the prompt to guest", async () => {
     const root = mount();
     await runLine(root, "login alice");
     await runLine(root, "logout");
-    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 
   it("pipes output from one command into another", async () => {

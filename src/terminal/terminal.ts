@@ -140,7 +140,7 @@ export class Terminal {
     let shown = this.cwd;
     if (shown === home) shown = "~";
     else if (shown.startsWith(`${home}/`)) shown = `~${shown.slice(home.length)}`;
-    return `${this.session.user}@vera:${shown}$`;
+    return `${this.session.user}@pia:${shown}$`;
   }
 
   /** Redraw the active input line, with the block cursor at its position. */

@@ -1,7 +1,7 @@
 import type { DirNode } from "../vfs/types.js";
 import type { StorageAdapter } from "./adapter.js";
 
-const KEY = "vera:fs:v1";
+const KEY = "pia:fs:v1";
 
 /** Persists the filesystem tree to the browser's localStorage. */
 export class LocalStorageAdapter implements StorageAdapter {

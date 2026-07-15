@@ -130,6 +130,6 @@ describe("edit (full-screen editor)", () => {
     await runLine(root, "edit greeting.txt");
     press(root, "x", { ctrlKey: true });
     await flush();
-    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 });

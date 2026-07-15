@@ -1,6 +1,6 @@
 import type { AuthAdapter, Session } from "./adapter.js";
 
-const KEY = "vera:session:v1";
+const KEY = "pia:session:v1";
 
 /**
  * A stand-in for real auth: it accepts any username, ignores the password, and

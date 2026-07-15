@@ -53,18 +53,20 @@ export const neofetch: Command = {
   help: "show system info with a small logo",
   run(_args, ctx) {
     const info = [
-      `${ctx.session.user}@vera`,
+      `${ctx.session.user}@pia`,
       "─────────────",
-      "os      VERA v0.1",
-      "shell   vera-sh",
+      "os      PIA v0.1",
+      "name    Personal Integrated Applications",
+      "shell   pia-sh",
       "kernel  VFS + command registry",
       "theme   green phosphor",
     ];
     const logo = [
       "  ┌──────┐",
-      "  │ VERA │",
+      "  │ PIA  │",
       "  │  ◗◖  │",
       "  └──────┘",
+      "          ",
       "          ",
       "          ",
     ];

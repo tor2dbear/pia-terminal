@@ -249,7 +249,7 @@ export class Editor implements ScreenApp {
   // ---- rendering -----------------------------------------------------------
 
   private render(): void {
-    this.titleEl.textContent = `  VERA editor · ${this.filename}${
+    this.titleEl.textContent = `  PIA editor · ${this.filename}${
       this.dirty ? " *" : ""
     }`;
 

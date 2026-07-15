@@ -113,6 +113,6 @@ describe("snake (through the terminal)", () => {
     await flush();
 
     expect(root.querySelector(".sk-board")).toBeNull();
-    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 });

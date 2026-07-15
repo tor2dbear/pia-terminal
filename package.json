@@ -1,7 +1,7 @@
 {
-  "name": "vera-webterminal",
+  "name": "pia",
   "version": "0.1.0",
-  "description": "En fristående webbterminal — en liten dator i webbläsaren.",
+  "description": "PIA — Personal Integrated Applications. A standalone web terminal.",
   "type": "module",
   "scripts": {
     "dev": "vite",

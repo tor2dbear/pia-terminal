@@ -1,6 +1,7 @@
-# Webterminal — projektspec
+# PIA — projektspec
 
-> Arbetsnamn: **VERA** (ej spikat — kan bli `ODEN`, `torOS`, eller annat).
+> **PIA** — *Personal Integrated Applications*. Namnet är spikat (döpt efter Pia);
+> backronymen i Apple Lisa-andan.
 > En fristående webbterminal. Helt frikopplad från portfolion — eget repo, egen app.
 
 Detta dokument är fröet till projektet. Det sammanfattar vad vi bollat fram och är
@@ -147,10 +148,11 @@ tangenttryck · en `neofetch`-ruta med egen logga.
 Exempel på boot:
 
 ```
-VERA v0.1
+PIA v0.1
+Personal Integrated Applications
 hej. skriv 'help' för att börja.
 
-user@vera:~$ ▮
+user@pia:~$ ▮
 ```
 
 ---
