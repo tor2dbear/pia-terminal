@@ -6,7 +6,7 @@ import { buildRegistry } from "./index.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { CommandContext, LineClass } from "./registry.js";
 
-/** A cloud-like auth stub that requires a password and uses email handles. */
+/** A cloud-like auth stub that requires a password and a chosen username. */
 class PasswordAuth implements AuthAdapter {
   readonly requiresPassword = true;
   private user: string | null = null;
@@ -18,8 +18,13 @@ class PasswordAuth implements AuthAdapter {
     this.user = email.split("@")[0];
     return { user: this.user };
   }
-  async register(email: string, password?: string): Promise<Session> {
-    return this.login(email, password);
+  async register(username: string, email?: string, password?: string): Promise<Session> {
+    if (!email || !password) throw new Error("email and password required");
+    this.user = username;
+    return { user: username };
+  }
+  async rename(username: string): Promise<void> {
+    this.user = username;
   }
   async logout(): Promise<void> {
     this.user = null;
@@ -203,20 +208,45 @@ describe("auth commands", () => {
 });
 
 describe("auth with a password-requiring backend", () => {
-  it("asks for a password instead of complaining about the email", async () => {
+  it("useradd asks for email + password after the username", async () => {
     const h = harness(new PasswordAuth());
-    await h.run("register tb.hedberg@gmail.com");
+    await h.run("register tor2dbear");
     const last = h.lines.at(-1);
     expect(last?.cls).toBe("error");
-    expect(last?.text).toContain("password required");
+    expect(last?.text).toContain("email and password required");
     expect(h.ctx.session.user).toBe("guest");
   });
 
-  it("registers with an email + password and enters that home", async () => {
+  it("login asks for a password", async () => {
     const h = harness(new PasswordAuth());
-    await h.run("register tb.hedberg@gmail.com secret");
-    expect(h.ctx.session.user).toBe("tb.hedberg");
-    expect(h.cwd).toBe("/home/tb.hedberg");
+    await h.run("login tb.hedberg@gmail.com");
+    expect(h.lines.at(-1)?.text).toContain("password required");
+  });
+
+  it("registers with a username + email + password and enters that home", async () => {
+    const h = harness(new PasswordAuth());
+    await h.run("register tor2dbear tb.hedberg@gmail.com secret");
+    expect(h.ctx.session.user).toBe("tor2dbear");
+    expect(h.cwd).toBe("/home/tor2dbear");
+  });
+});
+
+describe("usermod (rename)", () => {
+  it("renames the user and moves the home directory with its files", async () => {
+    const h = harness();
+    await h.run("login alice");
+    await h.run("touch notes.txt");
+    await h.run("usermod tor2dbear");
+    expect(h.ctx.session.user).toBe("tor2dbear");
+    expect(h.cwd).toBe("/home/tor2dbear");
+    expect(h.vfs.getNode("/home/tor2dbear/notes.txt")).not.toBeNull();
+    expect(h.vfs.getNode("/home/alice")).toBeNull();
+  });
+
+  it("requires being logged in", async () => {
+    const h = harness();
+    await h.run("usermod bob");
+    expect(h.lines.at(-1)?.text).toContain("log in first");
   });
 });
 

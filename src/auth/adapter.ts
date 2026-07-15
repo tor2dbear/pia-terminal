@@ -13,10 +13,16 @@ export interface AuthAdapter {
   readonly requiresPassword: boolean;
   /** The persisted session, or null if nobody is logged in. */
   current(): Promise<Session | null>;
-  /** Log in as `user`. The fake adapter accepts anyone. */
+  /** Log in. Local: `user` is the username. Cloud: `user` is the email. */
   login(user: string, password?: string): Promise<Session>;
-  /** Create an account. The fake adapter treats this like login. */
-  register(user: string, password?: string): Promise<Session>;
+  /**
+   * Create an account with a chosen `username`. Cloud also needs email +
+   * password (the username is stored as account metadata); the fake adapter
+   * just uses the username.
+   */
+  register(username: string, email?: string, password?: string): Promise<Session>;
+  /** Change the current user's display username. */
+  rename(username: string): Promise<void>;
   /** Log out the current session. */
   logout(): Promise<void>;
 }

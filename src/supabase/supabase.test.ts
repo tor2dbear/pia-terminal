@@ -7,8 +7,14 @@ import { HybridStorageAdapter } from "./hybrid.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 
 /** A minimal in-memory stand-in for the Supabase client. */
+interface StubUser {
+  id: string;
+  email: string;
+  user_metadata: { username?: string };
+}
+
 function stubClient(): SupabaseLike {
-  let user: { id: string; email: string } | null = null;
+  let user: StubUser | null = null;
   const rows: Record<string, DirNode> = {};
   const client = {
     auth: {
@@ -19,12 +25,23 @@ function stubClient(): SupabaseLike {
         return { data: { session: user ? { user: { id: user.id } } : null } };
       },
       async signInWithPassword({ email }: { email: string; password: string }) {
-        user = { id: `uid:${email}`, email };
+        user = { id: `uid:${email}`, email, user_metadata: {} };
         return { data: { user }, error: null };
       },
-      async signUp({ email }: { email: string; password: string }) {
-        user = { id: `uid:${email}`, email };
+      async signUp({
+        email,
+        options,
+      }: {
+        email: string;
+        password: string;
+        options?: { data?: Record<string, unknown> };
+      }) {
+        user = { id: `uid:${email}`, email, user_metadata: options?.data ?? {} };
         return { data: { user }, error: null };
+      },
+      async updateUser({ data }: { data?: Record<string, unknown> }) {
+        if (user) user.user_metadata = { ...user.user_metadata, ...data };
+        return { error: null };
       },
       async signOut() {
         user = null;
@@ -75,10 +92,27 @@ describe("SupabaseAuthAdapter", () => {
     await expect(auth.login("pia@example.com")).rejects.toThrow(/password/);
   });
 
-  it("registers, then logs out", async () => {
+  it("registers with a chosen username stored as metadata", async () => {
     const auth = new SupabaseAuthAdapter(stubClient());
-    await auth.register("new@example.com", "secret");
-    expect(await auth.current()).toEqual({ user: "new" });
+    await auth.register("tor2dbear", "new@example.com", "secret");
+    expect(await auth.current()).toEqual({ user: "tor2dbear" });
+  });
+
+  it("requires email + password to register", async () => {
+    const auth = new SupabaseAuthAdapter(stubClient());
+    await expect(auth.register("tor2dbear")).rejects.toThrow(/email and password/);
+  });
+
+  it("renames the current user via metadata", async () => {
+    const auth = new SupabaseAuthAdapter(stubClient());
+    await auth.register("old", "a@b.c", "secret");
+    await auth.rename("tor2dbear");
+    expect(await auth.current()).toEqual({ user: "tor2dbear" });
+  });
+
+  it("logs out", async () => {
+    const auth = new SupabaseAuthAdapter(stubClient());
+    await auth.register("x", "new@example.com", "secret");
     await auth.logout();
     expect(await auth.current()).toBeNull();
   });

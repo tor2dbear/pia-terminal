@@ -6,18 +6,29 @@ import type { CloudConfig } from "../config.js";
  * (rather than the full generated types) keeps the adapters simple and makes
  * them trivial to stub in tests.
  */
+interface AuthUser {
+  id: string;
+  email: string | null;
+  user_metadata?: { username?: string };
+}
+
 export interface SupabaseLike {
   auth: {
-    getUser(): Promise<{
-      data: { user: { id: string; email: string | null } | null };
-    }>;
+    getUser(): Promise<{ data: { user: AuthUser | null } }>;
     getSession(): Promise<{ data: { session: { user: { id: string } } | null } }>;
     signInWithPassword(c: { email: string; password: string }): Promise<{
-      data: { user: { id: string; email: string | null } | null };
+      data: { user: AuthUser | null };
       error: { message: string } | null;
     }>;
-    signUp(c: { email: string; password: string }): Promise<{
-      data: { user: { id: string; email: string | null } | null };
+    signUp(c: {
+      email: string;
+      password: string;
+      options?: { data?: Record<string, unknown> };
+    }): Promise<{
+      data: { user: AuthUser | null };
+      error: { message: string } | null;
+    }>;
+    updateUser(attrs: { data?: Record<string, unknown> }): Promise<{
       error: { message: string } | null;
     }>;
     signOut(): Promise<{ error: { message: string } | null }>;

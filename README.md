@@ -209,8 +209,10 @@ src/
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
 `cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
-`logout` · `grep` · `find` · `wc` · `snake`. (`edit`→`nano`, `register`→`useradd`
-are aliases.)
+`usermod` · `logout` · `grep` · `find` · `wc` · `snake`. (`edit`→`nano`,
+`register`→`useradd` are aliases.) With a backend, `useradd <username> <email>
+<password>` picks a real username (stored as account metadata); `usermod
+<username>` renames you and moves your home directory.
 
 - **Terminal core:** blinking block cursor, command history, Tab-completion
   (commands + paths), a soft-keyboard capture field for mobile.

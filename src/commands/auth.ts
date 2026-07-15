@@ -3,6 +3,10 @@ import type { Command, CommandContext, Session } from "./registry.js";
 const GUEST = "guest";
 const VALID_USER = /^[a-z0-9_-]+$/i;
 
+function invalidName(verb: string): string {
+  return `${verb}: username may use letters, digits, - and _ only`;
+}
+
 /** Point the session, home directory, and cwd at `user`, creating the home. */
 async function enter(ctx: CommandContext, user: string): Promise<void> {
   const home = `/home/${user}`;
@@ -13,57 +17,100 @@ async function enter(ctx: CommandContext, user: string): Promise<void> {
   await ctx.persist();
 }
 
-/** Shared flow for login/useradd: authenticate, pull the tree, enter home. */
-async function authenticate(
-  ctx: CommandContext,
-  verb: "login" | "useradd",
-  args: string[],
-): Promise<void> {
-  const user = args[0];
-  const password = args[1];
-  const cred = verb === "login" ? "login <email> <password>" : "useradd <email> <password>";
-  const who = ctx.auth.requiresPassword ? "an email" : "a username";
-
-  if (!user) return ctx.error(`${verb}: specify ${who}`);
-  if (ctx.auth.requiresPassword) {
-    if (!password) return ctx.error(`${verb}: password required — ${cred}`);
-  } else if (!VALID_USER.test(user)) {
-    return ctx.error(`${verb}: username may use letters, digits, - and _ only`);
-  }
-
-  let session: Session;
-  try {
-    session =
-      verb === "login"
-        ? await ctx.auth.login(user, password)
-        : await ctx.auth.register(user, password);
-  } catch (err) {
-    return ctx.error(err instanceof Error ? err.message : String(err));
-  }
-
-  await ctx.reloadFs?.(); // adopt the user's cloud tree, if any
-  await enter(ctx, session.user);
-  ctx.print(
-    verb === "login"
-      ? `logged in as ${session.user}`
-      : `account created — logged in as ${session.user}`,
-    "accent",
-  );
-}
-
 export const login: Command = {
   name: "login",
-  help: "log in (a name locally; email + password with a backend)",
+  help: "log in (a username locally; email + password with a backend)",
   usage: "login <user> [password]",
-  run: (args, ctx) => authenticate(ctx, "login", args),
+  async run(args, ctx) {
+    let session: Session;
+    try {
+      if (ctx.auth.requiresPassword) {
+        const [email, password] = args;
+        if (!email) return ctx.error("login: specify an email");
+        if (!password) {
+          return ctx.error("login: password required — login <email> <password>");
+        }
+        session = await ctx.auth.login(email, password);
+      } else {
+        const user = args[0];
+        if (!user) return ctx.error("login: specify a username");
+        if (!VALID_USER.test(user)) return ctx.error(invalidName("login"));
+        session = await ctx.auth.login(user);
+      }
+    } catch (err) {
+      return ctx.error(err instanceof Error ? err.message : String(err));
+    }
+
+    await ctx.reloadFs?.(); // adopt the user's cloud tree, if any
+    await enter(ctx, session.user);
+    ctx.print(`logged in as ${session.user}`, "accent");
+  },
 };
 
 export const useradd: Command = {
   name: "useradd",
-  help: "create an account and log in (email + password with a backend)",
-  usage: "useradd <user> [password]",
+  help: "create an account and log in (add email + password with a backend)",
+  usage: "useradd <username> [email] [password]",
   aliases: ["register"],
-  run: (args, ctx) => authenticate(ctx, "useradd", args),
+  async run(args, ctx) {
+    const username = args[0];
+    if (!username) return ctx.error("useradd: specify a username");
+    if (!VALID_USER.test(username)) return ctx.error(invalidName("useradd"));
+
+    let session: Session;
+    try {
+      if (ctx.auth.requiresPassword) {
+        const [, email, password] = args;
+        if (!email || !password) {
+          return ctx.error(
+            "useradd: email and password required — useradd <username> <email> <password>",
+          );
+        }
+        session = await ctx.auth.register(username, email, password);
+      } else {
+        session = await ctx.auth.register(username);
+      }
+    } catch (err) {
+      return ctx.error(err instanceof Error ? err.message : String(err));
+    }
+
+    await ctx.reloadFs?.();
+    await enter(ctx, session.user);
+    ctx.print(`account created — logged in as ${session.user}`, "accent");
+  },
+};
+
+export const usermod: Command = {
+  name: "usermod",
+  help: "rename the current user (home directory and files follow)",
+  usage: "usermod <username>",
+  async run(args, ctx) {
+    const name = args[0];
+    if (!name) return ctx.error("usermod: specify a username");
+    if (!VALID_USER.test(name)) return ctx.error(invalidName("usermod"));
+    if (ctx.session.user === GUEST) return ctx.error("usermod: log in first");
+    if (name === ctx.session.user) return;
+
+    try {
+      await ctx.auth.rename(name);
+    } catch (err) {
+      return ctx.error(err instanceof Error ? err.message : String(err));
+    }
+
+    // Rename the home directory so the user's files follow the new name.
+    const oldHome = `/home/${ctx.session.user}`;
+    const newHome = `/home/${name}`;
+    if (ctx.vfs.getNode(oldHome) && !ctx.vfs.getNode(newHome)) {
+      ctx.vfs.move(oldHome, newHome);
+    } else {
+      ctx.vfs.mkdirp(newHome);
+    }
+    ctx.vfs.home = newHome;
+    ctx.session.user = name;
+    ctx.setCwd(newHome);
+    await ctx.persist();
+    ctx.print(`renamed to ${name}`, "accent");
+  },
 };
 
 export const logout: Command = {
@@ -80,4 +127,4 @@ export const logout: Command = {
   },
 };
 
-export const authCommands: Command[] = [login, useradd, logout];
+export const authCommands: Command[] = [login, useradd, usermod, logout];

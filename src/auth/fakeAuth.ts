@@ -22,8 +22,12 @@ export class FakeAuthAdapter implements AuthAdapter {
     return { user };
   }
 
-  async register(user: string): Promise<Session> {
-    return this.login(user);
+  async register(username: string): Promise<Session> {
+    return this.login(username);
+  }
+
+  async rename(username: string): Promise<void> {
+    localStorage.setItem(this.key, username);
   }
 
   async logout(): Promise<void> {
@@ -45,8 +49,12 @@ export class MemoryAuthAdapter implements AuthAdapter {
     return { user };
   }
 
-  async register(user: string): Promise<Session> {
-    return this.login(user);
+  async register(username: string): Promise<Session> {
+    return this.login(username);
+  }
+
+  async rename(username: string): Promise<void> {
+    this.user = username;
   }
 
   async logout(): Promise<void> {
