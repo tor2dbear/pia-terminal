@@ -79,6 +79,14 @@ direkt — den pratar med ett interface.
 annat — spel, appar, delning, AI — är bara "ännu ett kommando" ovanpå den. Ju
 stabilare kärna, desto billigare blir varje ny idé.
 
+**Designprincip — terminal-idiom först:** varje kommando/flöde ska följa
+Unix/shell-konvention (namn, flaggor, beteende). Föredra riktiga terminalnamn
+(`nano`, `useradd`, `grep -n`) framför vänliga/web-myntade (`edit`, `register`) —
+behåll de vänliga som *alias*. **När ett flöde saknar terminal-motsvarighet
+(t.ex. e-post + lösenord + bekräftelse, `share`→URL, touch-kontroller): flagga
+det och synka innan vi bygger** — så blir avvikelsen ett beslut, inte en drift.
+(Se `CLAUDE.md` för den fulla regeln.)
+
 ---
 
 ## Ambitionsnivåer (roadmap)
@@ -200,15 +208,16 @@ src/
 ### What exists
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
-`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `edit` · `login` · `logout` ·
-`grep` · `find` · `wc` · `snake`.
+`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
+`logout` · `grep` · `find` · `wc` · `snake`. (`edit`→`nano`, `register`→`useradd`
+are aliases.)
 
 - **Terminal core:** blinking block cursor, command history, Tab-completion
   (commands + paths), a soft-keyboard capture field for mobile.
 - **Pipes & redirects:** `a | b | c`, `> file`, `>> file` — commands have real
   stdin/stdout; `grep`/`find`/`wc` read files or piped input.
-- **Screen apps** (via the app host): a full-screen `edit`or (^S save, ^X exit)
-  and `snake` (arrows/WASD, on-screen D-pad) — both fully playable on a phone.
+- **Screen apps** (via the app host): `nano` (^O save, ^X exit) and `snake`
+  (arrows/WASD, on-screen D-pad) — both fully playable on a phone.
 - **Fake auth** with per-user home directories (`AuthAdapter`), the boot
   sequence, and persistence via `LocalStorageAdapter`.
 

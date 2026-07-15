@@ -8,6 +8,8 @@ function handle(email: string | null | undefined): string {
 
 /** Real authentication backed by Supabase Auth (email + password). */
 export class SupabaseAuthAdapter implements AuthAdapter {
+  readonly requiresPassword = true;
+
   constructor(private readonly client: SupabaseLike) {}
 
   async current(): Promise<Session | null> {

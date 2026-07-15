@@ -39,7 +39,7 @@ export class Editor implements ScreenApp {
 
     // Tappable controls so the editor is fully usable on a phone, where there
     // is no Ctrl key to reach ^S / ^X.
-    const saveBtn = this.keyButton("^S save", () => void this.save());
+    const saveBtn = this.keyButton("^O save", () => void this.save());
     const exitBtn = this.keyButton("^X exit", () => this.requestExit());
     this.msgEl = document.createElement("span");
     this.msgEl.className = "ed-msg";
@@ -78,7 +78,7 @@ export class Editor implements ScreenApp {
   }
 
   onKey(e: KeyboardEvent): void {
-    if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
+    if (e.ctrlKey && (e.key === "o" || e.key === "O")) {
       e.preventDefault();
       void this.save();
       return;
@@ -242,7 +242,7 @@ export class Editor implements ScreenApp {
       return;
     }
     this.quitArmed = true;
-    this.message = "unsaved changes — ^X again to discard, ^S to save";
+    this.message = "unsaved changes — ^X again to discard, ^O to save";
     this.render();
   }
 

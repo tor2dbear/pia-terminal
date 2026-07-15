@@ -2,13 +2,14 @@ import { Editor } from "../apps/editor.js";
 import { isFile } from "../vfs/types.js";
 import type { Command } from "./registry.js";
 
-export const edit: Command = {
-  name: "edit",
+export const nano: Command = {
+  name: "nano",
   help: "edit a text file in a full-screen editor",
-  usage: "edit <file>",
+  usage: "nano <file>",
+  aliases: ["edit"],
   async run(args, ctx) {
     const name = args[0];
-    if (!name) return ctx.error("edit: specify a file");
+    if (!name) return ctx.error("nano: specify a file");
 
     const path = ctx.vfs.resolve(ctx.cwd, name);
     const node = ctx.vfs.getNode(path);
@@ -32,4 +33,4 @@ export const edit: Command = {
   },
 };
 
-export const editCommands: Command[] = [edit];
+export const editCommands: Command[] = [nano];

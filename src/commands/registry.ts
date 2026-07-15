@@ -44,37 +44,38 @@ export interface Command {
   name: string;
   help: string;
   usage?: string;
+  /** Alternative names that resolve to this command (e.g. `edit` → `nano`). */
+  aliases?: string[];
   run(args: string[], ctx: CommandContext): void | Promise<void>;
 }
 
-/** Holds the set of available commands, keyed by name. */
+/** Holds the set of available commands, resolvable by name or alias. */
 export class CommandRegistry {
-  private commands = new Map<string, Command>();
+  private byName = new Map<string, Command>();
+  private primaries: Command[] = [];
 
   register(command: Command): this {
-    this.commands.set(command.name, command);
+    this.byName.set(command.name, command);
+    this.primaries.push(command);
+    for (const alias of command.aliases ?? []) this.byName.set(alias, command);
     return this;
   }
 
   get(name: string): Command | undefined {
-    return this.commands.get(name);
+    return this.byName.get(name);
   }
 
   has(name: string): boolean {
-    return this.commands.has(name);
+    return this.byName.has(name);
   }
 
-  /** All commands, sorted by name — used by `help` and Tab-completion. */
+  /** Primary commands (no aliases), sorted by name — used by `help`. */
   all(): Command[] {
-    return [...this.commands.values()].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    return [...this.primaries].sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Command names starting with `prefix`, for Tab-completion. */
+  /** Names and aliases starting with `prefix`, for Tab-completion. */
   namesStartingWith(prefix: string): string[] {
-    return this.all()
-      .map((c) => c.name)
-      .filter((n) => n.startsWith(prefix));
+    return [...this.byName.keys()].filter((n) => n.startsWith(prefix)).sort();
   }
 }

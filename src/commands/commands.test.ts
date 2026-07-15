@@ -3,10 +3,31 @@ import { VFS, HOME } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
+import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { CommandContext, LineClass } from "./registry.js";
 
+/** A cloud-like auth stub that requires a password and uses email handles. */
+class PasswordAuth implements AuthAdapter {
+  readonly requiresPassword = true;
+  private user: string | null = null;
+  async current(): Promise<Session | null> {
+    return this.user ? { user: this.user } : null;
+  }
+  async login(email: string, password?: string): Promise<Session> {
+    if (!password) throw new Error("bad");
+    this.user = email.split("@")[0];
+    return { user: this.user };
+  }
+  async register(email: string, password?: string): Promise<Session> {
+    return this.login(email, password);
+  }
+  async logout(): Promise<void> {
+    this.user = null;
+  }
+}
+
 /** A test harness: runs commands over a real VFS and captures output. */
-function harness() {
+function harness(auth: AuthAdapter = new MemoryAuthAdapter()) {
   const vfs = VFS.seed();
   const adapter = new MemoryStorageAdapter();
   const registry = buildRegistry();
@@ -16,7 +37,7 @@ function harness() {
   const ctx: CommandContext = {
     vfs,
     registry,
-    auth: new MemoryAuthAdapter(),
+    auth,
     session: { user: "guest" },
     stdin: "",
     piped: false,
@@ -172,6 +193,30 @@ describe("auth commands", () => {
     await h.run("login alice");
     await h.run("touch notes.txt");
     expect(h.vfs.getNode("/home/alice/notes.txt")).not.toBeNull();
+  });
+
+  it("useradd is reachable via its `register` alias", async () => {
+    const h = harness();
+    expect(h.ctx.registry.get("register")).toBe(h.ctx.registry.get("useradd"));
+    expect(h.ctx.registry.get("edit")).toBe(h.ctx.registry.get("nano"));
+  });
+});
+
+describe("auth with a password-requiring backend", () => {
+  it("asks for a password instead of complaining about the email", async () => {
+    const h = harness(new PasswordAuth());
+    await h.run("register tb.hedberg@gmail.com");
+    const last = h.lines.at(-1);
+    expect(last?.cls).toBe("error");
+    expect(last?.text).toContain("password required");
+    expect(h.ctx.session.user).toBe("guest");
+  });
+
+  it("registers with an email + password and enters that home", async () => {
+    const h = harness(new PasswordAuth());
+    await h.run("register tb.hedberg@gmail.com secret");
+    expect(h.ctx.session.user).toBe("tb.hedberg");
+    expect(h.cwd).toBe("/home/tb.hedberg");
   });
 });
 

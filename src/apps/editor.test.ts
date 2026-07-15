@@ -70,7 +70,7 @@ describe("edit (full-screen editor)", () => {
     type(root, "hello world");
     press(root, "Enter");
     type(root, "second line");
-    press(root, "s", { ctrlKey: true }); // save
+    press(root, "o", { ctrlKey: true }); // save (nano's WriteOut)
     await flush();
     press(root, "x", { ctrlKey: true }); // exit (clean)
     await flush();

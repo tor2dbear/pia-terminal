@@ -8,6 +8,8 @@ const KEY = "pia:session:v1";
  * adapter, so the login/logout commands never change.
  */
 export class FakeAuthAdapter implements AuthAdapter {
+  readonly requiresPassword = false;
+
   constructor(private key: string = KEY) {}
 
   async current(): Promise<Session | null> {
@@ -31,6 +33,7 @@ export class FakeAuthAdapter implements AuthAdapter {
 
 /** In-memory auth — for tests and no-storage environments. */
 export class MemoryAuthAdapter implements AuthAdapter {
+  readonly requiresPassword = false;
   private user: string | null = null;
 
   async current(): Promise<Session | null> {

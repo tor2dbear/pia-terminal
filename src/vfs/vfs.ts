@@ -30,7 +30,7 @@ export class VFS {
         "hello and welcome.",
         "",
         "this is your home. create files with `touch`, folders with `mkdir`,",
-        "read them with `cat`, edit them with `edit`. type `help` for everything.",
+        "read them with `cat`, edit them with `nano`. type `help` for everything.",
         "",
       ].join("\n"),
     );

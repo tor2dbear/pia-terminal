@@ -9,6 +9,8 @@ export interface Session {
  * not of every call site.
  */
 export interface AuthAdapter {
+  /** Whether login/registration needs a password (cloud) or just a name (fake). */
+  readonly requiresPassword: boolean;
   /** The persisted session, or null if nobody is logged in. */
   current(): Promise<Session | null>;
   /** Log in as `user`. The fake adapter accepts anyone. */
