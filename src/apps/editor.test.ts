@@ -108,6 +108,21 @@ describe("edit (full-screen editor)", () => {
     );
   });
 
+  it("save and exit are reachable by tapping the status keys (mobile)", async () => {
+    const root = mount();
+    await runLine(root, "edit tap.txt");
+    type(root, "tapped in");
+    const keys = root.querySelectorAll(".ed-key");
+    keys[0].dispatchEvent(new Event("pointerup", { bubbles: true })); // ^S save
+    await flush();
+    keys[1].dispatchEvent(new Event("pointerup", { bubbles: true })); // ^X exit
+    await flush();
+
+    expect(editorOpen(root)).toBe(false);
+    await runLine(root, "cat tap.txt");
+    expect(root.textContent).toContain("tapped in");
+  });
+
   it("returns to the terminal prompt after exiting", async () => {
     const root = mount();
     await runLine(root, "edit greeting.txt");

@@ -142,10 +142,44 @@ body {
 
 .ed-status {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   background: var(--dim);
   color: var(--bg);
-  padding: 0.15rem 0.5rem;
-  white-space: pre-wrap;
+  padding: 0.25rem 0.5rem;
+}
+
+.ed-key {
+  font: inherit;
+  color: var(--bg);
+  background: rgba(11, 15, 10, 0.25);
+  border: 1px solid rgba(11, 15, 10, 0.4);
+  border-radius: 3px;
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+  /* Comfortable tap target on touch screens. */
+  min-height: 1.9em;
+}
+
+.ed-key:hover,
+.ed-key:focus-visible {
+  background: rgba(11, 15, 10, 0.4);
+  outline: none;
+}
+
+.ed-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-pos {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 @keyframes blink {

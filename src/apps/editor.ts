@@ -19,6 +19,8 @@ export class Editor implements ScreenApp {
   private titleEl!: HTMLDivElement;
   private bodyEl!: HTMLDivElement;
   private statusEl!: HTMLDivElement;
+  private msgEl!: HTMLSpanElement;
+  private posEl!: HTMLSpanElement;
 
   constructor(
     private readonly filename: string,
@@ -34,10 +36,34 @@ export class Editor implements ScreenApp {
     this.titleEl.className = "ed-title";
     this.bodyEl = document.createElement("div");
     this.bodyEl.className = "ed-body";
+
+    // Tappable controls so the editor is fully usable on a phone, where there
+    // is no Ctrl key to reach ^S / ^X.
+    const saveBtn = this.keyButton("^S save", () => void this.save());
+    const exitBtn = this.keyButton("^X exit", () => this.requestExit());
+    this.msgEl = document.createElement("span");
+    this.msgEl.className = "ed-msg";
+    this.posEl = document.createElement("span");
+    this.posEl.className = "ed-pos";
+
     this.statusEl = document.createElement("div");
     this.statusEl.className = "ed-status";
+    this.statusEl.append(saveBtn, exitBtn, this.msgEl, this.posEl);
+
     container.append(this.titleEl, this.bodyEl, this.statusEl);
     this.render();
+  }
+
+  private keyButton(label: string, onActivate: () => void): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ed-key";
+    btn.textContent = label;
+    btn.addEventListener("pointerup", (e) => {
+      e.preventDefault();
+      onActivate();
+    });
+    return btn;
   }
 
   unmount(): void {
@@ -250,12 +276,9 @@ export class Editor implements ScreenApp {
       this.bodyEl.append(lineEl);
     });
 
-    const hints = "^S save   ^X exit";
-    const pos = `Ln ${this.row + 1}, Col ${this.col + 1}`;
-    this.statusEl.textContent = this.message
-      ? `${hints}    ${this.message}    ${pos}`
-      : `${hints}    ${pos}`;
+    this.msgEl.textContent = this.message;
     this.message = "";
+    this.posEl.textContent = `Ln ${this.row + 1}, Col ${this.col + 1}`;
 
     // scrollIntoView exists in browsers but not in jsdom; guard so tests pass.
     const cur = cursorEl as HTMLElement | null;
