@@ -234,3 +234,49 @@ describe("on-screen key bar", () => {
     expect(atPrompt).toContain("^C");
   });
 });
+
+/** The full inline suggestion currently shown (cursor char + dimmed rest). */
+function ghost(root: HTMLElement): string {
+  const rest = root.querySelector(".term-ghost");
+  if (!rest) return "";
+  const cursor = root.querySelector(".term-typed .term-cursor");
+  return (cursor?.textContent ?? "") + (rest.textContent ?? "");
+}
+
+describe("inline autosuggestion (ghost text)", () => {
+  it("suggests the rest of a command as you type", () => {
+    const root = mount();
+    type(root, "neof");
+    expect(ghost(root)).toBe("etch");
+  });
+
+  it("suggests a filename from the filesystem", () => {
+    const root = mount();
+    type(root, "cat wel");
+    expect(ghost(root)).toBe("come.txt");
+  });
+
+  it("accepts the suggestion with the → key", () => {
+    const root = mount();
+    type(root, "neof");
+    press(root, "ArrowRight");
+    expect(typed(root)).toContain("neofetch");
+    expect(ghost(root)).toBe("");
+  });
+
+  it("accepts the suggestion by tapping it", () => {
+    const root = mount();
+    type(root, "neof");
+    root
+      .querySelector(".term-ghost")!
+      .dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(typed(root)).toContain("neofetch");
+  });
+
+  it("shows no suggestion when the cursor is not at the end", () => {
+    const root = mount();
+    type(root, "neof");
+    press(root, "ArrowLeft");
+    expect(ghost(root)).toBe("");
+  });
+});

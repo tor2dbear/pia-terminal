@@ -165,19 +165,82 @@ export class Terminal {
     const typed = document.createElement("span");
     typed.className = "term-typed";
 
-    const before = this.buffer.slice(0, this.cursor);
-    const atChar = this.buffer[this.cursor] ?? " ";
-    const after = this.buffer.slice(this.cursor + 1);
-
-    typed.append(document.createTextNode(before));
-    const cursorEl = document.createElement("span");
-    cursorEl.className = "term-cursor";
-    cursorEl.textContent = atChar;
-    typed.append(cursorEl);
-    typed.append(document.createTextNode(after));
+    const ghost = this.suggestion();
+    if (ghost) {
+      // Cursor sits on the first ghost char; the rest trails dimmed. The whole
+      // suggestion is tappable to accept it (fish-style, but for touch).
+      typed.append(document.createTextNode(this.buffer));
+      const cursorEl = document.createElement("span");
+      cursorEl.className = "term-cursor";
+      cursorEl.textContent = ghost[0];
+      const restEl = document.createElement("span");
+      restEl.className = "term-ghost";
+      restEl.textContent = ghost.slice(1);
+      const accept = (e: Event): void => {
+        e.preventDefault();
+        this.acceptSuggestion();
+        this.focusKbd();
+      };
+      cursorEl.addEventListener("pointerdown", accept);
+      restEl.addEventListener("pointerdown", accept);
+      typed.append(cursorEl, restEl);
+    } else {
+      const before = this.buffer.slice(0, this.cursor);
+      const atChar = this.buffer[this.cursor] ?? " ";
+      const after = this.buffer.slice(this.cursor + 1);
+      typed.append(document.createTextNode(before));
+      const cursorEl = document.createElement("span");
+      cursorEl.className = "term-cursor";
+      cursorEl.textContent = atChar;
+      typed.append(cursorEl);
+      typed.append(document.createTextNode(after));
+    }
 
     this.inputEl.append(prompt, typed);
     this.scrollToBottom();
+  }
+
+  // ---- inline autosuggestion (ghost text) ----------------------------------
+
+  /** Completions for the token at the end of `text` (command or path). */
+  private completions(text: string): { fragment: string; candidates: string[] } {
+    const endsWithSpace = /\s$/.test(text) || text === "";
+    const tokens = tokenize(text);
+    const index = endsWithSpace ? tokens.length : tokens.length - 1;
+    const fragment = endsWithSpace ? "" : (tokens[tokens.length - 1] ?? "");
+    const candidates =
+      index === 0
+        ? this.registry.namesStartingWith(fragment)
+        : this.completePath(fragment);
+    return { fragment, candidates };
+  }
+
+  /** The ghost suffix to show after the cursor, or "" when there is none. */
+  private suggestion(): string {
+    if (this.cursor !== this.buffer.length) return ""; // only at end of line
+    const { fragment, candidates } = this.completions(this.buffer);
+    if (fragment === "" || candidates.length === 0) return "";
+    const first = candidates[0];
+    return first.startsWith(fragment) ? first.slice(fragment.length) : "";
+  }
+
+  /** Accept the current ghost suggestion, appending it to the line. */
+  private acceptSuggestion(): void {
+    const ghost = this.suggestion();
+    if (!ghost) return;
+    this.buffer += ghost;
+    this.cursor = this.buffer.length;
+    this.renderInput();
+  }
+
+  /** Move the cursor right, or accept the suggestion when already at the end. */
+  private cursorRight(): void {
+    if (this.cursor < this.buffer.length) {
+      this.cursor++;
+      this.renderInput();
+    } else {
+      this.acceptSuggestion();
+    }
   }
 
   /** Hide the input line while a command runs. */
@@ -225,8 +288,7 @@ export class Terminal {
         return;
       case "ArrowRight":
         e.preventDefault();
-        if (this.cursor < this.buffer.length) this.cursor++;
-        this.renderInput();
+        this.cursorRight();
         return;
       case "Home":
         e.preventDefault();
@@ -322,17 +384,7 @@ export class Terminal {
   // ---- Tab-completion -------------------------------------------------------
 
   private completeTab(): void {
-    const text = this.buffer.slice(0, this.cursor);
-    const endsWithSpace = /\s$/.test(text) || text === "";
-    const tokens = tokenize(text);
-    const index = endsWithSpace ? tokens.length : tokens.length - 1;
-    const fragment = endsWithSpace ? "" : (tokens[tokens.length - 1] ?? "");
-
-    const candidates =
-      index === 0
-        ? this.registry.namesStartingWith(fragment)
-        : this.completePath(fragment);
-
+    const { fragment, candidates } = this.completions(this.buffer.slice(0, this.cursor));
     if (candidates.length === 0) return;
 
     if (candidates.length === 1) {
@@ -522,7 +574,7 @@ export class Terminal {
       { label: "↑", run: () => this.recallHistory(-1) },
       { label: "↓", run: () => this.recallHistory(1) },
       { label: "←", run: () => this.moveCursor(-1) },
-      { label: "→", run: () => this.moveCursor(1) },
+      { label: "→", run: () => this.cursorRight() },
       insert("|"),
       insert(">"),
       insert("~"),

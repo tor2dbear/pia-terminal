@@ -99,6 +99,12 @@ body {
   animation: blink 1s step-end infinite;
 }
 
+/* Inline autosuggestion (ghost text) — dimmed, and tappable to accept. */
+.term-ghost {
+  color: var(--dim);
+  cursor: pointer;
+}
+
 .term-cursor.hidden {
   animation: none;
   background: transparent;
