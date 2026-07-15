@@ -5,6 +5,40 @@ import { FakeAuthAdapter } from "./auth/fakeAuth.js";
 import { buildRegistry } from "./commands/index.js";
 import { Terminal } from "./terminal/terminal.js";
 import { boot } from "./boot.js";
+import { cloudConfig } from "./config.js";
+import type { StorageAdapter } from "./storage/adapter.js";
+import type { AuthAdapter } from "./auth/adapter.js";
+
+/**
+ * Choose the storage + auth adapters. With Supabase configured, guests stay on
+ * localStorage and logged-in users get cloud storage + real auth; otherwise
+ * everything is local and auth is faked. The Supabase modules load only in the
+ * cloud branch, so the base bundle never pays for them when it is off.
+ */
+async function makeAdapters(): Promise<{
+  adapter: StorageAdapter;
+  auth: AuthAdapter;
+}> {
+  if (!cloudConfig) {
+    return { adapter: new LocalStorageAdapter(), auth: new FakeAuthAdapter() };
+  }
+  const [{ createSupabase }, { SupabaseAuthAdapter }, { SupabaseStorageAdapter }, { HybridStorageAdapter }] =
+    await Promise.all([
+      import("./supabase/client.js"),
+      import("./supabase/auth.js"),
+      import("./supabase/storage.js"),
+      import("./supabase/hybrid.js"),
+    ]);
+  const client = await createSupabase(cloudConfig);
+  return {
+    auth: new SupabaseAuthAdapter(client),
+    adapter: new HybridStorageAdapter(
+      new LocalStorageAdapter(),
+      new SupabaseStorageAdapter(client),
+      client,
+    ),
+  };
+}
 
 /** Carry saves from the old "vera:" keys over to "pia:" after the rename. */
 function migrateLegacyKeys(): void {
@@ -26,12 +60,11 @@ async function main(): Promise<void> {
   if (!root) throw new Error("missing #screen element");
 
   migrateLegacyKeys();
-  const adapter = new LocalStorageAdapter();
+  const { adapter, auth } = await makeAdapters();
   const saved = await adapter.load();
   const vfs = saved ? new VFS(saved) : VFS.seed();
   if (!saved) await adapter.save(vfs.root);
 
-  const auth = new FakeAuthAdapter();
   const session = (await auth.current()) ?? { user: "guest" };
 
   const registry = buildRegistry();

@@ -33,6 +33,8 @@ export interface CommandContext {
   persist(): Promise<void>;
   /** Hand the screen to a full-screen app; resolves when the app exits. */
   runApp(factory: ScreenAppFactory): Promise<void>;
+  /** Reload the filesystem tree from storage (e.g. after a cloud login). */
+  reloadFs?(): Promise<void>;
   /** The registry, so `help` can enumerate commands. */
   registry: CommandRegistry;
 }

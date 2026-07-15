@@ -13,6 +13,8 @@ export interface AuthAdapter {
   current(): Promise<Session | null>;
   /** Log in as `user`. The fake adapter accepts anyone. */
   login(user: string, password?: string): Promise<Session>;
+  /** Create an account. The fake adapter treats this like login. */
+  register(user: string, password?: string): Promise<Session>;
   /** Log out the current session. */
   logout(): Promise<void>;
 }

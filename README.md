@@ -212,14 +212,34 @@ Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls`
 - **Fake auth** with per-user home directories (`AuthAdapter`), the boot
   sequence, and persistence via `LocalStorageAdapter`.
 
-82 tests cover the VFS, parser + pipelines, commands, auth, the keyboard-driven
-terminal, the editor, and the snake game logic.
+89 tests cover the VFS, parser + pipelines, commands, auth, the keyboard-driven
+terminal, the editor, the snake game logic, and the Supabase adapters.
 
 Level 0 is complete; Level 1 (pipes, grep/find) and the first Level 2 screen-app
 game are in.
 
+### Backend (Supabase) — built, dormant
+
+The cloud path is fully coded behind a config flag. With no Supabase config the
+app is 100% local (guest + `LocalStorageAdapter`) and Supabase is tree-shaken
+out of the bundle. Provide the two env vars and it activates: real accounts
+(`register`/`login <email> <password>`), and files that follow you between
+devices. Guests stay local; logged-in users get cloud storage (`HybridStorageAdapter`).
+
+To turn it on:
+
+1. Create a free Supabase project.
+2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql) (a
+   per-user `filesystems` table with Row-Level Security).
+3. Authentication → Providers → enable **Email** (turn off email confirmation
+   for the simplest start).
+4. Settings → API → copy the **Project URL** and **anon public** key.
+5. Local dev: copy `.env.example` to `.env.local` and fill both in.
+   Deploy: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as GitHub
+   repository **Variables** (they are safe to be public; RLS protects the data).
+6. Push — the deploy workflow bakes them into the build.
+
 ### Next steps
 
-Theme switching / config · Level 1 goodies (`grep`/`find`, pipes, `.md`
-rendering) · a first Level 2 screen-app (a game). Backend (Level 3) swaps
-`LocalStorageAdapter`/`FakeAuthAdapter` for Supabase behind the same interfaces.
+`share <file>` / `publish <folder>` (needs the backend) · theme switching /
+config · more Level 2 apps (`2048`, `draw`) · `.md` rendering.

@@ -454,6 +454,10 @@ export class Terminal {
       error: (text) => this.print(text, "error"),
       clear: () => this.clear(),
       persist: () => this.adapter.save(this.vfs.root),
+      reloadFs: async () => {
+        const root = await this.adapter.load();
+        if (root) this.vfs.root = root;
+      },
       runApp: capture
         ? () => {
             this.print("cannot run a full-screen app in a pipeline", "error");
