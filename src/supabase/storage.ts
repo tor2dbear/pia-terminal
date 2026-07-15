@@ -34,7 +34,10 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
 
   private async uid(): Promise<string | null> {
-    const { data } = await this.client.auth.getUser();
-    return data.user?.id ?? null;
+    // Read the id from the locally-stored session (no network) so a flaky
+    // getUser() request can never make load() spuriously return null — which
+    // would otherwise be mistaken for "new user" and clobber saved files.
+    const { data } = await this.client.auth.getSession();
+    return data.session?.user?.id ?? null;
   }
 }

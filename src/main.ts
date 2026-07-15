@@ -62,8 +62,17 @@ async function main(): Promise<void> {
   migrateLegacyKeys();
   const { adapter, auth } = await makeAdapters();
   const saved = await adapter.load();
-  const vfs = saved ? new VFS(saved) : VFS.seed();
-  if (!saved) await adapter.save(vfs.root);
+  let vfs: VFS;
+  if (saved) {
+    vfs = new VFS(saved);
+  } else {
+    vfs = VFS.seed();
+    // Persist the fresh seed only for the local/guest case. Never auto-write a
+    // blank tree to the cloud on boot — a transient load miss must not clobber
+    // a logged-in user's saved files. A genuinely new cloud user's tree is
+    // persisted by their first real mutation instead.
+    if (!cloudConfig) await adapter.save(vfs.root);
+  }
 
   const session = (await auth.current()) ?? { user: "guest" };
 

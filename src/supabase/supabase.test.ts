@@ -136,6 +136,21 @@ describe("SupabaseStorageAdapter", () => {
     const loaded = await store.load();
     expect(loaded?.children["notes.txt"]).toBeDefined();
   });
+
+  it("loads off the session id even if getUser() fails (no clobber)", async () => {
+    const client = stubClient();
+    await client.auth.signInWithPassword({ email: "a@b.c", password: "x" });
+    const store = new SupabaseStorageAdapter(client);
+    const t = tree();
+    t.children["keep.txt"] = { type: "file", name: "keep.txt", content: "x" };
+    await store.save(t);
+    // Simulate a flaky network getUser — load must not depend on it.
+    (client.auth as { getUser: unknown }).getUser = async () => ({
+      data: { user: null },
+    });
+    const loaded = await store.load();
+    expect(loaded?.children["keep.txt"]).toBeDefined();
+  });
 });
 
 describe("HybridStorageAdapter", () => {
