@@ -26,6 +26,7 @@ function harness() {
     error: (text: string) => lines.push({ text, cls: "error" }),
     clear: () => (lines.length = 0),
     persist: () => adapter.save(vfs.root),
+    runApp: async () => {}, // no screen in the headless command harness
   };
 
   async function run(line: string): Promise<void> {
@@ -110,8 +111,8 @@ describe("system commands", () => {
 
   it("echo joins its arguments", async () => {
     const h = harness();
-    await h.run("echo hej där");
-    expect(h.text()).toEqual(["hej där"]);
+    await h.run("echo hi there");
+    expect(h.text()).toEqual(["hi there"]);
   });
 
   it("unknown flags are ignored by rm but files still removed", async () => {

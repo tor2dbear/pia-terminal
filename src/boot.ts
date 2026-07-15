@@ -6,9 +6,9 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function boot(term: Terminal): Promise<void> {
   term.print("VERA v0.1", "accent");
   await delay(180);
-  term.print("minne ok · vfs monterat · adaptrar laddade", "dim");
+  term.print("memory ok · vfs mounted · adapters loaded", "dim");
   await delay(180);
   term.print();
-  term.print("hej. skriv 'help' för att börja.");
+  term.print("hi. type 'help' to begin.");
   term.print();
 }

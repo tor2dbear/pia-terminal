@@ -102,6 +102,52 @@ body {
   background: transparent;
 }
 
+/* ---- full-screen editor ------------------------------------------------- */
+
+.term-app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ed-title {
+  flex: 0 0 auto;
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.15rem 0.5rem;
+  font-weight: 600;
+}
+
+.ed-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0.5rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ed-line {
+  min-height: 1.5em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ed-cursor {
+  display: inline-block;
+  min-width: 1ch;
+  background: var(--fg);
+  color: var(--bg);
+  animation: blink 1s step-end infinite;
+}
+
+.ed-status {
+  flex: 0 0 auto;
+  background: var(--dim);
+  color: var(--bg);
+  padding: 0.15rem 0.5rem;
+  white-space: pre-wrap;
+}
+
 @keyframes blink {
   50% {
     background: transparent;

@@ -155,50 +155,56 @@ user@vera:~$ ▮
 
 ---
 
-## Kom igång (implementation)
+## Getting started (implementation)
 
-**Live:** https://tor2dbear.github.io/pia-terminal/ — publiceras automatiskt av
-GitHub Pages vid varje push till `main` (`.github/workflows/deploy.yml` kör
-typecheck + tester som grind innan bygget läggs upp).
+> Note: the app UI is in English. The design spec above is still in Swedish.
 
-Kärnan (Nivå 0) är scaffoldad och körbar.
+**Live:** https://tor2dbear.github.io/pia-terminal/ — deployed automatically by
+GitHub Pages on every push to `main` (`.github/workflows/deploy.yml` runs
+typecheck + tests as a gate before publishing the build).
+
+The core (Level 0) is scaffolded and runnable.
 
 ```bash
 npm install
-npm run dev        # starta dev-servern (Vite + HMR)
-npm test           # kör testsviten (Vitest)
-npm run typecheck  # typkontroll utan bygge
-npm run build      # produktionsbygge till dist/
+npm run dev        # start the dev server (Vite + HMR)
+npm test           # run the test suite (Vitest)
+npm run typecheck  # type-check without building
+npm run build      # production build to dist/
 ```
 
-### Varför TypeScript + Vite (och inte vanilj JS)?
+### Why TypeScript + Vite (not vanilla JS)?
 
-Arkitekturen vilar på **kontrakt** — `StorageAdapter`/`AuthAdapter` är interfaces
-och varje kommando är ett typat `{ name, help, run(args, ctx) }`. TS upprätthåller
-de kontrakten åt oss, så backend-steget blir ett *byte, inte en omskrivning*. Vite
-följer nästan gratis (kör TS + ger HMR för snabb finjustering av boot/markör/färg).
+The architecture rests on **contracts** — `StorageAdapter`/`AuthAdapter` are
+interfaces and every command is a typed `{ name, help, run(args, ctx) }`. TS
+enforces those contracts for us, so the backend step becomes a *swap, not a
+rewrite*. Vite follows almost for free (runs TS + gives HMR for quickly tuning
+the boot sequence, cursor, and colors).
 
-### Kodstruktur
+### Code layout
 
 ```
 src/
-  vfs/          virtuellt filsystem (träd + sökvägsupplösning)
-  storage/      StorageAdapter-interface + LocalStorage/Memory-implementationer
-  commands/     command registry + Nivå 0-kommandon (fs.ts, system.ts)
-  terminal/     terminal-kärnan (input, markör, history, Tab) + input-parser
-  boot.ts       boot-sekvens
-  main.ts       entry point (kopplar ihop allt)
+  vfs/          virtual filesystem (tree + path resolution)
+  storage/      StorageAdapter interface + LocalStorage/Memory implementations
+  commands/     command registry + Level 0 commands (fs, system, edit)
+  terminal/     terminal core (input, cursor, history, Tab) + screen-app host
+  apps/         full-screen apps (editor)
+  boot.ts       boot sequence
+  main.ts       entry point (wires everything together)
 ```
 
-### Vad som finns (Nivå 0)
+### What exists (Level 0)
 
-Kommandon: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
-`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv`. Blinkande blockmarkör,
-command-history (pil upp/ner), Tab-komplettering (kommandon + sökvägar),
-boot-sekvens, och persistens via `LocalStorageAdapter`. 37 tester täcker VFS,
-parser, kommandon och den tangentbordsdrivna terminalen.
+Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
+`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `edit`. Blinking block cursor,
+command history (arrow up/down), Tab-completion (commands + paths), a soft-
+keyboard capture field for mobile, a full-screen `edit`or (^S save, ^X exit),
+the boot sequence, and persistence via `LocalStorageAdapter`. 43 tests cover the
+VFS, parser, commands, the keyboard-driven terminal, and the editor.
 
-### Nästa steg
+### Next steps
 
-`edit` (mini-editor) · `AuthAdapter` med riktig fejk-login · tema-växling/config.
-Se roadmap ovan — härifrån är det mesta "ännu ett kommando".
+`AuthAdapter` with a real fake `login`/`logout` · theme switching / config ·
+Level 1 goodies (`grep`/`find`, pipes, `.md` rendering). From here most of it is
+"just another command".

@@ -94,7 +94,7 @@ describe("Terminal (driven via keyboard)", () => {
     const root = mount();
     await runLine(root, "frobnicate");
     const err = root.querySelector(".term-line.error");
-    expect(err?.textContent).toContain("okänt kommando");
+    expect(err?.textContent).toContain("unknown command");
   });
 
   it("recalls the previous command with ArrowUp", async () => {

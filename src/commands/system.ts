@@ -2,30 +2,30 @@ import type { Command } from "./registry.js";
 
 export const help: Command = {
   name: "help",
-  help: "visa den här hjälpen, eller hjälp för ett kommando",
-  usage: "help [kommando]",
+  help: "show this help, or help for one command",
+  usage: "help [command]",
   run(args, ctx) {
     if (args[0]) {
       const cmd = ctx.registry.get(args[0]);
-      if (!cmd) return ctx.error(`help: okänt kommando: ${args[0]}`);
+      if (!cmd) return ctx.error(`help: unknown command: ${args[0]}`);
       ctx.print(cmd.usage ?? cmd.name, "accent");
       ctx.print(`  ${cmd.help}`);
       return;
     }
-    ctx.print("tillgängliga kommandon:", "dim");
+    ctx.print("available commands:", "dim");
     ctx.print();
     const width = Math.max(...ctx.registry.all().map((c) => c.name.length));
     for (const cmd of ctx.registry.all()) {
       ctx.print(`  ${cmd.name.padEnd(width)}  ${cmd.help}`);
     }
     ctx.print();
-    ctx.print("skriv `help <kommando>` för användning.", "dim");
+    ctx.print("type `help <command>` for usage.", "dim");
   },
 };
 
 export const whoami: Command = {
   name: "whoami",
-  help: "visa vem du är inloggad som",
+  help: "show who you are logged in as",
   run(_args, ctx) {
     ctx.print(ctx.session.user);
   },
@@ -33,7 +33,7 @@ export const whoami: Command = {
 
 export const echo: Command = {
   name: "echo",
-  help: "skriv ut sina argument",
+  help: "print the arguments",
   usage: "echo [text...]",
   run(args, ctx) {
     ctx.print(args.join(" "));
@@ -42,7 +42,7 @@ export const echo: Command = {
 
 export const clear: Command = {
   name: "clear",
-  help: "rensa skärmen",
+  help: "clear the screen",
   run(_args, ctx) {
     ctx.clear();
   },
@@ -50,15 +50,15 @@ export const clear: Command = {
 
 export const neofetch: Command = {
   name: "neofetch",
-  help: "visa systeminfo med en liten logga",
+  help: "show system info with a small logo",
   run(_args, ctx) {
     const info = [
       `${ctx.session.user}@vera`,
       "─────────────",
       "os      VERA v0.1",
       "shell   vera-sh",
-      "kärna   VFS + command registry",
-      "tema    grön fosfor",
+      "kernel  VFS + command registry",
+      "theme   green phosphor",
     ];
     const logo = [
       "  ┌──────┐",

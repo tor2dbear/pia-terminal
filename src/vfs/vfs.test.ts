@@ -34,7 +34,7 @@ describe("VFS operations", () => {
     const vfs = VFS.seed();
     const home = vfs.getNode(HOME);
     expect(home && isDir(home)).toBe(true);
-    expect(vfs.readFile(`${HOME}/welcome.txt`)).toContain("välkommen");
+    expect(vfs.readFile(`${HOME}/welcome.txt`)).toContain("welcome");
   });
 
   it("mkdir/touch/cat round-trips", () => {

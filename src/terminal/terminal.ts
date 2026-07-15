@@ -9,6 +9,7 @@ import {
   type Session,
 } from "../commands/registry.js";
 import { tokenize } from "./parse.js";
+import type { ScreenApp, ScreenAppFactory } from "./screen.js";
 
 export interface TerminalOptions {
   vfs: VFS;
@@ -37,6 +38,9 @@ export class Terminal {
   private readonly inputEl: HTMLDivElement;
   /** Hidden, focusable field: the only reliable way to raise a soft keyboard. */
   private readonly kbd: HTMLInputElement;
+  /** Container a full-screen app renders into while it owns the screen. */
+  private readonly appEl: HTMLDivElement;
+  private activeApp?: ScreenApp;
 
   private readonly vfs: VFS;
   private readonly adapter: StorageAdapter;
@@ -69,9 +73,12 @@ export class Terminal {
 
     this.outputEl = document.createElement("div");
     this.outputEl.className = "term-output";
+    this.appEl = document.createElement("div");
+    this.appEl.className = "term-app";
+    this.appEl.style.display = "none";
     this.inputEl = document.createElement("div");
     this.inputEl.className = "term-inputline";
-    this.root.append(this.kbd, this.outputEl, this.inputEl);
+    this.root.append(this.kbd, this.outputEl, this.appEl, this.inputEl);
 
     // Control keys come through keydown; printable text through `input` (which
     // is the only path IMEs and mobile soft keyboards reliably fire). Splitting
@@ -158,6 +165,11 @@ export class Terminal {
   // ---- keyboard -------------------------------------------------------------
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    // A full-screen app, when present, owns the keyboard entirely.
+    if (this.activeApp) {
+      this.activeApp.onKey(e);
+      return;
+    }
     if (this.busy) return;
 
     // Let browser shortcuts (reload, devtools, copy) through.
@@ -239,15 +251,16 @@ export class Terminal {
     this.flushKbd();
   };
 
-  /** Move whatever collected in the hidden field into the line buffer. */
+  /** Move whatever collected in the hidden field to the app or line buffer. */
   private flushKbd = (): void => {
-    if (this.busy) {
-      this.kbd.value = "";
+    const text = this.kbd.value;
+    this.kbd.value = "";
+    if (!text) return;
+    if (this.activeApp) {
+      this.activeApp.onText(text);
       return;
     }
-    const text = this.kbd.value;
-    if (!text) return;
-    this.kbd.value = "";
+    if (this.busy) return;
     this.buffer =
       this.buffer.slice(0, this.cursor) + text + this.buffer.slice(this.cursor);
     this.cursor += text.length;
@@ -357,7 +370,7 @@ export class Terminal {
     const command = this.registry.get(name);
 
     if (!command) {
-      this.print(`okänt kommando: ${name}. skriv 'help'.`, "error");
+      this.print(`unknown command: ${name}. type 'help'.`, "error");
       this.renderInput();
       return;
     }
@@ -373,7 +386,7 @@ export class Terminal {
       await command.run(args, this.context());
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.print(`fel: ${message}`, "error");
+      this.print(`error: ${message}`, "error");
     } finally {
       this.busy = false;
       this.setInputVisible(true);
@@ -397,6 +410,30 @@ export class Terminal {
       error: (text) => this.print(text, "error"),
       clear: () => this.clear(),
       persist: () => this.adapter.save(this.vfs.root),
+      runApp: (factory) => this.runApp(factory),
     };
+  }
+
+  /** Hand the screen to a full-screen app; resolves when it exits. */
+  private runApp(factory: ScreenAppFactory): Promise<void> {
+    return new Promise((resolve) => {
+      const exit = (): void => {
+        this.activeApp?.unmount();
+        this.activeApp = undefined;
+        this.appEl.replaceChildren();
+        this.appEl.style.display = "none";
+        this.outputEl.style.display = "";
+        this.setInputVisible(true);
+        this.focusKbd();
+        resolve();
+      };
+      const app = factory(exit);
+      this.activeApp = app;
+      this.outputEl.style.display = "none";
+      this.setInputVisible(false);
+      this.appEl.style.display = "";
+      app.mount(this.appEl);
+      this.focusKbd();
+    });
   }
 }

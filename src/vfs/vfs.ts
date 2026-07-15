@@ -23,10 +23,10 @@ export class VFS {
     vfs.writeFile(
       `${HOME}/welcome.txt`,
       [
-        "hej och välkommen.",
+        "hello and welcome.",
         "",
-        "det här är ditt hem. skapa filer med `touch`, mappar med `mkdir`,",
-        "läs med `cat`. skriv `help` för alla kommandon.",
+        "this is your home. create files with `touch`, folders with `mkdir`,",
+        "read them with `cat`, edit them with `edit`. type `help` for everything.",
         "",
       ].join("\n"),
     );

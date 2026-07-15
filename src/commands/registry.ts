@@ -1,4 +1,5 @@
 import type { VFS } from "../vfs/vfs.js";
+import type { ScreenAppFactory } from "../terminal/screen.js";
 
 export type LineClass = "normal" | "dim" | "accent" | "error";
 
@@ -26,6 +27,8 @@ export interface CommandContext {
   clear(): void;
   /** Persist the filesystem after a mutation. */
   persist(): Promise<void>;
+  /** Hand the screen to a full-screen app; resolves when the app exits. */
+  runApp(factory: ScreenAppFactory): Promise<void>;
   /** The registry, so `help` can enumerate commands. */
   registry: CommandRegistry;
 }

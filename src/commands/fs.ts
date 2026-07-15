@@ -18,7 +18,7 @@ function guard(ctx: CommandContext, fn: () => void): boolean {
 
 export const pwd: Command = {
   name: "pwd",
-  help: "skriv ut sökvägen till nuvarande mapp",
+  help: "print the current directory path",
   run(_args, ctx) {
     ctx.print(ctx.cwd);
   },
@@ -26,8 +26,8 @@ export const pwd: Command = {
 
 export const ls: Command = {
   name: "ls",
-  help: "lista innehållet i en mapp",
-  usage: "ls [sökväg]",
+  help: "list the contents of a directory",
+  usage: "ls [path]",
   run(args, ctx) {
     const target = ctx.vfs.resolve(ctx.cwd, args[0] ?? ".");
     guard(ctx, () => {
@@ -47,8 +47,8 @@ export const ls: Command = {
 
 export const cd: Command = {
   name: "cd",
-  help: "byt nuvarande mapp",
-  usage: "cd [sökväg]",
+  help: "change the current directory",
+  usage: "cd [path]",
   run(args, ctx) {
     const target = ctx.vfs.resolve(ctx.cwd, args[0] ?? "~");
     guard(ctx, () => {
@@ -60,10 +60,10 @@ export const cd: Command = {
 
 export const mkdir: Command = {
   name: "mkdir",
-  help: "skapa en ny mapp",
-  usage: "mkdir <namn> [namn...]",
+  help: "create a new directory",
+  usage: "mkdir <name> [name...]",
   async run(args, ctx) {
-    if (args.length === 0) return ctx.error("mkdir: ange minst ett namn");
+    if (args.length === 0) return ctx.error("mkdir: specify at least one name");
     let changed = false;
     for (const arg of args) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
@@ -75,10 +75,10 @@ export const mkdir: Command = {
 
 export const touch: Command = {
   name: "touch",
-  help: "skapa en tom fil (eller lämna en befintlig orörd)",
-  usage: "touch <fil> [fil...]",
+  help: "create an empty file (leaving an existing one untouched)",
+  usage: "touch <file> [file...]",
   async run(args, ctx) {
-    if (args.length === 0) return ctx.error("touch: ange minst en fil");
+    if (args.length === 0) return ctx.error("touch: specify at least one file");
     let changed = false;
     for (const arg of args) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
@@ -90,10 +90,10 @@ export const touch: Command = {
 
 export const cat: Command = {
   name: "cat",
-  help: "skriv ut innehållet i en fil",
-  usage: "cat <fil> [fil...]",
+  help: "print the contents of a file",
+  usage: "cat <file> [file...]",
   run(args, ctx) {
-    if (args.length === 0) return ctx.error("cat: ange minst en fil");
+    if (args.length === 0) return ctx.error("cat: specify at least one file");
     for (const arg of args) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
       guard(ctx, () => {
@@ -107,12 +107,12 @@ export const cat: Command = {
 
 export const rm: Command = {
   name: "rm",
-  help: "ta bort filer eller mappar (-r för mappar)",
-  usage: "rm [-r] <sökväg> [sökväg...]",
+  help: "remove files or directories (-r for directories)",
+  usage: "rm [-r] <path> [path...]",
   async run(args, ctx) {
     const recursive = args.includes("-r") || args.includes("-rf");
     const targets = args.filter((a) => !a.startsWith("-"));
-    if (targets.length === 0) return ctx.error("rm: ange minst en sökväg");
+    if (targets.length === 0) return ctx.error("rm: specify at least one path");
     let changed = false;
     for (const arg of targets) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
@@ -124,10 +124,10 @@ export const rm: Command = {
 
 export const mv: Command = {
   name: "mv",
-  help: "flytta eller byt namn på en fil/mapp",
-  usage: "mv <källa> <mål>",
+  help: "move or rename a file or directory",
+  usage: "mv <source> <dest>",
   async run(args, ctx) {
-    if (args.length !== 2) return ctx.error("mv: ange källa och mål");
+    if (args.length !== 2) return ctx.error("mv: specify source and destination");
     const from = ctx.vfs.resolve(ctx.cwd, args[0]);
     const to = ctx.vfs.resolve(ctx.cwd, args[1]);
     if (guard(ctx, () => ctx.vfs.move(from, to))) await ctx.persist();
