@@ -9,7 +9,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 let term: Terminal | undefined;
 
-function mount(): { root: HTMLElement; term: Terminal } {
+function mount(): HTMLElement {
   const root = document.createElement("div");
   document.body.append(root);
   term = new Terminal(root, {
@@ -18,21 +18,35 @@ function mount(): { root: HTMLElement; term: Terminal } {
     registry: buildRegistry(),
     session: { user: "guest" },
   });
-  return { root, term };
+  return root;
 }
 
-function press(key: string, opts: KeyboardEventInit = {}): void {
-  window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...opts }));
+function kbd(root: HTMLElement): HTMLInputElement {
+  return root.querySelector(".term-kbd") as HTMLInputElement;
 }
 
-function type(text: string): void {
-  for (const ch of text) press(ch);
+/** Simulate a control key (Enter, Backspace, arrows, Tab, …). */
+function press(root: HTMLElement, key: string, opts: KeyboardEventInit = {}): void {
+  kbd(root).dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, ...opts }),
+  );
 }
 
-async function runLine(text: string): Promise<void> {
-  type(text);
-  press("Enter");
+/** Simulate typing printable text, as a soft keyboard / IME does. */
+function type(root: HTMLElement, text: string): void {
+  const field = kbd(root);
+  field.value = text;
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+async function runLine(root: HTMLElement, text: string): Promise<void> {
+  type(root, text);
+  press(root, "Enter");
   await flush();
+}
+
+function typed(root: HTMLElement): string {
+  return root.querySelector(".term-typed")?.textContent ?? "";
 }
 
 afterEach(() => {
@@ -43,60 +57,64 @@ afterEach(() => {
 
 describe("Terminal (driven via keyboard)", () => {
   it("boots with a prompt showing the user and home", () => {
-    const { root } = mount();
+    const root = mount();
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
   });
 
+  it("exposes a hidden field to capture the soft keyboard", () => {
+    const root = mount();
+    expect(kbd(root)).toBeInstanceOf(HTMLInputElement);
+  });
+
   it("echoes a typed command and prints its output", async () => {
-    const { root } = mount();
-    await runLine("echo hej");
+    const root = mount();
+    await runLine(root, "echo hej");
     expect(root.textContent).toContain("guest@vera:~$ echo hej");
-    // The output line "hej" is rendered after the echoed command line.
     const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
     expect(lines).toContain("hej");
   });
 
   it("creates a directory and lists it back", async () => {
-    const { root } = mount();
-    await runLine("mkdir proj");
-    await runLine("ls");
+    const root = mount();
+    await runLine(root, "mkdir proj");
+    await runLine(root, "ls");
     expect(root.textContent).toContain("proj/");
   });
 
   it("cd updates the prompt", async () => {
-    const { root } = mount();
-    await runLine("mkdir proj");
-    await runLine("cd proj");
+    const root = mount();
+    await runLine(root, "mkdir proj");
+    await runLine(root, "cd proj");
     expect(root.querySelector(".term-prompt")?.textContent).toBe(
       "guest@vera:~/proj$",
     );
   });
 
   it("reports unknown commands as errors", async () => {
-    const { root } = mount();
-    await runLine("frobnicate");
+    const root = mount();
+    await runLine(root, "frobnicate");
     const err = root.querySelector(".term-line.error");
     expect(err?.textContent).toContain("okänt kommando");
   });
 
   it("recalls the previous command with ArrowUp", async () => {
-    const { root } = mount();
-    await runLine("whoami");
-    press("ArrowUp");
-    expect(root.querySelector(".term-typed")?.textContent).toContain("whoami");
+    const root = mount();
+    await runLine(root, "whoami");
+    press(root, "ArrowUp");
+    expect(typed(root)).toContain("whoami");
   });
 
   it("Tab-completes a unique command name", () => {
-    const { root } = mount();
-    type("neof");
-    press("Tab");
-    expect(root.querySelector(".term-typed")?.textContent).toContain("neofetch");
+    const root = mount();
+    type(root, "neof");
+    press(root, "Tab");
+    expect(typed(root)).toContain("neofetch");
   });
 
   it("Backspace deletes the character before the cursor", () => {
-    const { root } = mount();
-    type("lss");
-    press("Backspace");
-    expect(root.querySelector(".term-typed")?.textContent?.trimEnd()).toBe("ls");
+    const root = mount();
+    type(root, "lss");
+    press(root, "Backspace");
+    expect(typed(root).trimEnd()).toBe("ls");
   });
 });

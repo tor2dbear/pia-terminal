@@ -35,6 +35,8 @@ function commonPrefix(items: string[]): string {
 export class Terminal {
   private readonly outputEl: HTMLDivElement;
   private readonly inputEl: HTMLDivElement;
+  /** Hidden, focusable field: the only reliable way to raise a soft keyboard. */
+  private readonly kbd: HTMLInputElement;
 
   private readonly vfs: VFS;
   private readonly adapter: StorageAdapter;
@@ -57,20 +59,44 @@ export class Terminal {
     this.registry = opts.registry;
     this.session = opts.session;
 
+    this.kbd = document.createElement("input");
+    this.kbd.className = "term-kbd";
+    this.kbd.setAttribute("autocomplete", "off");
+    this.kbd.setAttribute("autocapitalize", "off");
+    this.kbd.setAttribute("autocorrect", "off");
+    this.kbd.setAttribute("spellcheck", "false");
+    this.kbd.setAttribute("aria-hidden", "true");
+
     this.outputEl = document.createElement("div");
     this.outputEl.className = "term-output";
     this.inputEl = document.createElement("div");
     this.inputEl.className = "term-inputline";
-    this.root.append(this.outputEl, this.inputEl);
+    this.root.append(this.kbd, this.outputEl, this.inputEl);
 
-    window.addEventListener("keydown", this.onKeyDown);
+    // Control keys come through keydown; printable text through `input` (which
+    // is the only path IMEs and mobile soft keyboards reliably fire). Splitting
+    // them keeps a single, un-doubled insertion path on both desktop and phone.
+    this.kbd.addEventListener("keydown", this.onKeyDown);
+    this.kbd.addEventListener("input", this.onInput);
+    this.kbd.addEventListener("compositionend", this.flushKbd);
+    this.root.addEventListener("pointerup", this.focusKbd);
+
+    this.focusKbd();
     this.renderInput();
   }
 
-  /** Detach the keyboard listener. */
+  /** Detach listeners. */
   dispose(): void {
-    window.removeEventListener("keydown", this.onKeyDown);
+    this.kbd.removeEventListener("keydown", this.onKeyDown);
+    this.kbd.removeEventListener("input", this.onInput);
+    this.kbd.removeEventListener("compositionend", this.flushKbd);
+    this.root.removeEventListener("pointerup", this.focusKbd);
   }
+
+  /** Focus the hidden field so a soft keyboard appears (needs a user gesture). */
+  private focusKbd = (): void => {
+    this.kbd.focus({ preventScroll: true });
+  };
 
   // ---- output ---------------------------------------------------------------
 
@@ -203,14 +229,29 @@ export class Terminal {
       return;
     }
 
-    // Printable character.
-    if (e.key.length === 1 && !e.ctrlKey) {
-      e.preventDefault();
-      this.buffer =
-        this.buffer.slice(0, this.cursor) + e.key + this.buffer.slice(this.cursor);
-      this.cursor++;
-      this.renderInput();
+    // Printable characters are left to fall into the hidden field and arrive
+    // via `onInput` — do not handle them here, or they would double-insert.
+  };
+
+  /** Printable text arrives here (desktop typing, mobile keyboard, IME). */
+  private onInput = (e: Event): void => {
+    if ((e as InputEvent).isComposing) return;
+    this.flushKbd();
+  };
+
+  /** Move whatever collected in the hidden field into the line buffer. */
+  private flushKbd = (): void => {
+    if (this.busy) {
+      this.kbd.value = "";
+      return;
     }
+    const text = this.kbd.value;
+    if (!text) return;
+    this.kbd.value = "";
+    this.buffer =
+      this.buffer.slice(0, this.cursor) + text + this.buffer.slice(this.cursor);
+    this.cursor += text.length;
+    this.renderInput();
   };
 
   private resetLine(): void {
