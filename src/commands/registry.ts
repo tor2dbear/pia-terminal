@@ -15,6 +15,10 @@ export interface CommandContext {
   session: Session;
   /** Auth backend, for login/logout. */
   auth: AuthAdapter;
+  /** Input piped from a previous command (`""` when there is none). */
+  stdin: string;
+  /** True when this command's output is captured (piped or redirected). */
+  piped: boolean;
   /** Current working directory, absolute. */
   cwd: string;
   /** Change the working directory (validated by the caller of the command). */

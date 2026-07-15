@@ -2,13 +2,12 @@ import { HOME } from "../vfs/vfs.js";
 import type { VFS } from "../vfs/vfs.js";
 import type { StorageAdapter } from "../storage/adapter.js";
 import {
-  type Command,
   type CommandContext,
   type CommandRegistry,
   type LineClass,
   type Session,
 } from "../commands/registry.js";
-import { tokenize } from "./parse.js";
+import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
 import type { ScreenApp, ScreenAppFactory } from "./screen.js";
 import type { AuthAdapter } from "../auth/adapter.js";
 
@@ -377,26 +376,50 @@ export class Terminal {
     }
     this.historyIndex = this.history.length;
 
-    const tokens = tokenize(trimmed);
-    const name = tokens[0];
-    const args = tokens.slice(1);
-    const command = this.registry.get(name);
-
-    if (!command) {
-      this.print(`unknown command: ${name}. type 'help'.`, "error");
+    const parsed = parsePipeline(trimmed);
+    if (!parsed.ok) {
+      this.print(parsed.error, "error");
       this.renderInput();
       return;
     }
 
-    await this.execute(command, args);
+    await this.executePipeline(parsed.pipeline);
     this.renderInput();
   }
 
-  private async execute(command: Command, args: string[]): Promise<void> {
+  /** Run a parsed pipeline: each stage's captured output feeds the next. */
+  private async executePipeline(pipeline: Pipeline): Promise<void> {
+    const { stages, redirect } = pipeline;
+    if (stages.length === 0) return;
+
     this.busy = true;
     this.setInputVisible(false);
     try {
-      await command.run(args, this.context());
+      let input = "";
+      for (let i = 0; i < stages.length; i++) {
+        const stage = stages[i];
+        const command = this.registry.get(stage.name);
+        if (!command) {
+          this.print(`unknown command: ${stage.name}. type 'help'.`, "error");
+          return;
+        }
+        const isLast = i === stages.length - 1;
+        // Capture output for every stage but the last, and for the last stage
+        // when its output is being redirected to a file.
+        const capture = !isLast || redirect !== null ? [] : undefined;
+        await command.run(stage.args, this.context({ stdin: input, capture }));
+        input = capture ? capture.join("\n") : "";
+      }
+
+      if (redirect) {
+        const path = this.vfs.resolve(this.cwd, redirect.file);
+        const prefix =
+          redirect.append && this.vfs.getNode(path)
+            ? this.vfs.readFile(path) + "\n"
+            : "";
+        this.vfs.writeFile(path, prefix + input);
+        await this.adapter.save(this.vfs.root);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.print(`error: ${message}`, "error");
@@ -407,24 +430,36 @@ export class Terminal {
   }
 
   /** Build the context handed to a command for one invocation. */
-  private context(): CommandContext {
+  private context(opts: { stdin?: string; capture?: string[] } = {}): CommandContext {
     const term = this;
+    const capture = opts.capture;
     return {
       vfs: this.vfs,
       session: this.session,
       auth: this.auth,
       registry: this.registry,
+      stdin: opts.stdin ?? "",
+      piped: capture !== undefined,
       get cwd() {
         return term.cwd;
       },
       setCwd(path: string) {
         term.cwd = path;
       },
-      print: (text, cls) => this.print(text, cls),
+      // Captured stages collect stdout into a buffer; otherwise it hits the DOM.
+      print: capture
+        ? (text = "") => capture.push(text)
+        : (text, cls) => this.print(text, cls),
+      // stderr always goes to the screen, never into the pipe.
       error: (text) => this.print(text, "error"),
       clear: () => this.clear(),
       persist: () => this.adapter.save(this.vfs.root),
-      runApp: (factory) => this.runApp(factory),
+      runApp: capture
+        ? () => {
+            this.print("cannot run a full-screen app in a pipeline", "error");
+            return Promise.resolve();
+          }
+        : (factory) => this.runApp(factory),
     };
   }
 

@@ -40,7 +40,10 @@ export const ls: Command = {
       const entries = ctx.vfs.list(target);
       if (entries.length === 0) return;
       const names = entries.map((e) => (e.type === "dir" ? `${e.name}/` : e.name));
-      ctx.print(names.join("  "));
+      // One entry per line when piped/redirected (so `ls | grep` works);
+      // space-separated for the interactive screen.
+      if (ctx.piped) for (const name of names) ctx.print(name);
+      else ctx.print(names.join("  "));
     });
   },
 };
@@ -90,10 +93,14 @@ export const touch: Command = {
 
 export const cat: Command = {
   name: "cat",
-  help: "print the contents of a file",
-  usage: "cat <file> [file...]",
+  help: "print the contents of a file (or piped input)",
+  usage: "cat [file...]",
   run(args, ctx) {
-    if (args.length === 0) return ctx.error("cat: specify at least one file");
+    if (args.length === 0) {
+      // No files: pass piped input straight through.
+      if (ctx.stdin) for (const line of ctx.stdin.split("\n")) ctx.print(line);
+      return;
+    }
     for (const arg of args) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
       guard(ctx, () => {

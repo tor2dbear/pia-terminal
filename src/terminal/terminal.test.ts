@@ -132,4 +132,46 @@ describe("Terminal (driven via keyboard)", () => {
     await runLine(root, "logout");
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@vera:~$");
   });
+
+  it("pipes output from one command into another", async () => {
+    const root = mount();
+    await runLine(root, "echo hello world | grep world");
+    const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+    expect(lines).toContain("hello world");
+  });
+
+  it("ls piped to grep filters entries to one per line", async () => {
+    const root = mount();
+    await runLine(root, "mkdir alpha");
+    await runLine(root, "mkdir beta");
+    await runLine(root, "ls | grep alpha");
+    const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+    expect(lines).toContain("alpha/");
+    expect(lines).not.toContain("beta/");
+  });
+
+  it("redirects output to a file with >", async () => {
+    const root = mount();
+    await runLine(root, "echo saved to file > out.txt");
+    await runLine(root, "cat out.txt");
+    const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+    expect(lines).toContain("saved to file");
+  });
+
+  it("appends to a file with >>", async () => {
+    const root = mount();
+    await runLine(root, "echo first > log.txt");
+    await runLine(root, "echo second >> log.txt");
+    await runLine(root, "cat log.txt");
+    const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+    expect(lines).toContain("first");
+    expect(lines).toContain("second");
+  });
+
+  it("counts piped entries with wc", async () => {
+    const root = mount();
+    await runLine(root, "echo a | wc -l");
+    const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+    expect(lines).toContain("1");
+  });
 });

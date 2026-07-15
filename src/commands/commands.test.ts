@@ -18,6 +18,8 @@ function harness() {
     registry,
     auth: new MemoryAuthAdapter(),
     session: { user: "guest" },
+    stdin: "",
+    piped: false,
     get cwd() {
       return cwd;
     },
@@ -170,5 +172,76 @@ describe("auth commands", () => {
     await h.run("login alice");
     await h.run("touch notes.txt");
     expect(h.vfs.getNode("/home/alice/notes.txt")).not.toBeNull();
+  });
+});
+
+describe("text/search commands", () => {
+  it("grep filters piped input", async () => {
+    const h = harness();
+    h.ctx.stdin = "apple\nbanana\navocado";
+    await h.run("grep a");
+    expect(h.text()).toEqual(["apple", "banana", "avocado"]);
+  });
+
+  it("grep matches a substring within lines", async () => {
+    const h = harness();
+    h.ctx.stdin = "todo: buy milk\ndone: dishes\ntodo: call";
+    await h.run("grep todo");
+    expect(h.text()).toEqual(["todo: buy milk", "todo: call"]);
+  });
+
+  it("grep -v inverts and -n numbers lines", async () => {
+    const h = harness();
+    h.ctx.stdin = "keep\ndrop\nkeep";
+    await h.run("grep -vn drop");
+    expect(h.text()).toEqual(["1:keep", "3:keep"]);
+  });
+
+  it("grep -i is case-insensitive", async () => {
+    const h = harness();
+    h.ctx.stdin = "Hello\nworld";
+    await h.run("grep -i hello");
+    expect(h.text()).toEqual(["Hello"]);
+  });
+
+  it("grep reads from a file", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "one\ntwo\nthree");
+    await h.run("grep t a.txt");
+    expect(h.text()).toEqual(["two", "three"]);
+  });
+
+  it("find lists a tree recursively", async () => {
+    const h = harness();
+    h.vfs.mkdirp(`${HOME}/proj/src`);
+    h.vfs.writeFile(`${HOME}/proj/src/main.ts`, "");
+    await h.run("find proj");
+    const out = h.text();
+    expect(out).toContain(`${HOME}/proj`);
+    expect(out).toContain(`${HOME}/proj/src/main.ts`);
+  });
+
+  it("find -name filters by glob", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "");
+    h.vfs.writeFile(`${HOME}/b.md`, "");
+    await h.run("find . -name *.txt");
+    const out = h.text();
+    expect(out.some((l) => l.endsWith("a.txt"))).toBe(true);
+    expect(out.some((l) => l.endsWith("b.md"))).toBe(false);
+  });
+
+  it("wc -l counts lines of piped input", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nc";
+    await h.run("wc -l");
+    expect(h.text()).toEqual(["3"]);
+  });
+
+  it("cat with no args passes stdin through", async () => {
+    const h = harness();
+    h.ctx.stdin = "line one\nline two";
+    await h.run("cat");
+    expect(h.text()).toEqual(["line one", "line two"]);
   });
 });
