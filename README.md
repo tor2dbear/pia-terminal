@@ -157,6 +157,10 @@ user@vera:~$ ▮
 
 ## Kom igång (implementation)
 
+**Live:** https://tor2dbear.github.io/pia-terminal/ — publiceras automatiskt av
+GitHub Pages vid varje push till `main` (`.github/workflows/deploy.yml` kör
+typecheck + tester som grind innan bygget läggs upp).
+
 Kärnan (Nivå 0) är scaffoldad och körbar.
 
 ```bash
