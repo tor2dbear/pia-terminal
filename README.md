@@ -187,25 +187,34 @@ the boot sequence, cursor, and colors).
 src/
   vfs/          virtual filesystem (tree + path resolution)
   storage/      StorageAdapter interface + LocalStorage/Memory implementations
-  commands/     command registry + Level 0 commands (fs, system, edit)
-  terminal/     terminal core (input, cursor, history, Tab) + screen-app host
-  apps/         full-screen apps (editor)
+  auth/         AuthAdapter interface + Fake/Memory implementations
+  commands/     command registry + all commands (fs, system, edit, auth, text, games)
+  terminal/     terminal core (input, cursor, history, Tab, pipes) + screen-app host
+  apps/         full-screen apps (editor, snake)
   boot.ts       boot sequence
   main.ts       entry point (wires everything together)
 ```
 
-### What exists (Level 0)
+### What exists
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
-`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `edit` · `login` · `logout`.
-Blinking block cursor, command history (arrow up/down), Tab-completion (commands
-+ paths), a soft-keyboard capture field for mobile, a full-screen `edit`or (^S
-save, ^X exit, tappable on mobile), fake auth with per-user home directories
-(`AuthAdapter`), the boot sequence, and persistence via `LocalStorageAdapter`.
-52 tests cover the VFS, parser, commands, auth, the keyboard-driven terminal,
-and the editor.
+`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `edit` · `login` · `logout` ·
+`grep` · `find` · `wc` · `snake`.
 
-Level 0 is complete.
+- **Terminal core:** blinking block cursor, command history, Tab-completion
+  (commands + paths), a soft-keyboard capture field for mobile.
+- **Pipes & redirects:** `a | b | c`, `> file`, `>> file` — commands have real
+  stdin/stdout; `grep`/`find`/`wc` read files or piped input.
+- **Screen apps** (via the app host): a full-screen `edit`or (^S save, ^X exit)
+  and `snake` (arrows/WASD, on-screen D-pad) — both fully playable on a phone.
+- **Fake auth** with per-user home directories (`AuthAdapter`), the boot
+  sequence, and persistence via `LocalStorageAdapter`.
+
+82 tests cover the VFS, parser + pipelines, commands, auth, the keyboard-driven
+terminal, the editor, and the snake game logic.
+
+Level 0 is complete; Level 1 (pipes, grep/find) and the first Level 2 screen-app
+game are in.
 
 ### Next steps
 
