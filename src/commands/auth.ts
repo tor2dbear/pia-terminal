@@ -22,8 +22,9 @@ async function authenticate(
   const user = args[0];
   const password = args[1];
   const cred = verb === "login" ? "login <email> <password>" : "useradd <email> <password>";
+  const who = ctx.auth.requiresPassword ? "an email" : "a username";
 
-  if (!user) return ctx.error(`${verb}: specify a ${ctx.auth.requiresPassword ? "email" : "username"}`);
+  if (!user) return ctx.error(`${verb}: specify ${who}`);
   if (ctx.auth.requiresPassword) {
     if (!password) return ctx.error(`${verb}: password required — ${cred}`);
   } else if (!VALID_USER.test(user)) {
