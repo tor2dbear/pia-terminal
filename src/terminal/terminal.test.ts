@@ -175,3 +175,62 @@ describe("Terminal (driven via keyboard)", () => {
     expect(lines).toContain("1");
   });
 });
+
+/** Tap an on-screen key bar button by its label. */
+function tapKey(root: HTMLElement, label: string): void {
+  const key = [...root.querySelectorAll(".term-keybar .kb-key")].find(
+    (b) => b.textContent === label,
+  );
+  if (!key) throw new Error(`no key bar button: ${label}`);
+  key.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+}
+
+describe("on-screen key bar", () => {
+  it("shows the shell keys the phone keyboard lacks", () => {
+    const root = mount();
+    const labels = [...root.querySelectorAll(".term-keybar .kb-key")].map(
+      (b) => b.textContent,
+    );
+    expect(labels).toEqual(
+      expect.arrayContaining(["Tab", "↑", "↓", "←", "→", "|", "~", "^C", "^L"]),
+    );
+  });
+
+  it("inserts punctuation at the cursor", () => {
+    const root = mount();
+    type(root, "ls ");
+    tapKey(root, "|");
+    expect(typed(root)).toContain("ls |");
+  });
+
+  it("Tab-completes a command via the bar", () => {
+    const root = mount();
+    type(root, "neof");
+    tapKey(root, "Tab");
+    expect(typed(root)).toContain("neofetch");
+  });
+
+  it("recalls history via the ↑ key", async () => {
+    const root = mount();
+    await runLine(root, "whoami");
+    tapKey(root, "↑");
+    expect(typed(root)).toContain("whoami");
+  });
+
+  it("switches to the editor's keys and back to the prompt on exit", async () => {
+    const root = mount();
+    await runLine(root, "edit note.txt");
+    const inEditor = [...root.querySelectorAll(".term-keybar .kb-key")].map(
+      (b) => b.textContent,
+    );
+    expect(inEditor).toContain("^O");
+    expect(inEditor).not.toContain("^C"); // prompt-only key is gone
+
+    press(root, "x", { ctrlKey: true });
+    await flush();
+    const atPrompt = [...root.querySelectorAll(".term-keybar .kb-key")].map(
+      (b) => b.textContent,
+    );
+    expect(atPrompt).toContain("^C");
+  });
+});

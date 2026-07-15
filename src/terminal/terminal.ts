@@ -8,7 +8,7 @@ import {
   type Session,
 } from "../commands/registry.js";
 import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
-import type { ScreenApp, ScreenAppFactory } from "./screen.js";
+import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 import type { AuthAdapter } from "../auth/adapter.js";
 
 export interface TerminalOptions {
@@ -42,6 +42,8 @@ export class Terminal {
   /** Container a full-screen app renders into while it owns the screen. */
   private readonly appEl: HTMLDivElement;
   private activeApp?: ScreenApp;
+  /** On-screen key bar — the keys a phone keyboard lacks (Tab, arrows, |, …). */
+  private readonly keybarEl: HTMLDivElement;
 
   private readonly vfs: VFS;
   private readonly adapter: StorageAdapter;
@@ -87,7 +89,15 @@ export class Terminal {
     this.appEl.style.display = "none";
     this.inputEl = document.createElement("div");
     this.inputEl.className = "term-inputline";
-    this.root.append(this.kbd, this.outputEl, this.appEl, this.inputEl);
+    this.keybarEl = document.createElement("div");
+    this.keybarEl.className = "term-keybar";
+    this.root.append(
+      this.kbd,
+      this.outputEl,
+      this.appEl,
+      this.inputEl,
+      this.keybarEl,
+    );
 
     // Control keys come through keydown; printable text through `input` (which
     // is the only path IMEs and mobile soft keyboards reliably fire). Splitting
@@ -99,6 +109,7 @@ export class Terminal {
 
     this.focusKbd();
     this.renderInput();
+    this.renderKeybar();
   }
 
   /** Detach listeners. */
@@ -273,11 +284,16 @@ export class Terminal {
       return;
     }
     if (this.busy) return;
+    this.insertText(text);
+  };
+
+  /** Insert text at the cursor and redraw the input line. */
+  private insertText(text: string): void {
     this.buffer =
       this.buffer.slice(0, this.cursor) + text + this.buffer.slice(this.cursor);
     this.cursor += text.length;
     this.renderInput();
-  };
+  }
 
   private resetLine(): void {
     this.buffer = "";
@@ -477,6 +493,7 @@ export class Terminal {
         this.appEl.style.display = "none";
         this.outputEl.style.display = "";
         this.setInputVisible(true);
+        this.renderKeybar();
         this.focusKbd();
         resolve();
       };
@@ -486,7 +503,70 @@ export class Terminal {
       this.setInputVisible(false);
       this.appEl.style.display = "";
       app.mount(this.appEl);
+      this.renderKeybar();
       this.focusKbd();
     });
+  }
+
+  // ---- on-screen key bar ----------------------------------------------------
+
+  /** Keys shown at the prompt: the ones a phone keyboard hides or lacks. */
+  private promptKeys(): KeySpec[] {
+    const insert = (ch: string): KeySpec => ({
+      label: ch,
+      subtle: true,
+      run: () => this.insertText(ch),
+    });
+    return [
+      { label: "Tab", run: () => this.completeTab() },
+      { label: "↑", run: () => this.recallHistory(-1) },
+      { label: "↓", run: () => this.recallHistory(1) },
+      { label: "←", run: () => this.moveCursor(-1) },
+      { label: "→", run: () => this.moveCursor(1) },
+      insert("|"),
+      insert(">"),
+      insert("~"),
+      insert("/"),
+      insert("-"),
+      { label: "^C", run: () => this.cancelLine() },
+      { label: "^L", run: () => this.clear() },
+    ];
+  }
+
+  private moveCursor(delta: -1 | 1): void {
+    const next = this.cursor + delta;
+    if (next < 0 || next > this.buffer.length) return;
+    this.cursor = next;
+    this.renderInput();
+  }
+
+  private cancelLine(): void {
+    this.print(`${this.promptText()} ${this.buffer}^C`, "dim");
+    this.resetLine();
+  }
+
+  /** Redraw the key bar for the current context (active app, else the prompt). */
+  private renderKeybar(): void {
+    const keys = this.activeApp ? this.activeApp.keys?.() : this.promptKeys();
+    this.keybarEl.replaceChildren();
+    if (!keys || keys.length === 0) {
+      this.keybarEl.style.display = "none";
+      return;
+    }
+    this.keybarEl.style.display = "";
+    for (const key of keys) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = key.subtle ? "kb-key subtle" : "kb-key";
+      btn.textContent = key.label;
+      // pointerdown + preventDefault keeps the hidden input focused, so the
+      // soft keyboard never closes when a bar key is tapped.
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        key.run();
+        this.focusKbd();
+      });
+      this.keybarEl.append(btn);
+    }
   }
 }

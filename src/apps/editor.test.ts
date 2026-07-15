@@ -110,14 +110,14 @@ describe("edit (full-screen editor)", () => {
     );
   });
 
-  it("save and exit are reachable by tapping the status keys (mobile)", async () => {
+  it("save and exit are reachable by tapping the key bar (mobile)", async () => {
     const root = mount();
     await runLine(root, "edit tap.txt");
     type(root, "tapped in");
-    const keys = root.querySelectorAll(".ed-key");
-    keys[0].dispatchEvent(new Event("pointerup", { bubbles: true })); // ^S save
+    const keys = root.querySelectorAll(".term-keybar .kb-key");
+    keys[0].dispatchEvent(new Event("pointerdown", { bubbles: true })); // ^O save
     await flush();
-    keys[1].dispatchEvent(new Event("pointerup", { bubbles: true })); // ^X exit
+    keys[1].dispatchEvent(new Event("pointerdown", { bubbles: true })); // ^X exit
     await flush();
 
     expect(editorOpen(root)).toBe(false);

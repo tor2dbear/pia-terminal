@@ -1,4 +1,4 @@
-import type { ScreenApp } from "../terminal/screen.js";
+import type { ScreenApp, KeySpec } from "../terminal/screen.js";
 
 /**
  * A minimal full-screen text editor in the nano tradition: a title bar, the
@@ -36,11 +36,6 @@ export class Editor implements ScreenApp {
     this.titleEl.className = "ed-title";
     this.bodyEl = document.createElement("div");
     this.bodyEl.className = "ed-body";
-
-    // Tappable controls so the editor is fully usable on a phone, where there
-    // is no Ctrl key to reach ^S / ^X.
-    const saveBtn = this.keyButton("^O save", () => void this.save());
-    const exitBtn = this.keyButton("^X exit", () => this.requestExit());
     this.msgEl = document.createElement("span");
     this.msgEl.className = "ed-msg";
     this.posEl = document.createElement("span");
@@ -48,26 +43,37 @@ export class Editor implements ScreenApp {
 
     this.statusEl = document.createElement("div");
     this.statusEl.className = "ed-status";
-    this.statusEl.append(saveBtn, exitBtn, this.msgEl, this.posEl);
+    // Hint text on the left, cursor position on the right. The save/exit/move
+    // controls live on the terminal's shared key bar (see keys()).
+    const hint = document.createElement("span");
+    hint.className = "ed-hint";
+    hint.textContent = "^O save · ^X exit";
+    this.statusEl.append(hint, this.msgEl, this.posEl);
 
     container.append(this.titleEl, this.bodyEl, this.statusEl);
     this.render();
   }
 
-  private keyButton(label: string, onActivate: () => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ed-key";
-    btn.textContent = label;
-    btn.addEventListener("pointerup", (e) => {
-      e.preventDefault();
-      onActivate();
-    });
-    return btn;
-  }
-
   unmount(): void {
     /* nothing to clean up */
+  }
+
+  /** Keys for the on-screen bar — nano's controls, usable without a keyboard. */
+  keys(): KeySpec[] {
+    return [
+      { label: "^O", run: () => void this.save() },
+      { label: "^X", run: () => this.requestExit() },
+      { label: "←", run: () => this.moveAndRender(() => this.moveLeft()) },
+      { label: "→", run: () => this.moveAndRender(() => this.moveRight()) },
+      { label: "↑", run: () => this.moveAndRender(() => this.moveVertical(-1)) },
+      { label: "↓", run: () => this.moveAndRender(() => this.moveVertical(1)) },
+      { label: "Tab", subtle: true, run: () => this.onText("  ") },
+    ];
+  }
+
+  private moveAndRender(move: () => void): void {
+    move();
+    this.render();
   }
 
   // ---- input ---------------------------------------------------------------
