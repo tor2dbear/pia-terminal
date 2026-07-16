@@ -197,35 +197,32 @@ export class Terminal {
    * into an editable element. We grab that and tear the field down again.
    */
   private promptNativePaste(): void {
-    this.root.querySelector(".term-paste")?.remove();
-    // Drop the soft keyboard so the field isn't hidden behind it, and so a
-    // long-press on the field doesn't fight the keyboard for focus.
-    this.kbd.blur();
+    this.root.querySelector(".term-paste-overlay")?.remove();
 
+    const overlay = document.createElement("div");
+    overlay.className = "term-paste-overlay";
+    const box = document.createElement("div");
+    box.className = "term-paste-box";
+    const label = document.createElement("div");
+    label.className = "term-paste-label";
+    label.textContent = "Paste here, then ⏎ (tap outside to cancel)";
     const field = document.createElement("textarea");
     field.className = "term-paste";
-    field.rows = 1;
+    field.rows = 2;
     field.setAttribute("autocomplete", "off");
     field.setAttribute("autocapitalize", "off");
     field.setAttribute("autocorrect", "off");
     field.setAttribute("spellcheck", "false");
-    field.placeholder = "long-press here → Paste";
+    field.placeholder = "tap and Paste…";
 
     let done = false;
-    const dismissOutside = (e: Event): void => {
-      if (e.target !== field) finish("");
-    };
     const finish = (text: string): void => {
       if (done) return;
       done = true;
-      document.removeEventListener("pointerdown", dismissOutside, true);
-      field.remove();
+      overlay.remove();
       this.commitPaste(text);
     };
 
-    // The native long-press → Paste fires a paste event we capture. No blur
-    // teardown: long-pressing briefly blurs the field, and tearing down there
-    // would kill the field before the menu's Paste can land.
     field.addEventListener("paste", (e) => {
       e.preventDefault();
       finish((e as ClipboardEvent).clipboardData?.getData("text") ?? "");
@@ -239,10 +236,15 @@ export class Terminal {
         finish("");
       }
     });
+    // Tap the dimmed backdrop (not the box) to cancel.
+    overlay.addEventListener("pointerdown", (e) => {
+      if (e.target === overlay) finish("");
+    });
 
-    this.root.append(field);
-    // Arm "tap outside to cancel" only after the tap that opened this settles.
-    setTimeout(() => document.addEventListener("pointerdown", dismissOutside, true), 0);
+    box.append(label, field);
+    overlay.append(box);
+    this.root.append(overlay);
+    field.focus();
   }
 
   /**
