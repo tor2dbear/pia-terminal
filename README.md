@@ -209,8 +209,10 @@ src/
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
 `cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
-`usermod` · `logout` · `grep` · `find` · `wc` · `snake`. (`edit`→`nano`,
-`register`→`useradd` are aliases.) With a backend, `useradd <username> <email>
+`usermod` · `logout` · `grep` · `find` · `wc` · `snake` · `share`. (`edit`→`nano`,
+`register`→`useradd` are aliases.) `share <file>` makes a self-contained public
+link (the file is packed into the URL hash — no server, works for guests);
+opening it shows the file read-only. With a backend, `useradd <username> <email>
 <password>` picks a real username (stored as account metadata); `usermod
 <username>` renames you and moves your home directory.
 

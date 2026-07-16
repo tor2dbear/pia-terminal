@@ -6,6 +6,7 @@ import { buildRegistry } from "./commands/index.js";
 import { Terminal } from "./terminal/terminal.js";
 import { boot } from "./boot.js";
 import { cloudConfig } from "./config.js";
+import { parseShareHash } from "./share/share.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
 
@@ -80,6 +81,16 @@ async function main(): Promise<void> {
 
   const term = new Terminal(root, { vfs, adapter, registry, auth, session });
   await boot(term);
+
+  // Opened via a share link? Show the shared file (read-only) after boot.
+  const shared = parseShareHash(location.hash);
+  if (shared) {
+    term.print();
+    term.print(`— shared file: ${shared.name} —`, "accent");
+    for (const line of shared.content.split("\n")) term.print(line);
+    term.print();
+    term.print("(read-only preview — type 'help' to explore)", "dim");
+  }
 }
 
 void main();

@@ -622,6 +622,7 @@ export class Terminal {
       registry: this.registry,
       stdin: opts.stdin ?? "",
       piped: capture !== undefined,
+      baseUrl: `${location.origin}${location.pathname}`,
       get cwd() {
         return term.cwd;
       },

@@ -3,6 +3,7 @@ import { VFS, HOME } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
+import { decodeShare } from "../share/share.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { CommandContext, LineClass } from "./registry.js";
 
@@ -46,6 +47,7 @@ function harness(auth: AuthAdapter = new MemoryAuthAdapter()) {
     session: { user: "guest" },
     stdin: "",
     piped: false,
+    baseUrl: "https://pia.test/",
     get cwd() {
       return cwd;
     },
@@ -228,6 +230,28 @@ describe("auth with a password-requiring backend", () => {
     await h.run("register tor2dbear tb.hedberg@gmail.com secret");
     expect(h.ctx.session.user).toBe("tor2dbear");
     expect(h.cwd).toBe("/home/tor2dbear");
+  });
+});
+
+describe("share", () => {
+  it("prints a link that decodes back to the file", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/note.txt`, "shared hej");
+    await h.run("share note.txt");
+    const link = h.lines.at(-1);
+    expect(link?.cls).toBe("accent");
+    expect(link?.text).toContain("https://pia.test/#s=");
+    const payload = link!.text.split("#s=")[1];
+    expect(decodeShare(payload)).toEqual({ name: "note.txt", content: "shared hej" });
+  });
+
+  it("errors on a missing file or a directory", async () => {
+    const h = harness();
+    await h.run("share nope.txt");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    await h.run("mkdir d");
+    await h.run("share d");
+    expect(h.lines.at(-1)?.text).toContain("not a file");
   });
 });
 
