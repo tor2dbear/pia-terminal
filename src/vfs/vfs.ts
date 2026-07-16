@@ -1,4 +1,4 @@
-import { type DirNode, type VNode, isDir } from "./types.js";
+import { type DirNode, type FileNode, type VNode, isDir, isFile } from "./types.js";
 
 export const HOME = "/home/guest";
 
@@ -123,14 +123,32 @@ export class VFS {
     this.writeFile(absPath, "");
   }
 
-  /** Write (creating or overwriting) a file's content. */
+  /** Write (creating or overwriting) a file's content. Preserves a cloud link. */
   writeFile(absPath: string, content: string): void {
     const { parent, name } = this.parentOf(absPath);
     const existing = parent.children[name];
     if (existing && isDir(existing)) {
       throw new VfsError(`is a directory: ${absPath}`);
     }
-    parent.children[name] = { type: "file", name, content };
+    const file: FileNode = { type: "file", name, content };
+    // Keep the share link across writes (e.g. when a save refreshes the cache).
+    if (existing && isFile(existing) && existing.shareId !== undefined) {
+      file.shareId = existing.shareId;
+    }
+    parent.children[name] = file;
+  }
+
+  /** Link a file to a cloud shared object — sharing is a property, not a move. */
+  link(absPath: string, shareId: string): void {
+    const node = this.getNode(absPath);
+    if (!node || !isFile(node)) throw new VfsError(`not a file: ${absPath}`);
+    node.shareId = shareId;
+  }
+
+  /** Drop a file's cloud link (leave the share); the local content stays. */
+  unlink(absPath: string): void {
+    const node = this.getNode(absPath);
+    if (node && isFile(node)) delete node.shareId;
   }
 
   /** Read a file's content, or throw a printable error. */

@@ -2,6 +2,41 @@ import { describe, expect, it } from "vitest";
 import { VFS, VfsError, HOME } from "./vfs.js";
 import { isDir, isFile } from "./types.js";
 
+describe("VFS share links", () => {
+  it("links and unlinks a file, and survives writes and moves", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile("/home/guest/flowers.md", "roses");
+    vfs.link("/home/guest/flowers.md", "cloud-1");
+
+    const node = vfs.getNode("/home/guest/flowers.md");
+    expect(isFile(node!) && node.shareId).toBe("cloud-1");
+
+    // A write (e.g. refreshing the cache on save) keeps the link.
+    vfs.writeFile("/home/guest/flowers.md", "roses\ntulips");
+    const afterWrite = vfs.getNode("/home/guest/flowers.md");
+    expect(isFile(afterWrite!) && afterWrite.shareId).toBe("cloud-1");
+
+    // Moving the file (mv) keeps the link — the path changes, not the share.
+    vfs.mkdirp("/home/guest/garden");
+    vfs.move("/home/guest/flowers.md", "/home/guest/garden/flowers.md");
+    const moved = vfs.getNode("/home/guest/garden/flowers.md");
+    expect(isFile(moved!) && moved.shareId).toBe("cloud-1");
+
+    vfs.unlink("/home/guest/garden/flowers.md");
+    const unlinked = vfs.getNode("/home/guest/garden/flowers.md");
+    expect(isFile(unlinked!) && unlinked.shareId).toBeUndefined();
+  });
+
+  it("round-trips shareId through serialization", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile("/home/guest/f.md", "x");
+    vfs.link("/home/guest/f.md", "cloud-9");
+    const reloaded = new VFS(JSON.parse(JSON.stringify(vfs.root)));
+    const node = reloaded.getNode("/home/guest/f.md");
+    expect(isFile(node!) && node.shareId).toBe("cloud-9");
+  });
+});
+
 describe("VFS.resolve", () => {
   const vfs = VFS.seed();
 
