@@ -64,14 +64,14 @@ describe("todo (through the terminal)", () => {
   let term: Terminal | undefined;
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
-  function mount(share?: MemoryShareStore): HTMLElement {
+  function mount(share?: MemoryShareStore, auth = new MemoryAuthAdapter()): HTMLElement {
     const root = document.createElement("div");
     document.body.append(root);
     term = new Terminal(root, {
       vfs: VFS.seed(),
       adapter: new MemoryStorageAdapter(),
       registry: buildRegistry(),
-      auth: new MemoryAuthAdapter(),
+      auth,
       session: { user: "guest" },
       share,
     });
@@ -174,6 +174,22 @@ describe("todo (through the terminal)", () => {
 
     const saved = await owner.get(id);
     expect(saved?.content).toContain("cheese");
+  });
+
+  it("emails the invitee a magic link when the auth backend can send one", async () => {
+    const me = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const auth = new MemoryAuthAdapter();
+    const root = mount(me, auth);
+
+    await runLine(root, "todo handla");
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+
+    await runLine(root, "todo share handla wife@example.com");
+    expect(auth.invitedEmails).toContain("wife@example.com");
+    expect(root.textContent).toContain("invite link");
   });
 
   it("refuses to share a list that does not exist", async () => {

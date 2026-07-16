@@ -60,4 +60,17 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     const { error } = await this.client.auth.signOut();
     if (error) throw new Error(error.message);
   }
+
+  async inviteByEmail(email: string, redirectTo: string): Promise<void> {
+    // A magic link (OTP) rather than an admin invite: it needs no service_role
+    // key, so it works straight from the browser. `shouldCreateUser` makes the
+    // click create the account when the invitee is new. The sender (Supabase's
+    // built-in email now, custom SMTP + your domain later) is a dashboard
+    // setting — this call is identical either way.
+    const { error } = await this.client.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true, emailRedirectTo: redirectTo },
+    });
+    if (error) throw new Error(error.message);
+  }
 }

@@ -25,4 +25,10 @@ export interface AuthAdapter {
   rename(username: string): Promise<void>;
   /** Log out the current session. */
   logout(): Promise<void>;
+  /**
+   * Send a passwordless magic-link invite to `email`. Clicking it creates the
+   * account (if new) and lands them logged in at `redirectTo`. Optional — only
+   * a backend that can send email implements it; local/guest auth omits it.
+   */
+  inviteByEmail?(email: string, redirectTo: string): Promise<void>;
 }

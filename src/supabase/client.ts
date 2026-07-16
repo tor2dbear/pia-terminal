@@ -20,6 +20,10 @@ export interface SupabaseLike {
       data: { user: AuthUser | null };
       error: { message: string } | null;
     }>;
+    signInWithOtp(c: {
+      email: string;
+      options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
+    }): Promise<{ error: { message: string } | null }>;
     signUp(c: {
       email: string;
       password: string;

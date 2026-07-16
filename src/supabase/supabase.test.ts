@@ -28,6 +28,11 @@ function stubClient(): SupabaseLike {
         user = { id: `uid:${email}`, email, user_metadata: {} };
         return { data: { user }, error: null };
       },
+      async signInWithOtp() {
+        // A real OTP only logs in once the emailed link is clicked; here it just
+        // "sends". Tests that care about the arguments override this.
+        return { error: null };
+      },
       async signUp({
         email,
         options,
@@ -115,6 +120,26 @@ describe("SupabaseAuthAdapter", () => {
     await auth.register("x", "new@example.com", "secret");
     await auth.logout();
     expect(await auth.current()).toBeNull();
+  });
+
+  it("sends a magic-link invite that creates the account on click", async () => {
+    const client = stubClient();
+    const calls: Array<{
+      email: string;
+      options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
+    }> = [];
+    client.auth.signInWithOtp = async (c) => {
+      calls.push(c);
+      return { error: null };
+    };
+    const auth = new SupabaseAuthAdapter(client);
+    await auth.inviteByEmail!("wife@example.com", "https://app.example/pia/");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].email).toBe("wife@example.com");
+    expect(calls[0].options).toMatchObject({
+      shouldCreateUser: true,
+      emailRedirectTo: "https://app.example/pia/",
+    });
   });
 });
 

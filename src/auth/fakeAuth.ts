@@ -39,6 +39,8 @@ export class FakeAuthAdapter implements AuthAdapter {
 export class MemoryAuthAdapter implements AuthAdapter {
   readonly requiresPassword = false;
   private user: string | null = null;
+  /** Records magic-link invites, so tests can assert the email path. */
+  readonly invitedEmails: string[] = [];
 
   async current(): Promise<Session | null> {
     return this.user ? { user: this.user } : null;
@@ -59,5 +61,9 @@ export class MemoryAuthAdapter implements AuthAdapter {
 
   async logout(): Promise<void> {
     this.user = null;
+  }
+
+  async inviteByEmail(email: string): Promise<void> {
+    this.invitedEmails.push(email);
   }
 }

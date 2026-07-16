@@ -259,10 +259,21 @@ confirm via the email link first, then `login`.
 Two logged-in users can share a checklist. `todo share <name> <email>` promotes
 a local `~/todo/<name>.list` to a **shared list** in the cloud and invites the
 other person by email; the local copy is handed over so the cloud stays the one
-source of truth. The invite is claimed automatically the next time the invitee
-logs in, after which the list shows up under `todo` (marked 👥) for both of them.
-Editing saves straight to the cloud (last-write-wins for now; live sync is a
-later step).
+source of truth. The invitee gets a **magic-link email** (`signInWithOtp` with
+`shouldCreateUser`) — clicking it creates their account (if new) and lands them
+logged in. On that first login the pending invite is claimed automatically, and
+the list shows up under `todo` (marked 👥) for both of them. Editing saves
+straight to the cloud (last-write-wins for now; live sync is a later step).
+
+The invite *row* is the source of truth: it's claimed on login whether or not
+the email arrives, so the emailed link is a best-effort nudge — a failed or
+unavailable send never fails the share (the invitee can just log in manually
+with the same address).
+
+The email sender is a Supabase dashboard setting, independent of this code: the
+built-in sender (Supabase-branded, rate-limited — fine for now) today, custom
+SMTP + your own domain for unbranded mail later. For the magic link to redirect
+back, the app's URL must be in **Auth → URL Configuration → Redirect URLs**.
 
 The seam is a `ShareStore` interface (`src/share/store.ts`) — `NullShareStore`
 for guests, `SupabaseShareStore` (dynamic-imported) for logged-in users, and a

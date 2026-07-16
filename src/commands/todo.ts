@@ -133,28 +133,46 @@ async function shareList(args: string[], ctx: CommandContext): Promise<void> {
   }
 
   try {
-    // Already shared? Just add another person.
+    // Already shared? Just add another person. Otherwise promote a local list
+    // to a shared one and hand the local copy over.
     const already = (await ctx.share.mine()).find((l) => l.name === name);
     if (already) {
       await ctx.share.invite(already.id, email);
-      ctx.print(`invited ${email} to "${name}"`, "accent");
-      return;
+    } else {
+      const path = `${listsDir(ctx)}/${name}.list`;
+      const node = ctx.vfs.getNode(path);
+      if (!node || !isFile(node)) {
+        return ctx.error(`no such list: ${name} — \`todo ${name}\` to create it first`);
+      }
+      const id = await ctx.share.create(name, node.content);
+      await ctx.share.invite(id, email);
+      ctx.vfs.remove(path); // now lives in the cloud — one source of truth
+      await ctx.persist();
     }
 
-    // Promote a local list to a shared one, then hand the local copy over.
-    const path = `${listsDir(ctx)}/${name}.list`;
-    const node = ctx.vfs.getNode(path);
-    if (!node || !isFile(node)) {
-      return ctx.error(`no such list: ${name} — \`todo ${name}\` to create it first`);
-    }
-    const id = await ctx.share.create(name, node.content);
-    await ctx.share.invite(id, email);
-    ctx.vfs.remove(path); // now lives in the cloud — one source of truth
-    await ctx.persist();
     ctx.print(`shared "${name}" with ${email}`, "accent");
-    ctx.print("they'll see it under `todo` once they log in", "dim");
+    // The invite row is the source of truth (claimed on login regardless), so a
+    // failed or unavailable email must not fail the share — it's just a nudge.
+    const emailed = await notifyInvitee(email, ctx);
+    ctx.print(
+      emailed
+        ? "sent them an invite link — clicking it signs them in"
+        : "they'll see it under `todo` once they log in",
+      "dim",
+    );
   } catch (e) {
     ctx.error(e instanceof Error ? e.message : "sharing failed");
+  }
+}
+
+/** Best-effort magic-link email; never throws (email is a nudge, not the seam). */
+async function notifyInvitee(email: string, ctx: CommandContext): Promise<boolean> {
+  if (!ctx.auth.inviteByEmail) return false;
+  try {
+    await ctx.auth.inviteByEmail(email, ctx.baseUrl);
+    return true;
+  } catch {
+    return false;
   }
 }
 
