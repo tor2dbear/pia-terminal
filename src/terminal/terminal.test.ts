@@ -68,6 +68,21 @@ describe("Terminal (driven via keyboard)", () => {
     expect(kbd(root)).toBeInstanceOf(HTMLInputElement);
   });
 
+  it("pastes clipboard text into the input line via the paste key", async () => {
+    const root = mount();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { readText: async () => "milk eggs" },
+      configurable: true,
+    });
+    const paste = [
+      ...root.querySelectorAll<HTMLButtonElement>(".term-keybar .kb-key"),
+    ].find((b) => b.textContent === "paste");
+    expect(paste).toBeTruthy();
+    paste!.dispatchEvent(new Event("pointerdown", { bubbles: true, cancelable: true }));
+    await flush();
+    expect(typed(root)).toContain("milk eggs");
+  });
+
   it("echoes a typed command and prints its output", async () => {
     const root = mount();
     await runLine(root, "echo hej");

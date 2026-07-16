@@ -55,6 +55,10 @@ body {
 .term-output {
   white-space: pre-wrap;
   word-break: break-word;
+  /* Let output be long-pressed and copied on mobile (the tap handler yields
+     to an active selection so it isn't collapsed on pointerup). */
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .term-line {

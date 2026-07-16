@@ -145,6 +145,9 @@ export class Terminal {
    * cover the bar. preventDefault on those buttons preserves existing focus.
    */
   private onRootTap = (e: PointerEvent): void => {
+    // Leave an active text selection alone — focusing the hidden input would
+    // collapse it and make copying output impossible.
+    if ((window.getSelection()?.toString().length ?? 0) > 0) return;
     const target = e.target as HTMLElement | null;
     if (
       target?.closest(
@@ -154,6 +157,23 @@ export class Terminal {
       return;
     }
     this.focusKbd();
+  };
+
+  /** Insert the clipboard's text at the cursor (or into the active app). */
+  private pasteFromClipboard = async (): Promise<void> => {
+    let text = "";
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      return; // clipboard unavailable or permission denied — nothing to do
+    }
+    if (!text) return;
+    if (this.activeApp) {
+      this.activeApp.onText(text);
+      this.renderKeybar();
+    } else if (!this.busy) {
+      this.insertText(text);
+    }
   };
 
   /**
@@ -698,6 +718,7 @@ export class Terminal {
       { label: "↓", run: () => this.recallHistory(1) },
       { label: "←", run: () => this.moveCursor(-1) },
       { label: "→", run: () => this.cursorRight() },
+      { label: "paste", subtle: true, run: () => void this.pasteFromClipboard() },
       insert("|"),
       insert(">"),
       insert("~"),

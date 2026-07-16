@@ -221,7 +221,8 @@ opening it shows the file read-only. With a backend, `useradd <username> <email>
 edit together (e.g. a shopping list) — see Collaboration below.
 
 - **Terminal core:** blinking block cursor, command history, Tab-completion
-  (commands + paths), a soft-keyboard capture field for mobile.
+  (commands + paths), a soft-keyboard capture field for mobile, a `paste` key
+  (Clipboard API) and long-press-selectable output for copying.
 - **Pipes & redirects:** `a | b | c`, `> file`, `>> file` — commands have real
   stdin/stdout; `grep`/`find`/`wc` read files or piped input.
 - **Screen apps** (via the app host): `nano` (^O save, ^X exit) and `snake`
