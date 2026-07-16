@@ -19,8 +19,12 @@ export class SupabaseAuthAdapter implements AuthAdapter {
   constructor(private readonly client: SupabaseLike) {}
 
   async current(): Promise<Session | null> {
-    const { data } = await this.client.auth.getUser();
-    return data.user ? { user: handle(data.user) } : null;
+    // Read identity from the locally-stored session (no network) so a flaky
+    // getUser() request can't drop a real login back to "guest" — which bit us
+    // right after a magic-link redirect on mobile. Same reasoning as the
+    // storage adapter's uid().
+    const { data } = await this.client.auth.getSession();
+    return data.session ? { user: handle(data.session.user) } : null;
   }
 
   async login(email: string, password?: string): Promise<Session> {

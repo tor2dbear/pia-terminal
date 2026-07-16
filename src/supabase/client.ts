@@ -15,7 +15,7 @@ interface AuthUser {
 export interface SupabaseLike {
   auth: {
     getUser(): Promise<{ data: { user: AuthUser | null } }>;
-    getSession(): Promise<{ data: { session: { user: { id: string } } | null } }>;
+    getSession(): Promise<{ data: { session: { user: AuthUser } | null } }>;
     signInWithPassword(c: { email: string; password: string }): Promise<{
       data: { user: AuthUser | null };
       error: { message: string } | null;

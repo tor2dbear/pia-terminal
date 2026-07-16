@@ -22,7 +22,7 @@ function stubClient(): SupabaseLike {
         return { data: { user } };
       },
       async getSession() {
-        return { data: { session: user ? { user: { id: user.id } } : null } };
+        return { data: { session: user ? { user } : null } };
       },
       async signInWithPassword({ email }: { email: string; password: string }) {
         user = { id: `uid:${email}`, email, user_metadata: {} };
@@ -95,6 +95,18 @@ describe("SupabaseAuthAdapter", () => {
   it("requires a password", async () => {
     const auth = new SupabaseAuthAdapter(stubClient());
     await expect(auth.login("pia@example.com")).rejects.toThrow(/password/);
+  });
+
+  it("reports the user from the session even if getUser() flakes", async () => {
+    const client = stubClient();
+    await client.auth.signInWithPassword({ email: "pia@example.com", password: "x" });
+    // Simulate a flaky network getUser — current() must not depend on it
+    // (this is what dropped a magic-link login back to guest).
+    (client.auth as { getUser: unknown }).getUser = async () => ({
+      data: { user: null },
+    });
+    const auth = new SupabaseAuthAdapter(client);
+    expect(await auth.current()).toEqual({ user: "pia" });
   });
 
   it("registers with a chosen username stored as metadata", async () => {
