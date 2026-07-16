@@ -1,6 +1,7 @@
 import type { VFS } from "../vfs/vfs.js";
 import type { ScreenAppFactory } from "../terminal/screen.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
+import type { ShareStore } from "../share/store.js";
 
 export type { Session };
 
@@ -37,6 +38,8 @@ export interface CommandContext {
   runApp(factory: ScreenAppFactory): Promise<void>;
   /** Reload the filesystem tree from storage (e.g. after a cloud login). */
   reloadFs?(): Promise<void>;
+  /** Shared checklists backend, for collaboration (absent → sharing is off). */
+  share?: ShareStore;
   /** The registry, so `help` can enumerate commands. */
   registry: CommandRegistry;
 }

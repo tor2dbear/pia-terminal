@@ -10,6 +10,7 @@ import {
 import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 import type { AuthAdapter } from "../auth/adapter.js";
+import type { ShareStore } from "../share/store.js";
 
 export interface TerminalOptions {
   vfs: VFS;
@@ -17,6 +18,8 @@ export interface TerminalOptions {
   registry: CommandRegistry;
   auth: AuthAdapter;
   session: Session;
+  /** Shared-list backend for collaboration; omitted → sharing is off. */
+  share?: ShareStore;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -50,6 +53,7 @@ export class Terminal {
   private readonly registry: CommandRegistry;
   private readonly auth: AuthAdapter;
   private readonly session: Session;
+  private readonly share?: ShareStore;
 
   private cwd = HOME;
   private buffer = "";
@@ -68,6 +72,7 @@ export class Terminal {
     this.registry = opts.registry;
     this.auth = opts.auth;
     this.session = opts.session;
+    this.share = opts.share;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -643,6 +648,7 @@ export class Terminal {
         const root = await this.adapter.load();
         if (root) this.vfs.root = root;
       },
+      share: this.share,
       runApp: capture
         ? () => {
             this.print("cannot run a full-screen app in a pipeline", "error");

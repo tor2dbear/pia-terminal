@@ -7,8 +7,10 @@ import { Terminal } from "./terminal/terminal.js";
 import { boot } from "./boot.js";
 import { cloudConfig } from "./config.js";
 import { parseShareHash } from "./share/share.js";
+import { NullShareStore } from "./share/store.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
+import type { ShareStore } from "./share/store.js";
 
 /**
  * Choose the storage + auth adapters. With Supabase configured, guests stay on
@@ -19,17 +21,28 @@ import type { AuthAdapter } from "./auth/adapter.js";
 async function makeAdapters(): Promise<{
   adapter: StorageAdapter;
   auth: AuthAdapter;
+  share: ShareStore;
 }> {
   if (!cloudConfig) {
-    return { adapter: new LocalStorageAdapter(), auth: new FakeAuthAdapter() };
+    return {
+      adapter: new LocalStorageAdapter(),
+      auth: new FakeAuthAdapter(),
+      share: new NullShareStore(),
+    };
   }
-  const [{ createSupabase }, { SupabaseAuthAdapter }, { SupabaseStorageAdapter }, { HybridStorageAdapter }] =
-    await Promise.all([
-      import("./supabase/client.js"),
-      import("./supabase/auth.js"),
-      import("./supabase/storage.js"),
-      import("./supabase/hybrid.js"),
-    ]);
+  const [
+    { createSupabase },
+    { SupabaseAuthAdapter },
+    { SupabaseStorageAdapter },
+    { HybridStorageAdapter },
+    { SupabaseShareStore },
+  ] = await Promise.all([
+    import("./supabase/client.js"),
+    import("./supabase/auth.js"),
+    import("./supabase/storage.js"),
+    import("./supabase/hybrid.js"),
+    import("./supabase/share.js"),
+  ]);
   const client = await createSupabase(cloudConfig);
   return {
     auth: new SupabaseAuthAdapter(client),
@@ -38,6 +51,7 @@ async function makeAdapters(): Promise<{
       new SupabaseStorageAdapter(client),
       client,
     ),
+    share: new SupabaseShareStore(client),
   };
 }
 
@@ -61,7 +75,7 @@ async function main(): Promise<void> {
   if (!root) throw new Error("missing #screen element");
 
   migrateLegacyKeys();
-  const { adapter, auth } = await makeAdapters();
+  const { adapter, auth, share } = await makeAdapters();
   const saved = await adapter.load();
   let vfs: VFS;
   if (saved) {
@@ -79,8 +93,24 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
-  const term = new Terminal(root, { vfs, adapter, registry, auth, session });
+  const term = new Terminal(root, { vfs, adapter, registry, auth, session, share });
   await boot(term);
+
+  // Turn any pending invites addressed to this user into memberships, so a list
+  // shared with them shows up under `todo` right after they log in.
+  if (share.available()) {
+    try {
+      const claimed = await share.claim();
+      if (claimed > 0) {
+        term.print(
+          `(${claimed} shared list${claimed === 1 ? "" : "s"} added — see \`todo\`)`,
+          "dim",
+        );
+      }
+    } catch {
+      /* not logged in / offline — nothing to claim */
+    }
+  }
 
   // Opened via a share link? Show the shared file (read-only) after boot.
   const shared = parseShareHash(location.hash);

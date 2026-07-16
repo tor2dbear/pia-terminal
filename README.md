@@ -198,9 +198,10 @@ src/
   vfs/          virtual filesystem (tree + path resolution)
   storage/      StorageAdapter interface + LocalStorage/Memory implementations
   auth/         AuthAdapter interface + Fake/Memory implementations
+  share/        URL sharing + ShareStore (shared lists: Null/Memory/Supabase)
   commands/     command registry + all commands (fs, system, edit, auth, text, games)
   terminal/     terminal core (input, cursor, history, Tab, pipes) + screen-app host
-  apps/         full-screen apps (editor, snake)
+  apps/         full-screen apps (editor, snake, todo)
   boot.ts       boot sequence
   main.ts       entry point (wires everything together)
 ```
@@ -215,7 +216,9 @@ Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls`
 link (the file is packed into the URL hash — no server, works for guests);
 opening it shows the file read-only. With a backend, `useradd <username> <email>
 <password>` picks a real username (stored as account metadata); `usermod
-<username>` renames you and moves your home directory.
+<username>` renames you and moves your home directory. `todo share <name>
+<email>` promotes a checklist to a **shared list** two logged-in people can
+edit together (e.g. a shopping list) — see Collaboration below.
 
 - **Terminal core:** blinking block cursor, command history, Tab-completion
   (commands + paths), a soft-keyboard capture field for mobile.
@@ -226,8 +229,9 @@ opening it shows the file read-only. With a backend, `useradd <username> <email>
 - **Fake auth** with per-user home directories (`AuthAdapter`), the boot
   sequence, and persistence via `LocalStorageAdapter`.
 
-89 tests cover the VFS, parser + pipelines, commands, auth, the keyboard-driven
-terminal, the editor, the snake game logic, and the Supabase adapters.
+136 tests cover the VFS, parser + pipelines, commands, auth, the keyboard-driven
+terminal, the editor, the snake game and todo apps, sharing, and the Supabase
+adapters.
 
 Level 0 is complete; Level 1 (pipes, grep/find) and the first Level 2 screen-app
 game are in.
@@ -249,6 +253,24 @@ tree-shaken out.
 Note: the app expects email confirmation to be **off** (Authentication →
 Sign-in → Email) so `register` logs you straight in; otherwise it tells you to
 confirm via the email link first, then `login`.
+
+### Collaboration — shared lists
+
+Two logged-in users can share a checklist. `todo share <name> <email>` promotes
+a local `~/todo/<name>.list` to a **shared list** in the cloud and invites the
+other person by email; the local copy is handed over so the cloud stays the one
+source of truth. The invite is claimed automatically the next time the invitee
+logs in, after which the list shows up under `todo` (marked 👥) for both of them.
+Editing saves straight to the cloud (last-write-wins for now; live sync is a
+later step).
+
+The seam is a `ShareStore` interface (`src/share/store.ts`) — `NullShareStore`
+for guests, `SupabaseShareStore` (dynamic-imported) for logged-in users, and a
+`MemoryShareStore` for tests. The schema lives in
+[`supabase/shared_lists.sql`](supabase/shared_lists.sql): three tables
+(`shared_lists`, `shared_list_members`, `shared_list_invites`) behind RLS, with
+membership changes going through `SECURITY DEFINER` RPCs so a client can never
+add itself to a list it wasn't invited to.
 
 ### Next steps
 

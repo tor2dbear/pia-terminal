@@ -13,7 +13,9 @@ friendly names as **aliases** where helpful, not as the primary.
 
 **When a flow has no terminal equivalent — flag it and sync before building.**
 Examples we've already hit: email + password + email-confirmation auth (pure
-web), `share`/`publish` returning URLs, on-screen touch controls for mobile.
+web), `share`/`publish` returning URLs, on-screen touch controls for mobile,
+and `todo share <name> <email>` / invite-by-email collaboration (closest Unix
+kin is `chmod`/`chown`/NFS-mounts — decided as an accepted web divergence).
 These are allowed, but call them out so the divergence is a decision, not a
 drift. Touch affordances (D-pad, tappable ^O/^X) are intentional mobile
 concessions, not lingo.
@@ -25,9 +27,11 @@ Idiom notes in force: editor is `nano` (alias `edit`), saves with `^O`
 ## Architecture (keep it this way)
 
 - **Adapters are the seam.** The terminal never touches storage or auth
-  directly — only `StorageAdapter` / `AuthAdapter` interfaces. This is why the
-  backend was a *swap, not a rewrite*: `Local`/`Fake` for guests, Supabase for
-  logged-in users, behind the same interfaces. Don't bypass them.
+  directly — only `StorageAdapter` / `AuthAdapter` / `ShareStore` interfaces.
+  This is why the backend was a *swap, not a rewrite*: `Local`/`Fake`/`Null` for
+  guests, Supabase for logged-in users, behind the same interfaces. Don't bypass
+  them. Collaboration rides the same seam: `ShareStore` (shared checklists) has a
+  `Null` (guest), `Memory` (test), and `Supabase` implementation.
 - **Command registry.** Each command is `{ name, help, run(args, ctx), aliases? }`.
   Commands reach the world only through `CommandContext` (print, vfs, auth,
   stdin, piped, runApp, …) — never the DOM or storage.
@@ -41,9 +45,10 @@ Idiom notes in force: editor is `nano` (alias `edit`), saves with `^O`
 src/vfs/        filesystem tree + path resolution
 src/storage/    StorageAdapter + Local/Memory
 src/auth/       AuthAdapter + Fake/Memory
+src/share/      share.ts (URL sharing) + store.ts (ShareStore + Null/Memory)
 src/supabase/   cloud adapters (dynamic-imported; dormant without config)
 src/commands/   registry + commands (fs, system, edit, auth, text, games)
-src/apps/       screen apps (editor, snake)
+src/apps/       screen apps (editor, snake, todo)
 src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
 ```
 
