@@ -83,33 +83,6 @@ describe("Terminal (driven via keyboard)", () => {
     expect(typed(root)).toContain("milk eggs");
   });
 
-  it("falls back to a native paste field when the clipboard read is blocked", async () => {
-    const root = mount();
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        readText: async () => {
-          throw new DOMException("blocked", "NotAllowedError");
-        },
-      },
-      configurable: true,
-    });
-    const paste = [
-      ...root.querySelectorAll<HTMLButtonElement>(".term-keybar .kb-key"),
-    ].find((b) => b.textContent === "paste");
-    paste!.click();
-    await flush();
-
-    const field = root.querySelector<HTMLTextAreaElement>(".term-paste");
-    expect(field).toBeTruthy(); // a real field to paste into appeared
-
-    // Simulate a native long-press → Paste, then Enter to insert.
-    field!.value = "from another app";
-    field!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    await flush();
-    expect(typed(root)).toContain("from another app");
-    expect(root.querySelector(".term-paste")).toBeNull(); // torn down after
-  });
-
   it("echoes a typed command and prints its output", async () => {
     const root = mount();
     await runLine(root, "echo hej");

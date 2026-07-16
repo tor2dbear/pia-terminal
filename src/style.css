@@ -344,53 +344,6 @@ body {
 
 /* ---- on-screen key bar --------------------------------------------------- */
 
-/* On-demand paste box: shown when iOS blocks a programmatic clipboard read, so
-   a normal user-driven paste into a real, visible field still works. Centred in
-   the upper third so the soft keyboard never covers it. */
-.term-paste-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 15vh 1rem 0;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.term-paste-box {
-  width: min(100%, 32rem);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.8rem;
-  background: #10160f;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-}
-
-.term-paste-label {
-  color: var(--dim);
-  font-size: 0.85rem;
-}
-
-.term-paste {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.6rem;
-  font-family: var(--font);
-  font-size: 16px; /* 16px stops iOS from zooming when it focuses */
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--dim);
-  border-radius: 6px;
-  resize: none;
-}
-
-.term-paste::placeholder {
-  color: var(--dim);
-}
-
 .term-keybar {
   position: fixed;
   left: 0;

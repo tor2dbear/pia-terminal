@@ -161,26 +161,23 @@ export class Terminal {
 
   /** Insert the clipboard's text at the cursor (or into the active app). */
   private pasteFromClipboard = async (): Promise<void> => {
-    // Fast path: the Clipboard API reads same-origin content in one tap.
-    if (navigator.clipboard?.readText) {
-      try {
-        const text = await navigator.clipboard.readText();
-        this.commitPaste(text);
-        return;
-      } catch (err) {
-        // iOS blocks *programmatic* reads of another app's clipboard (privacy).
-        // Fall through to the native-menu field, which the platform does allow.
-        if (!(err instanceof DOMException && err.name === "NotAllowedError")) {
-          this.print(`paste: ${err instanceof Error ? err.message : "blocked"}`, "error");
-          return;
-        }
-      }
+    if (!navigator.clipboard?.readText) {
+      this.print("paste: this browser blocks clipboard reads", "error");
+      return;
     }
-    this.promptNativePaste();
-  };
-
-  /** Route pasted text to the active app or the input line. */
-  private commitPaste(text: string): void {
+    let text: string;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (err) {
+      const denied = err instanceof DOMException && err.name === "NotAllowedError";
+      this.print(
+        denied
+          ? "paste: iOS won't let a web page read another app's clipboard (a limit of this custom input, not your clipboard). Same-origin copy/paste works."
+          : `paste: ${err instanceof Error ? err.message : "blocked"}`,
+        "error",
+      );
+      return;
+    }
     if (!text) return;
     if (this.activeApp) {
       this.activeApp.onText(text);
@@ -189,63 +186,7 @@ export class Terminal {
       this.insertText(text);
     }
     this.focusKbd();
-  }
-
-  /**
-   * When the Clipboard API can't read another app's clipboard, drop in a real
-   * text field: the OS *does* allow a user-driven paste (long-press → Paste)
-   * into an editable element. We grab that and tear the field down again.
-   */
-  private promptNativePaste(): void {
-    this.root.querySelector(".term-paste-overlay")?.remove();
-
-    const overlay = document.createElement("div");
-    overlay.className = "term-paste-overlay";
-    const box = document.createElement("div");
-    box.className = "term-paste-box";
-    const label = document.createElement("div");
-    label.className = "term-paste-label";
-    label.textContent = "Paste here, then ⏎ (tap outside to cancel)";
-    const field = document.createElement("textarea");
-    field.className = "term-paste";
-    field.rows = 2;
-    field.setAttribute("autocomplete", "off");
-    field.setAttribute("autocapitalize", "off");
-    field.setAttribute("autocorrect", "off");
-    field.setAttribute("spellcheck", "false");
-    field.placeholder = "tap and Paste…";
-
-    let done = false;
-    const finish = (text: string): void => {
-      if (done) return;
-      done = true;
-      overlay.remove();
-      this.commitPaste(text);
-    };
-
-    field.addEventListener("paste", (e) => {
-      e.preventDefault();
-      finish((e as ClipboardEvent).clipboardData?.getData("text") ?? "");
-    });
-    field.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        finish(field.value);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        finish("");
-      }
-    });
-    // Tap the dimmed backdrop (not the box) to cancel.
-    overlay.addEventListener("pointerdown", (e) => {
-      if (e.target === overlay) finish("");
-    });
-
-    box.append(label, field);
-    overlay.append(box);
-    this.root.append(overlay);
-    field.focus();
-  }
+  };
 
   /**
    * Ride the key bar above the on-screen keyboard and shrink the app to the
