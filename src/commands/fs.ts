@@ -1,5 +1,6 @@
 import { VfsError } from "../vfs/vfs.js";
-import { isDir } from "../vfs/types.js";
+import { isDir, isFile } from "../vfs/types.js";
+import type { VNode } from "../vfs/types.js";
 import type { Command, CommandContext } from "./registry.js";
 
 /** Run `fn`, printing a VfsError as an error line instead of throwing. */
@@ -39,11 +40,15 @@ export const ls: Command = {
       }
       const entries = ctx.vfs.list(target);
       if (entries.length === 0) return;
-      const names = entries.map((e) => (e.type === "dir" ? `${e.name}/` : e.name));
-      // One entry per line when piped/redirected (so `ls | grep` works);
-      // space-separated for the interactive screen.
-      if (ctx.piped) for (const name of names) ctx.print(name);
-      else ctx.print(names.join("  "));
+      // `/` marks directories; `@` marks a shared (cloud-linked) file, the way
+      // `ls -F` flags a symlink. Suffixes are for the screen only — piped output
+      // stays clean names so `ls | grep` keeps working.
+      const decorate = (e: VNode, marks: boolean): string => {
+        if (e.type === "dir") return `${e.name}/`;
+        return marks && isFile(e) && e.shareId ? `${e.name}@` : e.name;
+      };
+      if (ctx.piped) for (const e of entries) ctx.print(decorate(e, false));
+      else ctx.print(entries.map((e) => decorate(e, true)).join("  "));
     });
   },
 };

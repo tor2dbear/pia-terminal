@@ -192,6 +192,20 @@ export class VFS {
     destParent.children[destName] = node;
   }
 
+  /** Every cloud shareId currently linked somewhere in the tree. */
+  linkedShareIds(): Set<string> {
+    const ids = new Set<string>();
+    const walk = (node: VNode): void => {
+      if (isFile(node)) {
+        if (node.shareId !== undefined) ids.add(node.shareId);
+        return;
+      }
+      for (const child of Object.values(node.children)) walk(child);
+    };
+    walk(this.root);
+    return ids;
+  }
+
   /** List a directory's entries, sorted with directories first. */
   list(absPath: string): VNode[] {
     const dir = this.getDir(absPath);

@@ -58,7 +58,7 @@ describe("share <file> <email> (collaborative)", () => {
     document.body.replaceChildren();
   });
 
-  it("shares any file, hands the local copy to the cloud, and lists it", async () => {
+  it("shares any file in place (it stays) and marks it in ls", async () => {
     const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
     const auth = new MemoryAuthAdapter();
     const root = mount(store, auth);
@@ -68,14 +68,42 @@ describe("share <file> <email> (collaborative)", () => {
     expect(root.textContent).toContain('shared "notes.txt" with wife@example.com');
     expect(auth.invitedEmails).toContain("wife@example.com"); // magic-link sent
 
-    // Local copy is gone — it lives in the cloud now.
+    // The file stays right where it is — sharing is a property, not a move.
     await runLine(root, "cat notes.txt");
-    expect(root.textContent).toContain("no such file");
+    expect(root.textContent).toContain("hello");
 
-    // It shows under `shared`, tagged as a file (not a list).
+    // ls marks the shared file with an @ suffix (like a symlink).
+    await runLine(root, "ls");
+    expect(root.textContent).toContain("notes.txt@");
+
+    // It's placed, so it's not in the `shared` inbox of unplaced memberships.
     await runLine(root, "shared");
-    expect(root.textContent).toContain("notes.txt");
-    expect(root.textContent).toContain("file");
+    expect(root.textContent).toContain("nothing new shared with you");
+  });
+
+  it("edits a shared file in place through nano and syncs to the cloud", async () => {
+    const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(store);
+    await runLine(root, "echo hello > notes.txt");
+    await runLine(root, "share notes.txt wife@example.com");
+    const item = (await store.mine()).find((i) => i.name === "notes.txt");
+    expect(item).toBeTruthy();
+
+    // Open the still-in-place file in nano; it's cloud-backed now.
+    type(root, "nano notes.txt");
+    press(root, "Enter");
+    await flush();
+    expect(root.querySelector(".ed-title")?.textContent).toContain("notes.txt");
+
+    type(root, "X"); // edit
+    press(root, "o", { ctrlKey: true }); // ^O → cloud + cache
+    await flush();
+    press(root, "x", { ctrlKey: true }); // ^X exit
+    await flush();
+
+    expect((await store.get(item!.id))?.content).toContain("X"); // cloud updated
+    await runLine(root, "cat notes.txt");
+    expect(root.textContent).toContain("X"); // local cache updated too
   });
 
   it("opens a shared text file in the editor and saves edits to the cloud", async () => {

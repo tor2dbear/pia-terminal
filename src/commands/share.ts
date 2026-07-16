@@ -45,14 +45,19 @@ export const shared: Command = {
       return ctx.error("shared: could not reach the cloud");
     }
 
+    // Hide the ones already placed in the tree (they show up in `ls`); `shared`
+    // is the inbox of memberships you haven't put anywhere yet.
+    const linked = ctx.vfs.linkedShareIds();
+    const incoming = items.filter((i) => !linked.has(i.id));
+
     if (!args[0]) {
-      if (items.length === 0) {
-        ctx.print("nothing shared with you yet", "dim");
-        ctx.print("`share <file> <email>` to share one", "dim");
+      if (incoming.length === 0) {
+        ctx.print("nothing new shared with you", "dim");
+        ctx.print("shared files you've placed show up in `ls` (marked @)", "dim");
         return;
       }
-      ctx.print("shared with you:", "dim");
-      for (const item of items) {
+      ctx.print("shared with you (not yet placed):", "dim");
+      for (const item of incoming) {
         const tag = kindOf(item.name, item.content) === "list" ? "list" : "file";
         ctx.print(`  ${item.name.padEnd(20)} ${tag}  👥`);
       }
@@ -83,8 +88,12 @@ async function shareAsLink(name: string, ctx: CommandContext): Promise<void> {
   ctx.print(`${ctx.baseUrl}#s=${payload}`, "accent");
 }
 
-/** `share <file> <email>` — promote a file to a cloud-shared item and invite. */
-async function shareForEditing(
+/**
+ * `share <file> <email>` — share a file for co-editing and invite someone. The
+ * file stays exactly where it is; it just gains a cloud link (its content
+ * becomes a synced cache). Sharing is a property, not a move.
+ */
+export async function shareForEditing(
   name: string,
   email: string,
   ctx: CommandContext,
@@ -95,24 +104,19 @@ async function shareForEditing(
   const path = ctx.vfs.resolve(ctx.cwd, name);
   const node = ctx.vfs.getNode(path);
   if (!node || !isFile(node)) return ctx.error(`share: no such file: ${path}`);
-  const filename = node.name; // basename, with extension — drives which app opens it
 
   try {
-    // Already shared? Just add another person. Otherwise promote it and hand the
-    // local copy over to the cloud (one source of truth).
-    const already = (await ctx.share.mine()).find((i) => i.name === filename);
-    let id: string;
-    if (already) {
-      id = already.id;
-      await ctx.share.invite(id, email);
+    if (node.shareId) {
+      // Already shared — add another member to the existing link.
+      await ctx.share.invite(node.shareId, email);
     } else {
-      id = await ctx.share.create(filename, node.content);
+      const id = await ctx.share.create(node.name, node.content);
+      ctx.vfs.link(path, id); // link in place — no move
       await ctx.share.invite(id, email);
-      ctx.vfs.remove(path);
       await ctx.persist();
     }
 
-    ctx.print(`shared "${filename}" with ${email}`, "accent");
+    ctx.print(`shared "${node.name}" with ${email}`, "accent");
     const emailed = await notifyInvitee(email, ctx);
     ctx.print(
       emailed
@@ -120,7 +124,6 @@ async function shareForEditing(
         : "they'll see it under `shared` once they log in",
       "dim",
     );
-    ctx.print(`open it with \`shared ${filename}\``, "dim");
   } catch (e) {
     ctx.error(e instanceof Error ? e.message : "share failed");
   }

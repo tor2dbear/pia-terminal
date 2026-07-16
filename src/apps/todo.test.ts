@@ -143,7 +143,7 @@ describe("todo (through the terminal)", () => {
     expect(root.textContent).toContain("shopping");
   });
 
-  it("shares a local list and hands the local copy over to the cloud", async () => {
+  it("shares a list in place (it stays) and marks it, invitee pending", async () => {
     const backing = MemoryShareStore.backing();
     const me = new MemoryShareStore("me@example.com", backing);
     const root = mount(me);
@@ -155,33 +155,34 @@ describe("todo (through the terminal)", () => {
     await flush();
 
     await runLine(root, "todo share handla wife@example.com");
-    expect(root.textContent).toContain('shared "handla" with wife@example.com');
+    expect(root.textContent).toContain('shared "handla.list" with wife@example.com');
 
-    // The local file is gone — the list now lives in the cloud only.
+    // The file STAYS where it lives — sharing is a property, not a move.
     await runLine(root, "cat todo/handla.list");
-    expect(root.textContent).toContain("no such file");
+    expect(root.textContent).toContain("milk");
 
-    // And it now shows under "shared with you".
+    // It still shows under "your lists", now marked shared.
     await runLine(root, "todo");
-    expect(root.textContent).toContain("shared with you");
+    expect(root.textContent).toContain("your lists");
     expect(root.textContent).toContain("handla");
+    expect(root.textContent).toContain("👥");
 
     // The invitee has a pending invite waiting to be claimed.
     const wife = new MemoryShareStore("wife@example.com", backing);
     expect(await wife.claim()).toBe(1);
   });
 
-  it("opens a shared list and saves edits back to the cloud", async () => {
+  it("opens a shared list (via `shared`) and saves edits back to the cloud", async () => {
     const backing = MemoryShareStore.backing();
     const owner = new MemoryShareStore("owner@example.com", backing);
     const id = await owner.create("handla", "[ ] milk");
     await owner.invite(id, "wife@example.com");
 
     const wife = new MemoryShareStore("wife@example.com", backing);
-    await wife.claim(); // she's now a member
+    await wife.claim(); // she's now a member (not yet placed in her tree)
 
     const root = mount(wife);
-    await runLine(root, "todo handla"); // shared list wins over any local file
+    await runLine(root, "shared handla"); // opens the incoming shared list
     type(root, "a"); // enter add mode (list is non-empty → normal mode first)
     type(root, "cheese");
     press(root, "Enter"); // commit
@@ -190,6 +191,33 @@ describe("todo (through the terminal)", () => {
 
     const saved = await owner.get(id);
     expect(saved?.content).toContain("cheese");
+  });
+
+  it("edits a shared list in place via todo and syncs to the cloud", async () => {
+    const me = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(me);
+
+    await runLine(root, "todo handla");
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+    await runLine(root, "todo share handla wife@example.com"); // links in place
+
+    const item = (await me.mine()).find((i) => i.name === "handla.list");
+    expect(item).toBeTruthy();
+
+    // Re-open via todo — it's cloud-backed now — and add an item.
+    type(root, "todo handla");
+    press(root, "Enter");
+    await flush();
+    type(root, "a");
+    type(root, "cheese");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+
+    expect((await me.get(item!.id))?.content).toContain("cheese");
   });
 
   it("emails the invitee a magic link when the auth backend can send one", async () => {
@@ -215,8 +243,8 @@ describe("todo (through the terminal)", () => {
     const id = await me.create("handla", "[ ] milk");
 
     const root = mount(me);
-    // Open the list but DON'T await — runApp only resolves when the app exits.
-    type(root, "todo handla");
+    // Open the incoming shared list but DON'T await — runApp resolves on exit.
+    type(root, "shared handla");
     press(root, "Enter");
     await flush();
     expect(root.textContent).toContain("milk");
