@@ -124,7 +124,10 @@ export class Todo implements ScreenApp {
 
   keys(): KeySpec[] {
     if (this.mode === "add") {
-      return [{ label: "esc", run: () => this.act(() => this.cancelAdd()) }];
+      return [
+        { label: "esc", run: () => this.act(() => this.cancelAdd()) },
+        { label: "^X", run: () => this.exit() },
+      ];
     }
     return [
       { label: "+", run: () => this.act(() => (this.mode = "add")) },

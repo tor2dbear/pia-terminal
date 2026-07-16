@@ -362,6 +362,7 @@ export class Terminal {
     // A full-screen app, when present, owns the keyboard entirely.
     if (this.activeApp) {
       this.activeApp.onKey(e);
+      this.renderKeybar(); // the app's keys may have changed (e.g. mode switch)
       return;
     }
     if (this.busy) return;
@@ -453,6 +454,7 @@ export class Terminal {
     if (!text) return;
     if (this.activeApp) {
       this.activeApp.onText(text);
+      this.renderKeybar();
       return;
     }
     if (this.busy) return;
@@ -731,6 +733,7 @@ export class Terminal {
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         key.run();
+        if (this.activeApp) this.renderKeybar(); // reflect an app key/mode change
       });
       this.keybarEl.append(btn);
     }

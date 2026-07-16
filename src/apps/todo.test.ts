@@ -111,4 +111,19 @@ describe("todo (through the terminal)", () => {
     await runLine(root, "cat shopping.list");
     expect(root.textContent).toContain("[x] milk");
   });
+
+  it("refreshes the key bar when the app changes mode", async () => {
+    const root = mount();
+    const labels = () =>
+      [...root.querySelectorAll(".term-keybar .kb-key")].map((b) => b.textContent);
+
+    await runLine(root, "todo shopping.list"); // empty → add mode
+    expect(labels()).not.toContain("+"); // add-mode bar (esc / ^X)
+    expect(labels()).toContain("^X"); // exit is always reachable
+
+    type(root, "milk");
+    press(root, "Enter"); // commit → normal mode
+    expect(labels()).toContain("+"); // bar updated to normal-mode keys
+    expect(labels()).toContain("^X");
+  });
 });
