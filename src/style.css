@@ -34,23 +34,29 @@ body {
   touch-action: auto;
 }
 
-/* Hidden field that captures the (soft) keyboard. Invisible but focusable —
-   font-size 16px stops iOS Safari from zooming the page when it gains focus. */
+/* The capture field: a transparent overlay sitting on top of the visible input
+   line. It's a real, focusable, reachable input, so the native long-press →
+   Paste works (including cross-app) exactly as on any web page. Its own text and
+   caret are transparent — the block cursor and text are drawn by .term-display
+   underneath. font-size 16px stops iOS Safari from zooming on focus. */
 .term-kbd {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  padding: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
+  padding: 0;
   border: 0;
-  opacity: 0;
+  font-family: var(--font);
   font-size: 16px;
   background: transparent;
   color: transparent;
   caret-color: transparent;
-  z-index: -1;
+  z-index: 1;
+}
+
+.term-kbd:focus {
+  outline: none;
 }
 
 .term-output {
@@ -79,11 +85,41 @@ body {
   color: var(--error);
 }
 
-/* The active input line: prompt + typed text + cursor */
+/* The active input line: a positioning context for the display + field overlay. */
 .term-inputline {
+  position: relative;
+}
+
+/* Hidden while a command or full-screen app runs. Collapsed to a 1px, invisible
+   box rather than display:none, so the capture field inside stays focusable and
+   can still feed keystrokes to the active app — without intercepting taps. */
+.term-inputline.collapsed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Visible layer under the transparent field. pointer-events pass through to the
+   field so taps focus it and long-press reaches its Paste menu — except the
+   tappable ghost bits, which are raised above the field to stay clickable. */
+.term-display {
   display: flex;
   white-space: pre-wrap;
   word-break: break-word;
+  pointer-events: none;
+}
+
+.term-display .accept,
+.term-display .term-ghost,
+.term-display .term-more {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .term-prompt {

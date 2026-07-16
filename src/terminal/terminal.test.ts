@@ -68,6 +68,17 @@ describe("Terminal (driven via keyboard)", () => {
     expect(kbd(root)).toBeInstanceOf(HTMLInputElement);
   });
 
+  it("overlays the capture field on the input line so native paste can reach it", () => {
+    const root = mount();
+    const line = root.querySelector(".term-inputline");
+    const display = root.querySelector(".term-display");
+    // The field is a child of the input line (a transparent overlay over the
+    // visible display layer), not an off-screen 1px element — that reachability
+    // is what lets iOS's long-press → Paste work, cross-app included.
+    expect(line?.contains(kbd(root))).toBe(true);
+    expect(line?.contains(display)).toBe(true);
+  });
+
   it("pastes clipboard text into the input line via the paste key", async () => {
     const root = mount();
     Object.defineProperty(navigator, "clipboard", {

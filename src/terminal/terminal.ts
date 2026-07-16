@@ -40,6 +40,8 @@ function commonPrefix(items: string[]): string {
 export class Terminal {
   private readonly outputEl: HTMLDivElement;
   private readonly inputEl: HTMLDivElement;
+  /** Visible layer of the input line (the field overlays it). */
+  private readonly displayEl: HTMLDivElement;
   /** Hidden, focusable field: the only reliable way to raise a soft keyboard. */
   private readonly kbd: HTMLInputElement;
   /** Container a full-screen app renders into while it owns the screen. */
@@ -86,19 +88,24 @@ export class Terminal {
     this.kbd.setAttribute("autocapitalize", "off");
     this.kbd.setAttribute("autocorrect", "off");
     this.kbd.setAttribute("spellcheck", "false");
-    this.kbd.setAttribute("aria-hidden", "true");
 
     this.outputEl = document.createElement("div");
     this.outputEl.className = "term-output";
     this.appEl = document.createElement("div");
     this.appEl.className = "term-app";
     this.appEl.style.display = "none";
+    // The input line has two layers: a visible display (prompt + typed text +
+    // block cursor + ghost) and, on top of it, the real capture field as a
+    // transparent overlay. Being a reachable, focused input is what lets the
+    // native long-press → Paste work (incl. cross-app), like any web input.
     this.inputEl = document.createElement("div");
     this.inputEl.className = "term-inputline";
+    this.displayEl = document.createElement("div");
+    this.displayEl.className = "term-display";
+    this.inputEl.append(this.displayEl, this.kbd);
     this.keybarEl = document.createElement("div");
     this.keybarEl.className = "term-keybar";
     this.root.append(
-      this.kbd,
       this.outputEl,
       this.appEl,
       this.inputEl,
@@ -265,7 +272,7 @@ export class Terminal {
 
   /** Redraw the active input line, with the block cursor at its position. */
   private renderInput(): void {
-    this.inputEl.replaceChildren();
+    this.displayEl.replaceChildren();
 
     const prompt = document.createElement("span");
     prompt.className = "term-prompt";
@@ -281,7 +288,7 @@ export class Terminal {
       const ghost = state.suffix;
       typed.append(document.createTextNode(this.buffer));
       const cursorEl = document.createElement("span");
-      cursorEl.className = "term-cursor";
+      cursorEl.className = "term-cursor accept"; // tappable to accept, over the field
       cursorEl.textContent = ghost[0];
       const restEl = document.createElement("span");
       restEl.className = "term-ghost";
@@ -316,7 +323,7 @@ export class Terminal {
       typed.append(document.createTextNode(after));
     }
 
-    this.inputEl.append(prompt, typed);
+    this.displayEl.append(prompt, typed);
     this.scrollToBottom();
   }
 
@@ -390,7 +397,9 @@ export class Terminal {
 
   /** Hide the input line while a command runs. */
   private setInputVisible(visible: boolean): void {
-    this.inputEl.style.display = visible ? "" : "none";
+    // Collapse (not display:none) so the capture field — now a child of the
+    // input line — stays in the DOM and focusable while a command or app runs.
+    this.inputEl.classList.toggle("collapsed", !visible);
   }
 
   // ---- keyboard -------------------------------------------------------------
