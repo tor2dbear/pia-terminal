@@ -25,6 +25,22 @@ describe("MemoryShareStore (invite/claim flow)", () => {
     expect(mine[0].content).toBe("[ ] mjölk\n[ ] ost");
   });
 
+  it("notifies live-sync subscribers on save, until unsubscribed", async () => {
+    const backing = MemoryShareStore.backing();
+    const a = new MemoryShareStore("a@example.com", backing);
+    const b = new MemoryShareStore("b@example.com", backing);
+    const id = await a.create("handla", "");
+
+    const seen: string[] = [];
+    const unsubscribe = b.subscribe(id, (c) => seen.push(c));
+    await a.save(id, "[ ] milk");
+    expect(seen).toEqual(["[ ] milk"]);
+
+    unsubscribe();
+    await a.save(id, "[ ] milk\n[ ] ost");
+    expect(seen).toEqual(["[ ] milk"]); // nothing after unsubscribe
+  });
+
   it("claims invites case-insensitively and only once", async () => {
     const backing = MemoryShareStore.backing();
     const me = new MemoryShareStore("me@example.com", backing);

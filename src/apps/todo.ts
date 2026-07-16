@@ -144,6 +144,18 @@ export class Todo implements ScreenApp {
     this.render();
   }
 
+  /**
+   * Replace the items from an external update (a co-editor's save arriving via
+   * live-sync), preserving the cursor and any in-progress add draft. A no-op if
+   * nothing actually changed — including the echo of our own save.
+   */
+  applyExternal(content: string): void {
+    if (content === this.serialize()) return;
+    this.items = parse(content);
+    this.sel = Math.max(0, Math.min(this.sel, this.items.length - 1));
+    this.render();
+  }
+
   // ---- mutations (no render — callers render once) --------------------------
 
   private move(delta: number): void {

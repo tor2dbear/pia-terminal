@@ -176,6 +176,21 @@ grant execute on function public.create_shared_list(text, text) to authenticated
 grant execute on function public.invite_to_list(uuid, text)     to authenticated;
 grant execute on function public.claim_invites()               to authenticated;
 
+-- ---- live-sync -------------------------------------------------------------
+-- Publish shared_lists changes over Realtime so co-editors see each other's
+-- updates live. Realtime "postgres_changes" honours the RLS SELECT policy
+-- above, so only members receive a given list's events.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public' and tablename = 'shared_lists'
+  ) then
+    alter publication supabase_realtime add table public.shared_lists;
+  end if;
+end $$;
+
 -- ...and strip the default PUBLIC grant so the anon (unauthenticated) role can't
 -- reach the SECURITY DEFINER functions via /rest/v1/rpc. Signed-in users keep
 -- the explicit grant above; the functions still self-check auth.uid() as a

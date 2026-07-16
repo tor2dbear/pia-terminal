@@ -58,6 +58,22 @@ describe("Todo (logic)", () => {
     t.onText("k");
     expect(t.snapshot().sel).toBe(1);
   });
+
+  it("applies an external (co-editor) update", () => {
+    const t = new Todo("l", "[ ] a", () => {}, () => {});
+    t.applyExternal("[ ] a\n[x] b");
+    expect(t.snapshot().items).toEqual([
+      { text: "a", done: false },
+      { text: "b", done: true },
+    ]);
+  });
+
+  it("ignores an external update equal to the current content (self-echo)", () => {
+    const t = new Todo("l", "[ ] a\n[ ] b", () => {}, () => {});
+    t.onText("j"); // move selection to b
+    t.applyExternal("[ ] a\n[ ] b");
+    expect(t.snapshot().sel).toBe(1); // untouched
+  });
 });
 
 describe("todo (through the terminal)", () => {
@@ -190,6 +206,28 @@ describe("todo (through the terminal)", () => {
     await runLine(root, "todo share handla wife@example.com");
     expect(auth.invitedEmails).toContain("wife@example.com");
     expect(root.textContent).toContain("invite link");
+  });
+
+  it("live-syncs a co-editor's change into an open shared list", async () => {
+    const backing = MemoryShareStore.backing();
+    const me = new MemoryShareStore("me@example.com", backing);
+    const other = new MemoryShareStore("other@example.com", backing);
+    const id = await me.create("handla", "[ ] milk");
+
+    const root = mount(me);
+    // Open the list but DON'T await — runApp only resolves when the app exits.
+    type(root, "todo handla");
+    press(root, "Enter");
+    await flush();
+    expect(root.textContent).toContain("milk");
+
+    // A co-editor adds an item; it should appear live in the open app.
+    await other.save(id, "[ ] milk\n[ ] cheese");
+    await flush();
+    expect(root.textContent).toContain("cheese");
+
+    press(root, "x", { ctrlKey: true });
+    await flush();
   });
 
   it("refuses to share a list that does not exist", async () => {

@@ -263,7 +263,9 @@ source of truth. The invitee gets a **magic-link email** (`signInWithOtp` with
 `shouldCreateUser`) — clicking it creates their account (if new) and lands them
 logged in. On that first login the pending invite is claimed automatically, and
 the list shows up under `todo` (marked 👥) for both of them. Editing saves
-straight to the cloud (last-write-wins for now; live sync is a later step).
+straight to the cloud, and an open list **live-syncs**: a co-editor's changes
+arrive over Supabase Realtime and update the open checklist in place (saves are
+still last-write-wins; the live push just keeps both screens current).
 
 The invite *row* is the source of truth: it's claimed on login whether or not
 the email arrives, so the emailed link is a best-effort nudge — a failed or

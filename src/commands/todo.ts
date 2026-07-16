@@ -98,11 +98,10 @@ async function openLocal(name: string, ctx: CommandContext): Promise<void> {
   );
 }
 
-/** Open a shared list, saving edits back to the cloud. */
+/** Open a shared list, saving edits back to the cloud and syncing live. */
 async function openShared(list: SharedList, ctx: CommandContext): Promise<void> {
-  // Pull the freshest copy first so a co-editor's changes aren't clobbered on
-  // the very next save. (Still last-write-wins during a session — good enough
-  // for a shopping list; live sync is a later step.)
+  // Pull the freshest copy first so a co-editor's earlier changes are there
+  // from the start; live-sync keeps it current while it's open.
   let content = list.content;
   try {
     const fresh = await ctx.share?.get(list.id);
@@ -111,17 +110,26 @@ async function openShared(list: SharedList, ctx: CommandContext): Promise<void> 
     /* use the cached copy */
   }
 
-  await ctx.runApp(
-    (exit) =>
-      new Todo(
-        `${list.name}  👥`,
-        content,
-        async (text) => {
-          await ctx.share?.save(list.id, text);
-        },
-        exit,
-      ),
-  );
+  // Subscribe before the app exists; the callback reads `app` lazily, so events
+  // that arrive once it's mounted land on it (and are ignored before then).
+  let app: Todo | undefined;
+  const unsubscribe = ctx.share?.subscribe?.(list.id, (next) => app?.applyExternal(next));
+
+  try {
+    await ctx.runApp(
+      (exit) =>
+        (app = new Todo(
+          `${list.name}  👥`,
+          content,
+          async (text) => {
+            await ctx.share?.save(list.id, text);
+          },
+          exit,
+        )),
+    );
+  } finally {
+    unsubscribe?.();
+  }
 }
 
 /** `todo share <name> <email>` — promote a list to shared and invite someone. */

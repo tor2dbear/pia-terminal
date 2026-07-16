@@ -19,6 +19,15 @@ interface Result<T> {
  * is shaped for the `filesystems` table) and cast to at construction, the same
  * narrow-interface trick the other adapters use.
  */
+interface RealtimeChannel {
+  on(
+    type: "postgres_changes",
+    filter: Record<string, unknown>,
+    cb: (payload: { new?: Partial<Row> }) => void,
+  ): RealtimeChannel;
+  subscribe(): RealtimeChannel;
+}
+
 interface ShareClient {
   auth: {
     getSession(): Promise<{ data: { session: { user: { id: string } } | null } }>;
@@ -35,6 +44,8 @@ interface ShareClient {
       eq(column: string, value: string): PromiseLike<Result<unknown>>;
     };
   };
+  channel(name: string): RealtimeChannel;
+  removeChannel(channel: RealtimeChannel): void;
 }
 
 const TABLE = "shared_lists";
@@ -102,6 +113,23 @@ export class SupabaseShareStore implements ShareStore {
     const { data, error } = await this.db.rpc("claim_invites");
     if (error) throw new Error(error.message);
     return typeof data === "number" ? data : Number(data ?? 0);
+  }
+
+  subscribe(id: string, onChange: (content: string) => void): () => void {
+    // Realtime "postgres_changes" respects RLS, so only fellow members of this
+    // list receive its UPDATE events.
+    const channel = this.db
+      .channel(`shared_list:${id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: TABLE, filter: `id=eq.${id}` },
+        (payload) => {
+          const content = payload.new?.content;
+          if (typeof content === "string") onChange(content);
+        },
+      )
+      .subscribe();
+    return () => this.db.removeChannel(channel);
   }
 
   private async uid(): Promise<string | null> {

@@ -27,6 +27,12 @@ export interface ShareStore {
   invite(id: string, email: string): Promise<void>;
   /** Claim any invites addressed to the current user; resolves to the count. */
   claim(): Promise<number>;
+  /**
+   * Watch a list for changes made by other members. `onChange` fires with the
+   * new content whenever it's updated in the cloud. Returns an unsubscribe
+   * function. Optional — only a live backend implements it.
+   */
+  subscribe?(id: string, onChange: (content: string) => void): () => void;
 }
 
 /** Sharing turned off: the local/guest build with no cloud backend. */
@@ -62,7 +68,13 @@ export class NullShareStore implements ShareStore {
  */
 export class MemoryShareStore implements ShareStore {
   static backing(): MemoryBacking {
-    return { lists: new Map(), members: new Map(), invites: new Map(), seq: 0 };
+    return {
+      lists: new Map(),
+      members: new Map(),
+      invites: new Map(),
+      listeners: new Map(),
+      seq: 0,
+    };
   }
 
   constructor(
@@ -95,6 +107,7 @@ export class MemoryShareStore implements ShareStore {
   async save(id: string, content: string): Promise<void> {
     const l = this.db.lists.get(id);
     if (l) l.content = content;
+    for (const fn of this.db.listeners.get(id) ?? []) fn(content);
   }
 
   async invite(id: string, email: string): Promise<void> {
@@ -116,11 +129,20 @@ export class MemoryShareStore implements ShareStore {
     }
     return claimed;
   }
+
+  subscribe(id: string, onChange: (content: string) => void): () => void {
+    const set = this.db.listeners.get(id) ?? new Set();
+    set.add(onChange);
+    this.db.listeners.set(id, set);
+    return () => set.delete(onChange);
+  }
 }
 
 interface MemoryBacking {
   lists: Map<string, SharedList>;
   members: Map<string, Set<string>>;
   invites: Map<string, Set<string>>;
+  /** Live-sync listeners per list id, notified on save (shared across users). */
+  listeners: Map<string, Set<(content: string) => void>>;
   seq: number;
 }
