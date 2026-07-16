@@ -211,11 +211,14 @@ src/
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
 `cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
 `usermod` · `passwd` · `logout` · `grep` · `find` · `wc` · `snake` · `share` ·
-`todo`.
+`shared` · `todo`.
 (`edit`→`nano`,
 `register`→`useradd` are aliases.) `share <file>` makes a self-contained public
 link (the file is packed into the URL hash — no server, works for guests);
-opening it shows the file read-only. With a backend, `useradd <username> <email>
+opening it shows the file read-only. `share <file> <email>` instead promotes the
+file to a **cloud-shared item** two logged-in people co-edit; `shared` lists
+what's shared with you and opens each in the right app (a `.list` in the todo
+app, text/`.md` in the editor), dispatched by filename. With a backend, `useradd <username> <email>
 <password>` picks a real username (stored as account metadata); `usermod
 <username>` renames you and moves your home directory. `todo share <name>
 <email>` promotes a checklist to a **shared list** two logged-in people can
@@ -258,9 +261,10 @@ confirm via the email link first, then `login`.
 
 ### Collaboration — shared lists
 
-Two logged-in users can share a checklist. `todo share <name> <email>` promotes
-a local `~/todo/<name>.list` to a **shared list** in the cloud and invites the
-other person by email; the local copy is handed over so the cloud stays the one
+Two logged-in users can co-edit a file. `share <file> <email>` (or the checklist
+shortcut `todo share <name> <email>`) promotes a local file to a **shared item**
+in the cloud and invites the other person by email; `shared` lists them and
+opens each in the right app by filename (`.list` → todo, text/`.md` → editor). the local copy is handed over so the cloud stays the one
 source of truth. The invitee gets a **magic-link email** (`signInWithOtp` with
 `shouldCreateUser`) — clicking it creates their account (if new) and lands them
 logged in. On that first login the pending invite is claimed automatically, and
