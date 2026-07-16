@@ -106,9 +106,11 @@ body {
 
 /* Visible layer under the transparent field. pointer-events pass through to the
    field so taps focus it and long-press reaches its Paste menu — except the
-   tappable ghost bits, which are raised above the field to stay clickable. */
+   tappable ghost bits, which are raised above the field to stay clickable.
+   Plain text flow (not flex) so a wrapped command continues at the left margin,
+   like a real terminal, instead of hanging under the prompt. */
 .term-display {
-  display: flex;
+  display: block;
   white-space: pre-wrap;
   word-break: break-word;
   pointer-events: none;
