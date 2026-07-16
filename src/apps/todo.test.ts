@@ -99,17 +99,30 @@ describe("todo (through the terminal)", () => {
     document.body.replaceChildren();
   });
 
-  it("adds and toggles items, saving a .list file that survives", async () => {
+  it("adds items to ~/todo/<name>.list (extension implied) that survive", async () => {
     const root = mount();
-    await runLine(root, "todo shopping.list"); // empty → add mode
+    await runLine(root, "todo shopping"); // → ~/todo/shopping.list, empty → add mode
     type(root, "milk");
     press(root, "Enter"); // commit milk, back to normal mode
     type(root, " "); // toggle milk done
     press(root, "x", { ctrlKey: true }); // exit
     await flush();
 
-    await runLine(root, "cat shopping.list");
+    await runLine(root, "cat todo/shopping.list");
     expect(root.textContent).toContain("[x] milk");
+  });
+
+  it("lists existing lists when run with no name", async () => {
+    const root = mount();
+    await runLine(root, "todo shopping");
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+
+    await runLine(root, "todo");
+    expect(root.textContent).toContain("your lists");
+    expect(root.textContent).toContain("shopping");
   });
 
   it("refreshes the key bar when the app changes mode", async () => {
@@ -117,7 +130,7 @@ describe("todo (through the terminal)", () => {
     const labels = () =>
       [...root.querySelectorAll(".term-keybar .kb-key")].map((b) => b.textContent);
 
-    await runLine(root, "todo shopping.list"); // empty → add mode
+    await runLine(root, "todo shopping"); // empty → add mode
     expect(labels()).not.toContain("+"); // add-mode bar (esc / ^X)
     expect(labels()).toContain("^X"); // exit is always reachable
 
