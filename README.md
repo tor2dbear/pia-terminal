@@ -266,9 +266,12 @@ shortcut `todo share <name> <email>`) **links the file to a cloud shared object
 in place** — the file stays exactly where it lives in your tree (sharing is a
 property, not a move); its content becomes a synced cache and `nano`/`todo` then
 read and write it through the cloud. `ls` marks a linked file with a trailing
-`@` (like a symlink), and `shared` is the inbox of files shared *with* you that
-you haven't placed yet. The invitee is added by email and opens their copy in
-the right app by filename (`.list` → todo, text/`.md` → editor). the local copy is handed over so the cloud stays the one
+`@` (like a symlink). On login, files shared *with* you are placed into a
+`~/shared/` inbox as real linked files — so they show up in `ls`/`cat`/`nano`
+and you can `mv` them wherever you like in your own tree (the path is per-user;
+moving your copy doesn't touch anyone else's). The `shared` command lists any
+membership not yet placed and opens each in the right app by filename
+(`.list` → todo, text/`.md` → editor). the local copy is handed over so the cloud stays the one
 source of truth. The invitee gets a **magic-link email** (`signInWithOtp` with
 `shouldCreateUser`) — clicking it creates their account (if new) and lands them
 logged in. On that first login the pending invite is claimed automatically, and

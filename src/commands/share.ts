@@ -1,23 +1,12 @@
 import { encodeShare, MAX_SHARE_BYTES } from "../share/share.js";
+import { kindOf } from "../share/kind.js";
 import { isFile } from "../vfs/types.js";
 import { Todo } from "../apps/todo.js";
 import { Editor } from "../apps/editor.js";
 import type { Command, CommandContext } from "./registry.js";
 import type { SharedList } from "../share/store.js";
 
-/**
- * Which app opens a shared item. Driven by the filename extension, with a
- * content sniff so legacy checklists stored without a `.list` suffix still open
- * in the todo app rather than the text editor.
- */
-export function kindOf(name: string, content: string): "list" | "text" {
-  if (/\.list$/i.test(name)) return "list";
-  const hasExtension = /\.[a-z0-9]+$/i.test(name);
-  const looksLikeChecklist = content
-    .split("\n")
-    .some((line) => /^\s*\[[ xX]\]/.test(line));
-  return !hasExtension && looksLikeChecklist ? "list" : "text";
-}
+export { kindOf };
 
 export const share: Command = {
   name: "share",

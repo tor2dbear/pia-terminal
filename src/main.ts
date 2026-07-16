@@ -8,6 +8,7 @@ import { boot } from "./boot.js";
 import { cloudConfig } from "./config.js";
 import { parseShareHash } from "./share/share.js";
 import { NullShareStore } from "./share/store.js";
+import { materializeShared } from "./share/materialize.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
 import type { ShareStore } from "./share/store.js";
@@ -96,19 +97,22 @@ async function main(): Promise<void> {
   const term = new Terminal(root, { vfs, adapter, registry, auth, session, share });
   await boot(term);
 
-  // Turn any pending invites addressed to this user into memberships, so a list
-  // shared with them shows up under `todo` right after they log in.
+  // Turn pending invites into memberships, then place any not-yet-placed shares
+  // into ~/shared/ as real linked files, so files shared with this user show up
+  // in their tree (ls/cat/nano/mv) right after they log in.
   if (share.available()) {
     try {
-      const claimed = await share.claim();
-      if (claimed > 0) {
+      await share.claim();
+      const placed = await materializeShared(vfs, share);
+      if (placed > 0) {
+        await adapter.save(vfs.root);
         term.print(
-          `(${claimed} shared list${claimed === 1 ? "" : "s"} added — see \`todo\`)`,
+          `(${placed} shared file${placed === 1 ? "" : "s"} in ~/shared — \`ls ~/shared\`)`,
           "dim",
         );
       }
     } catch {
-      /* not logged in / offline — nothing to claim */
+      /* not logged in / offline — nothing to claim or place */
     }
   }
 
