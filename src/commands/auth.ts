@@ -136,6 +136,27 @@ export const passwd: Command = {
   },
 };
 
+export const invite: Command = {
+  name: "invite",
+  help: "invite someone to PIA by email (sends them a sign-in link)",
+  usage: "invite <email>",
+  async run(args, ctx) {
+    if (ctx.session.user === GUEST) return ctx.error("invite: log in first");
+    if (!ctx.auth.inviteByEmail) {
+      return ctx.error("invite: needs a cloud account");
+    }
+    const email = args[0];
+    if (!email) return ctx.error("invite: specify an email");
+    try {
+      await ctx.auth.inviteByEmail(email, ctx.baseUrl);
+    } catch (err) {
+      return ctx.error(err instanceof Error ? err.message : String(err));
+    }
+    ctx.print(`invited ${email} — they'll get a sign-in link`, "accent");
+    ctx.print("clicking it creates their account and logs them in", "dim");
+  },
+};
+
 export const logout: Command = {
   name: "logout",
   help: "log out and return to guest",
@@ -150,4 +171,11 @@ export const logout: Command = {
   },
 };
 
-export const authCommands: Command[] = [login, useradd, usermod, passwd, logout];
+export const authCommands: Command[] = [
+  login,
+  useradd,
+  usermod,
+  passwd,
+  invite,
+  logout,
+];

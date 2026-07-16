@@ -104,6 +104,18 @@ describe("share <file> <email> (collaborative)", () => {
     expect(saved?.content).toContain("hello");
   });
 
+  it("invite <email> sends a standalone sign-in link once logged in", async () => {
+    const auth = new MemoryAuthAdapter();
+    const root = mount(undefined, auth);
+    await runLine(root, "invite friend@example.com"); // guest → refused
+    expect(root.textContent).toContain("log in first");
+
+    await runLine(root, "login me");
+    await runLine(root, "invite friend@example.com");
+    expect(auth.invitedEmails).toContain("friend@example.com");
+    expect(root.textContent).toContain("invited friend@example.com");
+  });
+
   it("still makes a read-only link when no email is given", async () => {
     const root = mount(new MemoryShareStore("me@example.com", MemoryShareStore.backing()));
     await runLine(root, "echo hi > note.txt");

@@ -210,8 +210,8 @@ src/
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
 `cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
-`usermod` · `passwd` · `logout` · `grep` · `find` · `wc` · `snake` · `share` ·
-`shared` · `todo`.
+`usermod` · `passwd` · `invite` · `logout` · `grep` · `find` · `wc` · `snake` ·
+`share` · `shared` · `todo`.
 (`edit`→`nano`,
 `register`→`useradd` are aliases.) `share <file>` makes a self-contained public
 link (the file is packed into the URL hash — no server, works for guests);
