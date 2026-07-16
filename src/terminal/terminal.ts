@@ -161,11 +161,18 @@ export class Terminal {
 
   /** Insert the clipboard's text at the cursor (or into the active app). */
   private pasteFromClipboard = async (): Promise<void> => {
+    if (!navigator.clipboard?.readText) {
+      this.print("paste: this browser blocks clipboard reads", "error");
+      return;
+    }
     let text = "";
     try {
       text = await navigator.clipboard.readText();
-    } catch {
-      return; // clipboard unavailable or permission denied — nothing to do
+    } catch (err) {
+      // Surface the reason instead of failing silently — it's the only way to
+      // tell a permission denial from an empty clipboard on a phone.
+      this.print(`paste: ${err instanceof Error ? err.message : "blocked"}`, "error");
+      return;
     }
     if (!text) return;
     if (this.activeApp) {
@@ -174,6 +181,7 @@ export class Terminal {
     } else if (!this.busy) {
       this.insertText(text);
     }
+    this.focusKbd();
   };
 
   /**
@@ -718,7 +726,7 @@ export class Terminal {
       { label: "↓", run: () => this.recallHistory(1) },
       { label: "←", run: () => this.moveCursor(-1) },
       { label: "→", run: () => this.cursorRight() },
-      { label: "paste", subtle: true, run: () => void this.pasteFromClipboard() },
+      { label: "paste", subtle: true, activate: "click", run: () => void this.pasteFromClipboard() },
       insert("|"),
       insert(">"),
       insert("~"),
@@ -755,13 +763,22 @@ export class Terminal {
       btn.type = "button";
       btn.className = key.subtle ? "kb-key subtle" : "kb-key";
       btn.textContent = key.label;
-      // pointerdown + preventDefault keeps the hidden input focused, so the
-      // soft keyboard never closes when a bar key is tapped.
-      btn.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        key.run();
-        if (this.activeApp) this.renderKeybar(); // reflect an app key/mode change
-      });
+      if (key.activate === "click") {
+        // A real click carries the user activation the Clipboard API needs on
+        // iOS; the keyboard may close, so restore focus afterwards.
+        btn.addEventListener("click", () => {
+          key.run();
+          if (this.activeApp) this.renderKeybar();
+        });
+      } else {
+        // pointerdown + preventDefault keeps the hidden input focused, so the
+        // soft keyboard never closes when a bar key is tapped.
+        btn.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          key.run();
+          if (this.activeApp) this.renderKeybar(); // reflect an app key/mode change
+        });
+      }
       this.keybarEl.append(btn);
     }
   }

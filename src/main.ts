@@ -112,6 +112,19 @@ async function main(): Promise<void> {
     }
   }
 
+  // A fresh magic-link account has no username or password yet. Make that
+  // visible (it can otherwise feel like "I just clicked a link", not "I have an
+  // account") and point at how to finish setting it up.
+  try {
+    if (await auth.needsSetup?.()) {
+      term.print();
+      term.print(`you have an account here, signed in as ${session.user}.`, "accent");
+      term.print("make it yours: `usermod <name>` to pick a name, `passwd <pw>` to set a password.", "dim");
+    }
+  } catch {
+    /* best-effort hint only */
+  }
+
   // Opened via a share link? Show the shared file (read-only) after boot.
   const shared = parseShareHash(location.hash);
   if (shared) {

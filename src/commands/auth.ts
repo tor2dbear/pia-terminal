@@ -113,6 +113,29 @@ export const usermod: Command = {
   },
 };
 
+export const passwd: Command = {
+  name: "passwd",
+  help: "set or change your account password",
+  usage: "passwd <new-password>",
+  async run(args, ctx) {
+    if (ctx.session.user === GUEST) return ctx.error("passwd: log in first");
+    if (!ctx.auth.setPassword) {
+      return ctx.error("passwd: passwords need a backend account");
+    }
+    const password = args[0];
+    if (!password) return ctx.error("passwd: usage: passwd <new-password>");
+    if (password.length < 6) {
+      return ctx.error("passwd: password must be at least 6 characters");
+    }
+    try {
+      await ctx.auth.setPassword(password);
+    } catch (err) {
+      return ctx.error(err instanceof Error ? err.message : String(err));
+    }
+    ctx.print("password set — you can now `login <email> <password>`", "accent");
+  },
+};
+
 export const logout: Command = {
   name: "logout",
   help: "log out and return to guest",
@@ -127,4 +150,4 @@ export const logout: Command = {
   },
 };
 
-export const authCommands: Command[] = [login, useradd, usermod, logout];
+export const authCommands: Command[] = [login, useradd, usermod, passwd, logout];

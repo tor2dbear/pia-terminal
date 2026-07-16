@@ -31,4 +31,16 @@ export interface AuthAdapter {
    * a backend that can send email implements it; local/guest auth omits it.
    */
   inviteByEmail?(email: string, redirectTo: string): Promise<void>;
+  /**
+   * Set (or change) the current account's password. Optional — only a real
+   * backend has passwords. Lets a magic-link account, which starts passwordless,
+   * gain a password so it can also `login <email> <password>`.
+   */
+  setPassword?(password: string): Promise<void>;
+  /**
+   * True when logged in but the account still has no chosen username — i.e. a
+   * fresh magic-link account that hasn't been set up. Optional; used to show a
+   * one-time onboarding hint. Absent/false for guests and set-up accounts.
+   */
+  needsSetup?(): Promise<boolean>;
 }

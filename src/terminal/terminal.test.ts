@@ -78,7 +78,7 @@ describe("Terminal (driven via keyboard)", () => {
       ...root.querySelectorAll<HTMLButtonElement>(".term-keybar .kb-key"),
     ].find((b) => b.textContent === "paste");
     expect(paste).toBeTruthy();
-    paste!.dispatchEvent(new Event("pointerdown", { bubbles: true, cancelable: true }));
+    paste!.click(); // paste fires on a real click (Clipboard API activation)
     await flush();
     expect(typed(root)).toContain("milk eggs");
   });

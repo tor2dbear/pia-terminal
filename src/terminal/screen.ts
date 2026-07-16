@@ -4,6 +4,12 @@ export interface KeySpec {
   run(): void;
   /** Visually de-emphasise (e.g. punctuation vs. actions). */
   subtle?: boolean;
+  /**
+   * Fire on `click` instead of the default `pointerdown`. Needed for actions
+   * that require a genuine click gesture — notably Clipboard API reads on iOS,
+   * which our `pointerdown`+`preventDefault` handler doesn't satisfy.
+   */
+  activate?: "click";
 }
 
 /**

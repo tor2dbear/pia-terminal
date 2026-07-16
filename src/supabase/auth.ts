@@ -65,6 +65,17 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     if (error) throw new Error(error.message);
   }
 
+  async setPassword(password: string): Promise<void> {
+    const { error } = await this.client.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+  }
+
+  async needsSetup(): Promise<boolean> {
+    const { data } = await this.client.auth.getSession();
+    const user = data.session?.user;
+    return !!user && !user.user_metadata?.username;
+  }
+
   async inviteByEmail(email: string, redirectTo: string): Promise<void> {
     // A magic link (OTP) rather than an admin invite: it needs no service_role
     // key, so it works straight from the browser. `shouldCreateUser` makes the

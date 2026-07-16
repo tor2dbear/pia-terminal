@@ -29,8 +29,9 @@ body {
   padding-bottom: 3.5rem;
   font-size: 14px;
   line-height: 1.5;
-  /* Vertical scroll stays native; horizontal drags are ours (cursor scrub). */
-  touch-action: pan-y;
+  /* Default touch behaviour so long-press text selection (copy) works; the
+     cursor-scrub swipe is driven by pointer deltas, not by owning the gesture. */
+  touch-action: auto;
 }
 
 /* Hidden field that captures the (soft) keyboard. Invisible but focusable —

@@ -134,6 +134,27 @@ describe("SupabaseAuthAdapter", () => {
     expect(await auth.current()).toBeNull();
   });
 
+  it("sets a password via updateUser", async () => {
+    const client = stubClient();
+    const calls: Array<{ password?: string }> = [];
+    client.auth.updateUser = async (attrs) => {
+      calls.push(attrs);
+      return { error: null };
+    };
+    const auth = new SupabaseAuthAdapter(client);
+    await auth.setPassword!("hunter2");
+    expect(calls[0]?.password).toBe("hunter2");
+  });
+
+  it("flags a fresh (username-less) account as needing setup", async () => {
+    const client = stubClient();
+    await client.auth.signInWithPassword({ email: "new@example.com", password: "x" });
+    const auth = new SupabaseAuthAdapter(client);
+    expect(await auth.needsSetup!()).toBe(true);
+    await auth.rename("torbjorn"); // picks a username
+    expect(await auth.needsSetup!()).toBe(false);
+  });
+
   it("sends a magic-link invite that creates the account on click", async () => {
     const client = stubClient();
     const calls: Array<{

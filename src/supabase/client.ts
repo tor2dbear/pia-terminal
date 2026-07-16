@@ -32,7 +32,7 @@ export interface SupabaseLike {
       data: { user: AuthUser | null };
       error: { message: string } | null;
     }>;
-    updateUser(attrs: { data?: Record<string, unknown> }): Promise<{
+    updateUser(attrs: { data?: Record<string, unknown>; password?: string }): Promise<{
       error: { message: string } | null;
     }>;
     signOut(): Promise<{ error: { message: string } | null }>;
