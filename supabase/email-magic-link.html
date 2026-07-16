@@ -1,0 +1,51 @@
+<!--
+  PIA — Supabase Auth "Magic Link" email template.
+
+  Paste into: Supabase dashboard → Authentication → Emails → Magic Link.
+    - Subject heading:  Your link to PIA
+    - Message body:     the HTML below
+
+  This one template fires for every magic link we send — standalone `invite`,
+  share invites, and ordinary sign-ins — so the copy is written to fit all
+  three. It must keep the {{ .ConfirmationURL }} variable (Supabase validates
+  its presence). Table layout + inline styles for email-client compatibility.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b0f0a;margin:0;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#10160f;border:1px solid #24331f;border-radius:10px;">
+        <tr>
+          <td style="padding:28px 28px 8px 28px;font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;">
+            <div style="color:#7cf27c;font-size:20px;font-weight:700;letter-spacing:1px;">PIA</div>
+            <div style="color:#6f8f6a;font-size:13px;margin-top:2px;">Personal Integrated Applications</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 28px 0 28px;font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;color:#c9e8c2;font-size:15px;line-height:1.6;">
+            <p style="margin:0 0 12px 0;">Here's your link to PIA — a little computer in your browser.</p>
+            <p style="margin:0 0 20px 0;">Click below to jump in. If you're new it creates your account; if you've been here before it just signs you in. The link is single-use and expires soon.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 28px 8px 28px;" align="left">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#7cf27c;border-radius:6px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;font-size:15px;font-weight:700;color:#0b0f0a;text-decoration:none;">Open PIA &rarr;</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 28px 24px 28px;font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;color:#6f8f6a;font-size:12px;line-height:1.6;">
+            <p style="margin:0 0 8px 0;">Or paste this link into your browser:</p>
+            <p style="margin:0 0 16px 0;word-break:break-all;"><a href="{{ .ConfirmationURL }}" style="color:#7cf27c;">{{ .ConfirmationURL }}</a></p>
+            <p style="margin:0;">You're getting this because someone sent you a PIA link. If it wasn't meant for you, just ignore it.</p>
+          </td>
+        </tr>
+      </table>
+      <div style="font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;color:#3f5238;font-size:11px;margin-top:14px;">user@pia:~$ &#9646;</div>
+    </td>
+  </tr>
+</table>
