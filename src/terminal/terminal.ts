@@ -198,6 +198,10 @@ export class Terminal {
    */
   private promptNativePaste(): void {
     this.root.querySelector(".term-paste")?.remove();
+    // Drop the soft keyboard so the field isn't hidden behind it, and so a
+    // long-press on the field doesn't fight the keyboard for focus.
+    this.kbd.blur();
+
     const field = document.createElement("textarea");
     field.className = "term-paste";
     field.rows = 1;
@@ -205,21 +209,26 @@ export class Terminal {
     field.setAttribute("autocapitalize", "off");
     field.setAttribute("autocorrect", "off");
     field.setAttribute("spellcheck", "false");
-    field.placeholder = "long-press here → Paste (⏎ to insert, esc to cancel)";
+    field.placeholder = "long-press here → Paste";
 
     let done = false;
+    const dismissOutside = (e: Event): void => {
+      if (e.target !== field) finish("");
+    };
     const finish = (text: string): void => {
       if (done) return;
       done = true;
+      document.removeEventListener("pointerdown", dismissOutside, true);
       field.remove();
       this.commitPaste(text);
     };
+
+    // The native long-press → Paste fires a paste event we capture. No blur
+    // teardown: long-pressing briefly blurs the field, and tearing down there
+    // would kill the field before the menu's Paste can land.
     field.addEventListener("paste", (e) => {
-      const text = (e as ClipboardEvent).clipboardData?.getData("text") ?? "";
-      if (text) {
-        e.preventDefault();
-        finish(text);
-      }
+      e.preventDefault();
+      finish((e as ClipboardEvent).clipboardData?.getData("text") ?? "");
     });
     field.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -230,11 +239,10 @@ export class Terminal {
         finish("");
       }
     });
-    // Tapped away with something in it — take it; otherwise just clean up.
-    field.addEventListener("blur", () => setTimeout(() => finish(field.value), 100));
 
     this.root.append(field);
-    field.focus();
+    // Arm "tap outside to cancel" only after the tap that opened this settles.
+    setTimeout(() => document.addEventListener("pointerdown", dismissOutside, true), 0);
   }
 
   /**
