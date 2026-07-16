@@ -344,6 +344,31 @@ body {
 
 /* ---- on-screen key bar --------------------------------------------------- */
 
+/* On-demand paste target: appears above the key bar when iOS blocks a
+   programmatic clipboard read, so a native long-press → Paste still works. */
+.term-paste {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 3.4rem;
+  width: min(100%, 40rem);
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.6rem 0.8rem;
+  font-family: var(--font);
+  font-size: 16px; /* 16px stops iOS from zooming when it focuses */
+  color: var(--fg);
+  background: #10160f;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  z-index: 10;
+  resize: none;
+}
+
+.term-paste::placeholder {
+  color: var(--dim);
+}
+
 .term-keybar {
   position: fixed;
   left: 0;
