@@ -6,6 +6,7 @@ import { authCommands } from "./auth.js";
 import { textCommands } from "./text.js";
 import { gameCommands } from "./games.js";
 import { shareCommands } from "./share.js";
+import { todoCommands } from "./todo.js";
 
 /** Build a registry with all commands registered. */
 export function buildRegistry(): CommandRegistry {
@@ -18,6 +19,7 @@ export function buildRegistry(): CommandRegistry {
     ...textCommands,
     ...gameCommands,
     ...shareCommands,
+    ...todoCommands,
   ]) {
     registry.register(cmd);
   }
