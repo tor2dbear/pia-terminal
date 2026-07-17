@@ -17,16 +17,25 @@ const HR = "─".repeat(24);
  */
 export function renderMarkdown(src: string): RenderedLine[] {
   const out: RenderedLine[] = [];
-  let inFence = false;
+  // Length of the currently-open code fence (backtick count), or null. Tracking
+  // the length lets a longer outer fence contain shorter ``` lines, and only a
+  // backticks-only line at least as long closes it (CommonMark).
+  let fence: number | null = null;
 
   for (const raw of src.split("\n")) {
-    // Fenced code block: toggle on ```; render the inner lines verbatim (dim).
-    if (/^\s*```/.test(raw)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) {
-      out.push({ text: raw, cls: "dim" });
+    if (fence === null) {
+      const open = /^\s*(`{3,})/.exec(raw);
+      if (open) {
+        fence = open[1].length;
+        continue;
+      }
+    } else {
+      const close = /^\s*(`{3,})\s*$/.exec(raw);
+      if (close && close[1].length >= fence) {
+        fence = null;
+      } else {
+        out.push({ text: raw, cls: "dim" });
+      }
       continue;
     }
 
@@ -84,13 +93,21 @@ export function renderMarkdown(src: string): RenderedLine[] {
   return out;
 }
 
-/** Unwrap inline Markdown to plain text: links, bold, italic, code. */
+/**
+ * Unwrap inline Markdown to plain text: links, bold, italic, code. Inline-code
+ * and link contents are stashed before emphasis runs so their characters are
+ * left literal, and underscore emphasis is bounded to word edges so ordinary
+ * identifiers (`user_account_id`) keep their underscores.
+ */
 function inline(text: string): string {
+  const stash: string[] = [];
+  const keep = (s: string): string => `@@${stash.push(s) - 1}@@`;
   return text
-    .replace(/!?\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)") // [t](u) / ![t](u) → t (u)
+    .replace(/`([^`]+)`/g, (_, c) => keep(c)) // protect `code`
+    .replace(/!?\[([^\]]+)\]\(([^)]+)\)/g, (_, t, u) => keep(`${t} (${u})`)) // [t](u) → t (u)
     .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
-    .replace(/__([^_]+)__/g, "$1") // __bold__
-    .replace(/(^|[^*])\*([^*]+)\*/g, "$1$2") // *italic* (not part of **)
-    .replace(/(^|[^_])_([^_]+)_/g, "$1$2") // _italic_
-    .replace(/`([^`]+)`/g, "$1"); // `code`
+    .replace(/(^|[^\w])__([^_]+)__(?=[^\w]|$)/g, "$1$2") // __bold__ (word-bounded)
+    .replace(/\*([^*]+)\*/g, "$1") // *italic*
+    .replace(/(^|[^\w])_([^_]+)_(?=[^\w]|$)/g, "$1$2") // _italic_ (word-bounded)
+    .replace(/@@(\d+)@@/g, (_, i) => stash[Number(i)]); // restore
 }
