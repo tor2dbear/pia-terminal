@@ -2,13 +2,15 @@ name: Supabase keep-alive
 
 # Free-tier Supabase pauses a project after 7 days of inactivity, which would
 # take down auth, cloud storage, shared lists and realtime for logged-in users.
-# This pings the project daily so it never goes idle. The values come from the
-# committed .env.production — the anon key is a public "publishable" key, so no
-# repo secret is needed.
+# This calls the ping() RPC (supabase/keepalive.sql) daily so there's a genuine
+# database query and the project never goes idle. Values come from the committed
+# .env.production — the anon key is a public "publishable" key, so no repo secret
+# is needed; it authenticates as the anon role via the apikey header.
 #
-# It prefers the ping() RPC (a genuine, tiny database call — see
-# supabase/keepalive.sql); if that RPC isn't installed yet it falls back to the
-# PostgREST root, which also queries the database. Either counts as activity.
+# Prerequisite: run supabase/keepalive.sql once in the SQL Editor to create
+# ping(). Until then this fails with a clear message (a 404 for the missing
+# function). There's no unauthenticated fallback — the PostgREST root requires a
+# *secret* key, which must never live in a public repo.
 
 on:
   schedule:
@@ -27,20 +29,17 @@ jobs:
           url="$VITE_SUPABASE_URL"
           key="$VITE_SUPABASE_ANON_KEY"
 
-          # The publishable key (sb_publishable_…) is an API key, not a JWT, so it
-          # goes only in the apikey header — bearing it as a JWT would be rejected.
+          # The publishable key (sb_publishable_…) is an API key, not a JWT, so
+          # it goes only in the apikey header.
           code=$(curl -sS -o /tmp/body -w "%{http_code}" \
             -X POST "$url/rest/v1/rpc/ping" \
             -H "apikey: $key" \
             -H "Content-Type: application/json" -d '{}' || echo 000)
           echo "rpc/ping -> $code"
+          head -c 300 /tmp/body || true; echo
 
-          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
-            echo "ping() RPC not available; falling back to the REST root."
-            code=$(curl -sS -o /tmp/body -w "%{http_code}" \
-              "$url/rest/v1/" -H "apikey: $key" || echo 000)
-            echo "rest root -> $code"
+          if [ "$code" = "404" ]; then
+            echo "::error::ping() not found — run supabase/keepalive.sql once in the Supabase SQL Editor."
+            exit 1
           fi
-
-          head -c 200 /tmp/body || true; echo
           test "$code" -ge 200 -a "$code" -lt 300
