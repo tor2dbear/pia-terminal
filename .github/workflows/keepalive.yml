@@ -27,9 +27,11 @@ jobs:
           url="$VITE_SUPABASE_URL"
           key="$VITE_SUPABASE_ANON_KEY"
 
+          # The publishable key (sb_publishable_…) is an API key, not a JWT, so it
+          # goes only in the apikey header — bearing it as a JWT would be rejected.
           code=$(curl -sS -o /tmp/body -w "%{http_code}" \
             -X POST "$url/rest/v1/rpc/ping" \
-            -H "apikey: $key" -H "Authorization: Bearer $key" \
+            -H "apikey: $key" \
             -H "Content-Type: application/json" -d '{}' || echo 000)
           echo "rpc/ping -> $code"
 
