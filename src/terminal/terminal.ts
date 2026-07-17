@@ -8,6 +8,8 @@ import {
   type Session,
 } from "../commands/registry.js";
 import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
+import { parseConfig, DEFAULT_CONFIG } from "../pia/rc.js";
+import { applyTheme, DEFAULT_THEME } from "../pia/themes.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 import type { AuthAdapter } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
@@ -60,6 +62,10 @@ export class Terminal {
   private cwd = HOME;
   private buffer = "";
   private cursor = 0;
+  /** Prompt template from ~/.pia/config — placeholders {user} {host} {cwd}. */
+  private promptTemplate = "{user}@pia:{cwd}$";
+  /** User-defined command shortcuts from ~/.pia/config. */
+  private aliases = new Map<string, string>();
   private history: string[] = [];
   private historyIndex = 0; // points one past the last entry when not browsing
   private suggestionIndex = 0; // which of several matches the ghost shows
@@ -81,6 +87,10 @@ export class Terminal {
     this.vfs.mkdirp(home);
     this.vfs.home = home;
     this.cwd = home;
+
+    // Read ~/.pia/config (seeding a starter one if absent) and apply the theme,
+    // prompt and aliases before the first render.
+    this.loadConfig();
 
     this.kbd = document.createElement("input");
     this.kbd.className = "term-kbd";
@@ -262,12 +272,37 @@ export class Terminal {
 
   // ---- prompt + input rendering --------------------------------------------
 
+  /**
+   * Read ~/.pia/config and apply it: theme, prompt template, and aliases.
+   * Seeds a starter config into the home if none exists yet (so the file is
+   * there to `nano`). Called at boot and again by the `theme`/`alias` commands.
+   */
+  private loadConfig(): void {
+    const path = `${this.vfs.home}/.pia/config`;
+    const node = this.vfs.getNode(path);
+    let text: string;
+    if (node && node.type === "file") {
+      text = this.vfs.readFile(path);
+    } else {
+      this.vfs.mkdirp(`${this.vfs.home}/.pia`);
+      this.vfs.writeFile(path, DEFAULT_CONFIG);
+      text = DEFAULT_CONFIG;
+    }
+    const cfg = parseConfig(text);
+    this.promptTemplate = cfg.prompt || "{user}@pia:{cwd}$";
+    this.aliases = new Map(Object.entries(cfg.aliases));
+    applyTheme(cfg.theme ?? DEFAULT_THEME);
+  }
+
   private promptText(): string {
     const home = this.vfs.home;
     let shown = this.cwd;
     if (shown === home) shown = "~";
     else if (shown.startsWith(`${home}/`)) shown = `~${shown.slice(home.length)}`;
-    return `${this.session.user}@pia:${shown}$`;
+    return this.promptTemplate
+      .replaceAll("{user}", this.session.user)
+      .replaceAll("{host}", "pia")
+      .replaceAll("{cwd}", shown);
   }
 
   /** Redraw the active input line, with the block cursor at its position. */
@@ -628,16 +663,30 @@ export class Terminal {
       let input = "";
       for (let i = 0; i < stages.length; i++) {
         const stage = stages[i];
-        const command = this.registry.get(stage.name);
+        // Expand a user alias once (no recursion): `ll` → `ls -la`, with the
+        // alias's own words prepended to whatever args were typed.
+        let name = stage.name;
+        let args = stage.args;
+        const alias = this.aliases.get(name);
+        if (alias) {
+          // Tokenize like the main parser so a quoted argument in the alias
+          // (e.g. `alias notes = cat "my notes.txt"`) stays a single arg.
+          const words = tokenize(alias);
+          if (words.length > 0) {
+            name = words[0];
+            args = [...words.slice(1), ...stage.args];
+          }
+        }
+        const command = this.registry.get(name);
         if (!command) {
-          this.print(`unknown command: ${stage.name}. type 'help'.`, "error");
+          this.print(`unknown command: ${name}. type 'help'.`, "error");
           return;
         }
         const isLast = i === stages.length - 1;
         // Capture output for every stage but the last, and for the last stage
         // when its output is being redirected to a file.
         const capture = !isLast || redirect !== null ? [] : undefined;
-        await command.run(stage.args, this.context({ stdin: input, capture }));
+        await command.run(args, this.context({ stdin: input, capture }));
         input = capture ? capture.join("\n") : "";
       }
 
@@ -689,6 +738,7 @@ export class Terminal {
         const root = await this.adapter.load();
         if (root) this.vfs.root = root;
       },
+      applyConfig: () => this.loadConfig(),
       share: this.share,
       runApp: capture
         ? () => {

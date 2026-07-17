@@ -15,6 +15,9 @@ async function enter(ctx: CommandContext, user: string): Promise<void> {
   ctx.session.user = user;
   ctx.setCwd(home);
   await ctx.persist();
+  // Adopt the new home's ~/.pia/config (theme, prompt, aliases) — otherwise an
+  // in-place account switch keeps the previous user's settings.
+  ctx.applyConfig?.();
 }
 
 export const login: Command = {
@@ -109,6 +112,7 @@ export const usermod: Command = {
     ctx.session.user = name;
     ctx.setCwd(newHome);
     await ctx.persist();
+    ctx.applyConfig?.(); // the config moved with the home; re-read from the new path
     ctx.print(`renamed to ${name}`, "accent");
   },
 };

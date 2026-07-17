@@ -239,8 +239,11 @@ edit together (e.g. a shopping list) — see Collaboration below.
 terminal, the editor, the snake game and todo apps, sharing, and the Supabase
 adapters.
 
-Level 0 is complete; Level 1 (pipes, grep/find) and the first Level 2 screen-app
-game are in.
+Level 0 is complete. Level 1 is well underway (pipes, `grep`/`find`, and a user
+`~/.pia/config` dotfile with themes, a prompt template and aliases; `ls -a` for
+dotfiles). Level 2 has three screen-apps (nano, snake, todo). Level 3 is largely
+in — real accounts, files that follow you between devices, and in-place file
+sharing with live-sync (see below).
 
 ### Backend (Supabase) — live
 
@@ -301,5 +304,6 @@ add itself to a list it wasn't invited to.
 
 ### Next steps
 
-`share <file>` / `publish <folder>` (needs the backend) · theme switching /
-config · more Level 2 apps (`2048`, `draw`) · `.md` rendering.
+Finish Level 1: `.md` rendering · `.json`/`.csv` views · file import/export.
+Then Level 3: `publish <folder>` → a public page · `who`/`msg` multiplayer ·
+`remind`. More Level 2 apps along the way (`2048`, `draw`).

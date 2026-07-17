@@ -38,6 +38,8 @@ export interface CommandContext {
   runApp(factory: ScreenAppFactory): Promise<void>;
   /** Reload the filesystem tree from storage (e.g. after a cloud login). */
   reloadFs?(): Promise<void>;
+  /** Re-read ~/.pia/config and apply it (theme, prompt, aliases) live. */
+  applyConfig?(): void;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
   /** The registry, so `help` can enumerate commands. */

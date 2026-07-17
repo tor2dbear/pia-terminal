@@ -3,6 +3,13 @@ import { isDir, isFile } from "../vfs/types.js";
 import type { VNode } from "../vfs/types.js";
 import type { Command, CommandContext } from "./registry.js";
 
+/** True if an `-a` / `--all` flag is present (also inside a bundle like `-la`). */
+function hasAllFlag(args: string[]): boolean {
+  return args.some(
+    (a) => a === "--all" || (a.startsWith("-") && !a.startsWith("--") && a.includes("a")),
+  );
+}
+
 /** Run `fn`, printing a VfsError as an error line instead of throwing. */
 function guard(ctx: CommandContext, fn: () => void): boolean {
   try {
@@ -28,9 +35,11 @@ export const pwd: Command = {
 export const ls: Command = {
   name: "ls",
   help: "list the contents of a directory",
-  usage: "ls [path]",
+  usage: "ls [-a] [path]",
   run(args, ctx) {
-    const target = ctx.vfs.resolve(ctx.cwd, args[0] ?? ".");
+    const showAll = hasAllFlag(args);
+    const pathArg = args.find((a) => !a.startsWith("-"));
+    const target = ctx.vfs.resolve(ctx.cwd, pathArg ?? ".");
     guard(ctx, () => {
       const node = ctx.vfs.getNode(target);
       if (!node) throw new VfsError(`no such file or directory: ${target}`);
@@ -38,7 +47,8 @@ export const ls: Command = {
         ctx.print(node.name);
         return;
       }
-      const entries = ctx.vfs.list(target);
+      // Hide dotfiles (e.g. ~/.pia) unless -a, the way a real `ls` does.
+      const entries = ctx.vfs.list(target).filter((e) => showAll || !e.name.startsWith("."));
       if (entries.length === 0) return;
       // `/` marks directories; `@` marks a shared (cloud-linked) file, the way
       // `ls -F` flags a symlink. Suffixes are for the screen only — piped output
@@ -158,9 +168,11 @@ export const rm: Command = {
 export const tree: Command = {
   name: "tree",
   help: "show the directory tree (shared files marked @)",
-  usage: "tree [path]",
+  usage: "tree [-a] [path]",
   run(args, ctx) {
-    const target = ctx.vfs.resolve(ctx.cwd, args[0] ?? ".");
+    const showAll = hasAllFlag(args);
+    const pathArg = args.find((a) => !a.startsWith("-"));
+    const target = ctx.vfs.resolve(ctx.cwd, pathArg ?? ".");
     guard(ctx, () => {
       const node = ctx.vfs.getNode(target);
       if (!node) throw new VfsError(`no such file or directory: ${target}`);
@@ -172,7 +184,9 @@ export const tree: Command = {
       }
       ctx.print(target === "/" ? "/" : target.split("/").pop() + "/");
       const walk = (dir: typeof node, prefix: string): void => {
-        const kids = Object.values(dir.children).sort((a, b) => {
+        const kids = Object.values(dir.children)
+          .filter((c) => showAll || !c.name.startsWith("."))
+          .sort((a, b) => {
           if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
           return a.name.localeCompare(b.name);
         });
