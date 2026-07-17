@@ -169,9 +169,10 @@ user@pia:~$ ▮
 
 > Note: the app UI is in English. The design spec above is still in Swedish.
 
-**Live:** https://tor2dbear.github.io/pia-terminal/ — deployed automatically by
-GitHub Pages on every push to `main` (`.github/workflows/deploy.yml` runs
-typecheck + tests as a gate before publishing the build).
+**Live:** https://pia.tor2dbear.com — deployed automatically by Cloudflare Pages
+on every push to `main` (`npm run build` → `dist/`). CI
+(`.github/workflows/ci.yml`) runs typecheck + tests + build on every PR, and
+each PR gets its own preview URL before merge.
 
 The core (Level 0) is scaffolded and runnable.
 

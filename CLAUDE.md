@@ -1,8 +1,8 @@
 # PIA — Personal Integrated Applications
 
 A standalone web terminal: a little computer in the browser. TypeScript + Vite +
-Vitest, deployed static to GitHub Pages. Named after Pia (backronym à la Apple's
-Lisa).
+Vitest, deployed static to Cloudflare Pages. Named after Pia (backronym à la
+Apple's Lisa).
 
 ## Design principle: terminal-idiom first
 
@@ -61,9 +61,14 @@ src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
   shallow unit tests.
 - **Verify in a real browser** when practical: `--dump-dom` boot checks catch
   runtime errors the tests can't.
-- **Deploy:** push to `main` → GitHub Pages auto-deploys (build gated on
-  typecheck + tests). Develop on `claude/readme-review-qz45y5`; the user opted
-  into auto-syncing verified changes to `main`.
+- **Deploy:** Cloudflare Pages builds on push to `main` (`npm run build` →
+  `dist/`) and serves the custom domain (`pia.tor2dbear.com`) over HTTPS; every
+  PR gets its own preview URL. Work lands via **branch → PR → CI → merge**:
+  `.github/workflows/ci.yml` runs typecheck + tests + build on each PR (required
+  by branch protection on `main`). Security headers — CSP, `frame-ancestors`,
+  `X-Frame-Options`, … — ship in `dist/_headers`, emitted at build time by the
+  `vite.config.ts` CSP plugin (Cloudflare Pages serves them; a matching `<meta>`
+  CSP covers any static host).
 - **Cloud config** lives in committed `.env.production` (public client keys; RLS
   is the security boundary). Absent → app is fully local and Supabase is
   tree-shaken out.
