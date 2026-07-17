@@ -18,6 +18,26 @@ describe("renderJson", () => {
     expect(lines.find((l) => l.text.trim() === "1,")?.cls).toBe("normal");
   });
 
+  it("preserves numeric lexemes exactly, without round-tripping through Number", () => {
+    // 9007199254740993 > MAX_SAFE_INTEGER, and 1e400 overflows a double — both
+    // would be corrupted by JSON.parse + JSON.stringify.
+    expect(renderJson('{"id":9007199254740993}').map((l) => l.text)).toEqual([
+      "{",
+      '  "id": 9007199254740993',
+      "}",
+    ]);
+    expect(renderJson('{"big":1e400}').map((l) => l.text)).toEqual(["{", '  "big": 1e400', "}"]);
+  });
+
+  it("handles nested and empty containers", () => {
+    expect(renderJson('{"a":[],"b":{}}').map((l) => l.text)).toEqual([
+      "{",
+      '  "a": [],',
+      '  "b": {}',
+      "}",
+    ]);
+  });
+
   it("throws on invalid JSON", () => {
     expect(() => renderJson("{nope")).toThrow();
   });
