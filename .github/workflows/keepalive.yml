@@ -1,0 +1,44 @@
+name: Supabase keep-alive
+
+# Free-tier Supabase pauses a project after 7 days of inactivity, which would
+# take down auth, cloud storage, shared lists and realtime for logged-in users.
+# This pings the project daily so it never goes idle. The values come from the
+# committed .env.production — the anon key is a public "publishable" key, so no
+# repo secret is needed.
+#
+# It prefers the ping() RPC (a genuine, tiny database call — see
+# supabase/keepalive.sql); if that RPC isn't installed yet it falls back to the
+# PostgREST root, which also queries the database. Either counts as activity.
+
+on:
+  schedule:
+    - cron: "37 5 * * *" # daily at 05:37 UTC — big margin under the 7-day limit
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ping Supabase
+        run: |
+          set -euo pipefail
+          set -a; source .env.production; set +a
+          url="$VITE_SUPABASE_URL"
+          key="$VITE_SUPABASE_ANON_KEY"
+
+          code=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -X POST "$url/rest/v1/rpc/ping" \
+            -H "apikey: $key" -H "Authorization: Bearer $key" \
+            -H "Content-Type: application/json" -d '{}' || echo 000)
+          echo "rpc/ping -> $code"
+
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "ping() RPC not available; falling back to the REST root."
+            code=$(curl -sS -o /tmp/body -w "%{http_code}" \
+              "$url/rest/v1/" -H "apikey: $key" || echo 000)
+            echo "rest root -> $code"
+          fi
+
+          head -c 200 /tmp/body || true; echo
+          test "$code" -ge 200 -a "$code" -lt 300
