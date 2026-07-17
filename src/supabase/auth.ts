@@ -86,6 +86,16 @@ export class SupabaseAuthAdapter implements AuthAdapter {
       email,
       options: { shouldCreateUser: true, emailRedirectTo: redirectTo },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      const message = (error.message ?? "").trim();
+      // Turn Supabase's empty/opaque errors into something actionable instead
+      // of a bare "{}". Most invite failures are the SMTP sender domain or the
+      // redirect URL not matching the current site.
+      throw new Error(
+        message && message !== "{}"
+          ? message
+          : "email could not be sent — check the SMTP sender domain and Redirect URLs in Supabase",
+      );
+    }
   }
 }
