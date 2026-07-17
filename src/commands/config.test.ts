@@ -96,6 +96,25 @@ describe(".pia/config — themes, aliases, prompt", () => {
     expect(root.textContent).not.toContain("unknown command");
   });
 
+  it("preserves quoted arguments in a configured alias", async () => {
+    const vfs = VFS.seed();
+    vfs.writeFile("/home/guest/my file.txt", "spaced!");
+    vfs.mkdirp("/home/guest/.pia");
+    vfs.writeFile("/home/guest/.pia/config", 'alias c = cat "my file.txt"');
+    const root = mount(vfs);
+    await runLine(root, "c"); // → cat "my file.txt" (one arg, not two)
+    expect(root.textContent).toContain("spaced!");
+  });
+
+  it("re-applies config when the user changes", async () => {
+    const root = mount();
+    await runLine(root, "theme amber");
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe(THEMES.amber.accent);
+    // A fresh user's home gets the default config, so the theme resets.
+    await runLine(root, "login bob");
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe(THEMES.phosphor.accent);
+  });
+
   it("honours a custom prompt template from the config", async () => {
     const vfs = VFS.seed();
     vfs.mkdirp("/home/guest/.pia");

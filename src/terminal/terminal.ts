@@ -669,7 +669,9 @@ export class Terminal {
         let args = stage.args;
         const alias = this.aliases.get(name);
         if (alias) {
-          const words = alias.split(/\s+/).filter(Boolean);
+          // Tokenize like the main parser so a quoted argument in the alias
+          // (e.g. `alias notes = cat "my notes.txt"`) stays a single arg.
+          const words = tokenize(alias);
           if (words.length > 0) {
             name = words[0];
             args = [...words.slice(1), ...stage.args];
