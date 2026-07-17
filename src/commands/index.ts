@@ -8,6 +8,7 @@ import { gameCommands } from "./games.js";
 import { shareCommands } from "./share.js";
 import { todoCommands } from "./todo.js";
 import { configCommands } from "./config.js";
+import { glowCommands } from "./glow.js";
 
 /** Build a registry with all commands registered. */
 export function buildRegistry(): CommandRegistry {
@@ -22,6 +23,7 @@ export function buildRegistry(): CommandRegistry {
     ...shareCommands,
     ...todoCommands,
     ...configCommands,
+    ...glowCommands,
   ]) {
     registry.register(cmd);
   }
