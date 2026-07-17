@@ -63,11 +63,11 @@ export const neofetch: Command = {
     ];
     const logo = [
       "  ┌──────┐",
-      "  │ PIA  │",
-      "  │  ◗◖  │",
+      "  │      │",
+      "  │ p █  │",
+      "  │      │",
       "  └──────┘",
-      "          ",
-      "          ",
+      "    pia   ",
       "          ",
     ];
     const rows = Math.max(logo.length, info.length);

@@ -10,3 +10,6 @@ dist/
 # Safety net: TypeScript output belongs in dist/, never next to sources.
 src/**/*.js
 !src/**/*.config.js
+
+# local working files
+scratchpad/
