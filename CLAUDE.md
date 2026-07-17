@@ -50,7 +50,19 @@ src/supabase/   cloud adapters (dynamic-imported; dormant without config)
 src/commands/   registry + commands (fs, system, edit, auth, text, games)
 src/apps/       screen apps (editor, snake, todo)
 src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
+roadmap/        one markdown file per planned item ("puck") — see roadmap/README.md
 ```
+
+## Roadmap
+
+Planned work lives in `roadmap/` as one markdown file per item ("puck"), each
+with YAML frontmatter (`title`, `status`, `updated`, …) and free-form body for
+goal/research/open questions. Status flows `inbox → now / next / later → done`.
+Read `roadmap/README.md` for the full convention. When you start on a puck set
+its `status: now` and link the working `issue:`; new undecided ideas go in
+`inbox`. The format is designed to be harvested by an external multi-repo
+overview site, so keep frontmatter field names and status values exactly as
+specified.
 
 ## Conventions
 
