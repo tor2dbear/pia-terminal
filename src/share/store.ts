@@ -25,6 +25,8 @@ export interface ShareStore {
   save(id: string, content: string): Promise<void>;
   /** Invite someone (by email) to a list the caller is a member of. */
   invite(id: string, email: string): Promise<void>;
+  /** Leave a shared list (drop your own membership); it stays for the others. */
+  leave(id: string): Promise<void>;
   /** Claim any invites addressed to the current user; resolves to the count. */
   claim(): Promise<number>;
   /**
@@ -54,6 +56,9 @@ export class NullShareStore implements ShareStore {
   }
   async invite(): Promise<void> {
     throw new Error("sharing is unavailable");
+  }
+  async leave(): Promise<void> {
+    /* nothing shared to leave */
   }
   async claim(): Promise<number> {
     return 0;
@@ -114,6 +119,10 @@ export class MemoryShareStore implements ShareStore {
     const set = this.db.invites.get(id) ?? new Set<string>();
     set.add(email.toLowerCase());
     this.db.invites.set(id, set);
+  }
+
+  async leave(id: string): Promise<void> {
+    this.db.members.get(id)?.delete(this.email);
   }
 
   async claim(): Promise<number> {

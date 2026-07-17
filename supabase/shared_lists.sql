@@ -127,6 +127,26 @@ begin
 end;
 $$;
 
+-- Leave a list: drop the caller's own membership. The list stays for everyone
+-- else. (Removing a shared file locally leaves the share, so it isn't re-placed
+-- in ~/shared on the next login.)
+create or replace function public.leave_list(p_list uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+  delete from public.shared_list_members
+    where list_id = p_list and user_id = v_uid;
+end;
+$$;
+
 -- Turn every pending invite addressed to the caller's email into a membership.
 -- Returns how many were claimed.
 create or replace function public.claim_invites()
@@ -174,6 +194,7 @@ grant select          on public.shared_list_invites to authenticated;
 grant execute on function public.is_list_member(uuid)          to authenticated;
 grant execute on function public.create_shared_list(text, text) to authenticated;
 grant execute on function public.invite_to_list(uuid, text)     to authenticated;
+grant execute on function public.leave_list(uuid)              to authenticated;
 grant execute on function public.claim_invites()               to authenticated;
 
 -- ---- live-sync -------------------------------------------------------------
@@ -198,4 +219,5 @@ end $$;
 revoke execute on function public.is_list_member(uuid)           from public, anon;
 revoke execute on function public.create_shared_list(text, text) from public, anon;
 revoke execute on function public.invite_to_list(uuid, text)     from public, anon;
+revoke execute on function public.leave_list(uuid)               from public, anon;
 revoke execute on function public.claim_invites()                from public, anon;

@@ -144,6 +144,28 @@ describe("share <file> <email> (collaborative)", () => {
     expect(root.textContent).toContain("invited friend@example.com");
   });
 
+  it("rm on a shared file leaves the share so it isn't re-placed", async () => {
+    const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(store);
+    await runLine(root, "echo hi > note.txt");
+    await runLine(root, "share note.txt friend@example.com");
+    expect((await store.mine()).length).toBe(1); // I'm a member (creator)
+
+    await runLine(root, "rm note.txt");
+    expect(root.textContent).toContain("left 1 shared file");
+    expect((await store.mine()).length).toBe(0); // membership dropped
+  });
+
+  it("tree shows the structure and marks shared files with @", async () => {
+    const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(store);
+    await runLine(root, "mkdir garden");
+    await runLine(root, "echo x > garden/flowers.md");
+    await runLine(root, "share garden/flowers.md p@example.com");
+    await runLine(root, "tree garden");
+    expect(root.textContent).toContain("flowers.md@");
+  });
+
   it("still makes a read-only link when no email is given", async () => {
     const root = mount(new MemoryShareStore("me@example.com", MemoryShareStore.backing()));
     await runLine(root, "echo hi > note.txt");

@@ -27,6 +27,20 @@ describe("VFS share links", () => {
     expect(isFile(unlinked!) && unlinked.shareId).toBeUndefined();
   });
 
+  it("collects shareIds under a path (for rm = leave)", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp("/home/guest/a/b");
+    vfs.writeFile("/home/guest/a/x.md", "1");
+    vfs.link("/home/guest/a/x.md", "id-1");
+    vfs.writeFile("/home/guest/a/b/y.md", "2");
+    vfs.link("/home/guest/a/b/y.md", "id-2");
+    vfs.writeFile("/home/guest/a/plain.txt", "3"); // not linked
+
+    expect(vfs.shareIdsUnder("/home/guest/a").sort()).toEqual(["id-1", "id-2"]);
+    expect(vfs.shareIdsUnder("/home/guest/a/x.md")).toEqual(["id-1"]);
+    expect(vfs.shareIdsUnder("/home/guest/a/plain.txt")).toEqual([]);
+  });
+
   it("round-trips shareId through serialization", () => {
     const vfs = VFS.seed();
     vfs.writeFile("/home/guest/f.md", "x");

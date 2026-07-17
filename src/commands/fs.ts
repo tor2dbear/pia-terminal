@@ -126,11 +126,64 @@ export const rm: Command = {
     const targets = args.filter((a) => !a.startsWith("-"));
     if (targets.length === 0) return ctx.error("rm: specify at least one path");
     let changed = false;
+    const leaving: string[] = [];
     for (const arg of targets) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
-      if (guard(ctx, () => ctx.vfs.remove(target, recursive))) changed = true;
+      // Collect any share links under this path *before* removing it — removing
+      // a shared file also means leaving the share, else it would just get
+      // re-placed in ~/shared on the next login.
+      const ids = ctx.vfs.shareIdsUnder(target);
+      if (guard(ctx, () => ctx.vfs.remove(target, recursive))) {
+        changed = true;
+        leaving.push(...ids);
+      }
     }
     if (changed) await ctx.persist();
+    for (const id of leaving) {
+      try {
+        await ctx.share?.leave(id);
+      } catch {
+        /* best-effort — the local file is already gone */
+      }
+    }
+    if (leaving.length > 0) {
+      ctx.print(
+        `(left ${leaving.length} shared file${leaving.length === 1 ? "" : "s"})`,
+        "dim",
+      );
+    }
+  },
+};
+
+export const tree: Command = {
+  name: "tree",
+  help: "show the directory tree (shared files marked @)",
+  usage: "tree [path]",
+  run(args, ctx) {
+    const target = ctx.vfs.resolve(ctx.cwd, args[0] ?? ".");
+    guard(ctx, () => {
+      const node = ctx.vfs.getNode(target);
+      if (!node) throw new VfsError(`no such file or directory: ${target}`);
+      const suffix = (n: VNode): string =>
+        n.type === "dir" ? "/" : isFile(n) && n.shareId ? "@" : "";
+      if (!isDir(node)) {
+        ctx.print(node.name + suffix(node));
+        return;
+      }
+      ctx.print(target === "/" ? "/" : target.split("/").pop() + "/");
+      const walk = (dir: typeof node, prefix: string): void => {
+        const kids = Object.values(dir.children).sort((a, b) => {
+          if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        kids.forEach((child, i) => {
+          const last = i === kids.length - 1;
+          ctx.print(`${prefix}${last ? "└─ " : "├─ "}${child.name}${suffix(child)}`);
+          if (isDir(child)) walk(child, prefix + (last ? "   " : "│  "));
+        });
+      };
+      walk(node, "");
+    });
   },
 };
 
@@ -146,4 +199,4 @@ export const mv: Command = {
   },
 };
 
-export const fsCommands: Command[] = [pwd, ls, cd, mkdir, touch, cat, rm, mv];
+export const fsCommands: Command[] = [pwd, ls, cd, mkdir, touch, cat, rm, mv, tree];

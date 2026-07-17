@@ -108,6 +108,12 @@ export class SupabaseShareStore implements ShareStore {
     if (error) throw new Error(error.message);
   }
 
+  async leave(id: string): Promise<void> {
+    if (!(await this.uid())) return;
+    const { error } = await this.db.rpc("leave_list", { p_list: id });
+    if (error) throw new Error(error.message);
+  }
+
   async claim(): Promise<number> {
     if (!(await this.uid())) return 0;
     const { data, error } = await this.db.rpc("claim_invites");

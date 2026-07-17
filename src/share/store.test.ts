@@ -41,6 +41,20 @@ describe("MemoryShareStore (invite/claim flow)", () => {
     expect(seen).toEqual(["[ ] milk"]); // nothing after unsubscribe
   });
 
+  it("leave drops only the caller's membership", async () => {
+    const backing = MemoryShareStore.backing();
+    const a = new MemoryShareStore("a@example.com", backing);
+    const b = new MemoryShareStore("b@example.com", backing);
+    const id = await a.create("handla", "");
+    await a.invite(id, "b@example.com");
+    await b.claim();
+    expect((await b.mine()).length).toBe(1);
+
+    await b.leave(id);
+    expect((await b.mine()).length).toBe(0); // b left
+    expect((await a.mine()).length).toBe(1); // still there for a
+  });
+
   it("claims invites case-insensitively and only once", async () => {
     const backing = MemoryShareStore.backing();
     const me = new MemoryShareStore("me@example.com", backing);

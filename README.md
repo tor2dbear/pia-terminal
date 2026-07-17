@@ -209,7 +209,7 @@ src/
 ### What exists
 
 Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
-`cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
+`tree` · `cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
 `usermod` · `passwd` · `invite` · `logout` · `grep` · `find` · `wc` · `snake` ·
 `share` · `shared` · `todo`.
 (`edit`→`nano`,
