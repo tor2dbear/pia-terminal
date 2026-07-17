@@ -20,28 +20,31 @@ export const upload: Command = {
       ctx.error(`upload: not a directory: ${args[0] ?? "."}`);
       return;
     }
-    const file = await ctx.pickFile();
-    if (!file) {
+    const picked = await ctx.pickFile();
+    if (!picked) {
       ctx.print("upload: cancelled", "dim");
       return;
     }
-    // The VFS holds text; readAsText mangles binary, so refuse it rather than
-    // silently corrupt the file on a later download. NUL / replacement chars are
-    // a reliable sign the bytes weren't UTF-8 text.
-    if ([...file.content].some((c) => c.charCodeAt(0) === 0 || c.charCodeAt(0) === 0xfffd)) {
-      ctx.error("upload: only text files are supported (this one looks binary)");
+    // The picker enforces a size limit and decodes bytes (UTF-8 → Windows-1252),
+    // rejecting binary — so we only get here with a real text file, or a reason.
+    if ("error" in picked) {
+      ctx.error(
+        picked.error === "too-large"
+          ? "upload: file too large (max 1 MB)"
+          : "upload: only text files are supported (this one looks binary)",
+      );
       return;
     }
-    const name = file.name.split(/[\\/]/).pop() || file.name; // basename only
+    const name = picked.name.split(/[\\/]/).pop() || picked.name; // basename only
     const path = ctx.vfs.resolve(dir, name);
     const existing = ctx.vfs.getNode(path);
     const shareId = existing && existing.type === "file" ? existing.shareId : undefined;
     if (shareId) {
       // Overwriting a cloud-linked file: push through the share backend so
       // collaborators get the new content and it isn't lost on the next open.
-      await linkedSave(ctx, path, shareId)(file.content);
+      await linkedSave(ctx, path, shareId)(picked.content);
     } else {
-      ctx.vfs.writeFile(path, file.content);
+      ctx.vfs.writeFile(path, picked.content);
       await ctx.persist();
     }
     ctx.print(`uploaded ${name} → ${path}`, "accent");

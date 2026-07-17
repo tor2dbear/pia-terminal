@@ -7,6 +7,12 @@ export type { Session };
 
 export type LineClass = "normal" | "dim" | "accent" | "error";
 
+/** The outcome of an OS file pick: a text file, a rejection reason, or cancel. */
+export type PickResult =
+  | { name: string; content: string }
+  | { error: "too-large" | "binary" }
+  | null;
+
 /**
  * Everything a command is handed when it runs. Commands talk to the world
  * only through this — never to the DOM or storage directly.
@@ -45,7 +51,7 @@ export interface CommandContext {
    * open the OS file picker, resolving to the chosen text file (or null if
    * cancelled), and trigger a browser download of a VFS file.
    */
-  pickFile?(): Promise<{ name: string; content: string } | null>;
+  pickFile?(): Promise<PickResult>;
   saveFile?(name: string, content: string): void;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;

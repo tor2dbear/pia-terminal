@@ -5,6 +5,7 @@ import {
   type CommandContext,
   type CommandRegistry,
   type LineClass,
+  type PickResult,
   type Session,
 } from "../commands/registry.js";
 import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
@@ -32,6 +33,20 @@ function commonPrefix(items: string[]): string {
     while (!item.startsWith(prefix)) prefix = prefix.slice(0, -1);
   }
   return prefix;
+}
+
+/**
+ * Decode uploaded bytes to text: UTF-8, falling back to Windows-1252 for legacy
+ * files (e.g. Excel CSV exports). Returns null for binary — a NUL byte, which
+ * text never contains but images/PDFs/archives do.
+ */
+function decodeText(bytes: Uint8Array): string | null {
+  if (bytes.includes(0)) return null;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
 }
 
 /**
@@ -299,16 +314,16 @@ export class Terminal {
    * cancelled). No terminal equivalent — an accepted web divergence, used by
    * `upload`.
    */
-  private pickFile(): Promise<{ name: string; content: string } | null> {
+  private pickFile(): Promise<PickResult> {
+    const MAX_BYTES = 1_048_576; // 1 MB — comfortably under the localStorage quota
     return new Promise((resolve) => {
       const input = document.createElement("input");
       input.type = "file";
-      // A hint toward text files — the VFS stores text, and `upload` rejects
-      // anything that decodes as binary. Not a hard filter (users can override).
+      // A hint toward text files — the VFS stores text. Not a hard filter.
       input.accept = "text/*,.md,.json,.csv,.log,.yml,.yaml,.sh,.ts,.js,.css,.html,.xml,.ini";
       input.style.display = "none";
       let settled = false;
-      const done = (v: { name: string; content: string } | null): void => {
+      const done = (v: PickResult): void => {
         if (settled) return;
         settled = true;
         input.remove();
@@ -317,10 +332,15 @@ export class Terminal {
       input.addEventListener("change", () => {
         const file = input.files?.[0];
         if (!file) return done(null);
+        // Reject oversized files before reading them into memory or the VFS.
+        if (file.size > MAX_BYTES) return done({ error: "too-large" });
         const reader = new FileReader();
-        reader.onload = () => done({ name: file.name, content: String(reader.result ?? "") });
+        reader.onload = () => {
+          const text = decodeText(new Uint8Array(reader.result as ArrayBuffer));
+          done(text === null ? { error: "binary" } : { name: file.name, content: text });
+        };
         reader.onerror = () => done(null);
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
       });
       input.addEventListener("cancel", () => done(null)); // picker dismissed
       document.body.append(input);
