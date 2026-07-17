@@ -1,0 +1,73 @@
+/* Terminal-idiom 404, in PIA's phosphor palette (mirrors src/style.css tokens).
+   Standalone: this page is served outside the app bundle, so the few colours
+   are inlined here rather than pulled from the app's CSS custom properties. */
+:root {
+  --bg: #0b0f0a;
+  --fg: #c9e8c2;
+  --dim: #6f8f6a;
+  --accent: #7cf27c;
+  --error: #f27c7c;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.term {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1.5rem clamp(1rem, 5vw, 4rem);
+}
+
+.prompt {
+  color: var(--accent);
+}
+
+.path {
+  color: var(--fg);
+}
+
+.err {
+  color: var(--error);
+}
+
+.msg {
+  color: var(--dim);
+  margin: 0.6rem 0;
+}
+
+.home {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--dim);
+}
+
+.home:hover {
+  border-bottom-color: var(--accent);
+}
+
+.cursor {
+  color: var(--accent);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

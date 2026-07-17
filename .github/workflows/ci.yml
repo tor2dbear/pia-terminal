@@ -1,0 +1,25 @@
+name: CI
+
+# Correctness gate on every PR: typecheck, tests, and a real production build.
+# This job's name ("ci") is what branch protection requires before a merge.
+# Production deploys are handled by the host (Cloudflare Pages builds on push
+# to main); this workflow only guards what reaches main.
+on:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Cloud config comes from the committed .env.production (public client
+      # keys; RLS protects the data) — no env passthrough, matching the build
+      # the host runs.
+      - run: npm run build
