@@ -294,6 +294,50 @@ export class Terminal {
     applyTheme(cfg.theme ?? DEFAULT_THEME);
   }
 
+  /**
+   * Open the OS file picker and resolve with the chosen file's text (or null if
+   * cancelled). No terminal equivalent — an accepted web divergence, used by
+   * `upload`.
+   */
+  private pickFile(): Promise<{ name: string; content: string } | null> {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.style.display = "none";
+      let settled = false;
+      const done = (v: { name: string; content: string } | null): void => {
+        if (settled) return;
+        settled = true;
+        input.remove();
+        resolve(v);
+      };
+      input.addEventListener("change", () => {
+        const file = input.files?.[0];
+        if (!file) return done(null);
+        const reader = new FileReader();
+        reader.onload = () => done({ name: file.name, content: String(reader.result ?? "") });
+        reader.onerror = () => done(null);
+        reader.readAsText(file);
+      });
+      input.addEventListener("cancel", () => done(null)); // picker dismissed
+      document.body.append(input);
+      input.click();
+    });
+  }
+
+  /** Trigger a browser download of `content` as a file named `name`. */
+  private saveFile(name: string, content: string): void {
+    const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.style.display = "none";
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   private promptText(): string {
     const home = this.vfs.home;
     let shown = this.cwd;
@@ -739,6 +783,8 @@ export class Terminal {
         if (root) this.vfs.root = root;
       },
       applyConfig: () => this.loadConfig(),
+      pickFile: () => this.pickFile(),
+      saveFile: (name, content) => this.saveFile(name, content),
       share: this.share,
       runApp: capture
         ? () => {

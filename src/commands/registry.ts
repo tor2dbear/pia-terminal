@@ -40,6 +40,13 @@ export interface CommandContext {
   reloadFs?(): Promise<void>;
   /** Re-read ~/.pia/config and apply it (theme, prompt, aliases) live. */
   applyConfig?(): void;
+  /**
+   * Web bridges (no terminal equivalent — accepted divergences, like share→URL):
+   * open the OS file picker, resolving to the chosen text file (or null if
+   * cancelled), and trigger a browser download of a VFS file.
+   */
+  pickFile?(): Promise<{ name: string; content: string } | null>;
+  saveFile?(name: string, content: string): void;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
   /** The registry, so `help` can enumerate commands. */

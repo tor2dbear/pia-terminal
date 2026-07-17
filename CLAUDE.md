@@ -14,8 +14,11 @@ friendly names as **aliases** where helpful, not as the primary.
 **When a flow has no terminal equivalent — flag it and sync before building.**
 Examples we've already hit: email + password + email-confirmation auth (pure
 web), `share`/`publish` returning URLs, on-screen touch controls for mobile,
-and `todo share <name> <email>` / invite-by-email collaboration (closest Unix
-kin is `chmod`/`chown`/NFS-mounts — decided as an accepted web divergence).
+`todo share <name> <email>` / invite-by-email collaboration (closest Unix kin is
+`chmod`/`chown`/NFS-mounts — decided as an accepted web divergence), and
+`upload`/`download` reaching the OS file picker / triggering a browser download
+(no shell equivalent for touching the real desktop; named plainly rather than
+faking `scp`/`get`/`put`).
 These are allowed, but call them out so the divergence is a decision, not a
 drift. Touch affordances (D-pad, tappable ^O/^X) are intentional mobile
 concessions, not lingo.
