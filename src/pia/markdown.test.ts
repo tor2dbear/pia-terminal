@@ -53,6 +53,19 @@ describe("renderMarkdown", () => {
     expect(text("_hi_ there")).toEqual(["hi there"]);
   });
 
+  it("leaves placeholder-looking literal text untouched", () => {
+    // No sentinels in the renderer, so text like @@0@@ must survive verbatim.
+    expect(text("code @@0@@ and `x` after")).toEqual(["code @@0@@ and x after"]);
+  });
+
+  it("does not open a fence on a line with an inline code span", () => {
+    // ```js``` on one line is an inline span, not a fence opener — so the
+    // following line must render normally, not be swallowed as dim code.
+    const out = renderMarkdown("```js``` inline\nplain text");
+    const plain = out.find((l) => l.text.includes("plain"));
+    expect(plain?.cls).toBe("normal");
+  });
+
   it("only closes a fence with one at least as long as the opener", () => {
     // A 4-backtick fence around a ``` example: the inner fences are content.
     expect(renderMarkdown("````\n```\ncode\n```\n````")).toEqual([

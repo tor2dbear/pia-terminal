@@ -24,7 +24,10 @@ export function renderMarkdown(src: string): RenderedLine[] {
 
   for (const raw of src.split("\n")) {
     if (fence === null) {
-      const open = /^\s*(`{3,})/.exec(raw);
+      // A fence opener is 3+ backticks plus an optional info string that holds
+      // NO backticks — so an inline span like ```code``` on one line is not an
+      // opener (which would otherwise swallow every following line).
+      const open = /^\s*(`{3,})[^`]*$/.exec(raw);
       if (open) {
         fence = open[1].length;
         continue;
@@ -95,19 +98,34 @@ export function renderMarkdown(src: string): RenderedLine[] {
 
 /**
  * Unwrap inline Markdown to plain text: links, bold, italic, code. Inline-code
- * and link contents are stashed before emphasis runs so their characters are
- * left literal, and underscore emphasis is bounded to word edges so ordinary
- * identifiers (`user_account_id`) keep their underscores.
+ * and links are emitted literally; emphasis is applied only to the text between
+ * them, so their characters are left alone with no placeholder that ordinary
+ * text could collide with. Underscore emphasis is bounded to word edges so
+ * ordinary identifiers (`user_account_id`) keep their underscores.
  */
 function inline(text: string): string {
-  const stash: string[] = [];
-  const keep = (s: string): string => `@@${stash.push(s) - 1}@@`;
+  const protectedRe = /(`[^`]+`)|(!?\[[^\]]+\]\([^)]+\))/g;
+  let out = "";
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = protectedRe.exec(text)) !== null) {
+    out += emphasis(text.slice(last, m.index));
+    if (m[1]) {
+      out += m[1].slice(1, -1); // `code` → its contents, verbatim
+    } else {
+      const link = /!?\[([^\]]+)\]\(([^)]+)\)/.exec(m[2]);
+      out += link ? `${link[1]} (${link[2]})` : m[2]; // [t](u) → t (u)
+    }
+    last = protectedRe.lastIndex;
+  }
+  return out + emphasis(text.slice(last));
+}
+
+/** Strip **bold** / *italic* / _emphasis_ markers (underscores word-bounded). */
+function emphasis(text: string): string {
   return text
-    .replace(/`([^`]+)`/g, (_, c) => keep(c)) // protect `code`
-    .replace(/!?\[([^\]]+)\]\(([^)]+)\)/g, (_, t, u) => keep(`${t} (${u})`)) // [t](u) → t (u)
-    .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
-    .replace(/(^|[^\w])__([^_]+)__(?=[^\w]|$)/g, "$1$2") // __bold__ (word-bounded)
-    .replace(/\*([^*]+)\*/g, "$1") // *italic*
-    .replace(/(^|[^\w])_([^_]+)_(?=[^\w]|$)/g, "$1$2") // _italic_ (word-bounded)
-    .replace(/@@(\d+)@@/g, (_, i) => stash[Number(i)]); // restore
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/(^|[^\w])__([^_]+)__(?=[^\w]|$)/g, "$1$2")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/(^|[^\w])_([^_]+)_(?=[^\w]|$)/g, "$1$2");
 }
