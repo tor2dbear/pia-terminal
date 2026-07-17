@@ -1,4 +1,4 @@
-import { VfsError } from "../vfs/vfs.js";
+import { linkedContent, linkedSave } from "./linked.js";
 import type { Command } from "./registry.js";
 
 // upload / download move real files between the user's computer and the VFS.
@@ -25,10 +25,26 @@ export const upload: Command = {
       ctx.print("upload: cancelled", "dim");
       return;
     }
-    const path = ctx.vfs.resolve(dir, file.name);
-    ctx.vfs.writeFile(path, file.content);
-    await ctx.persist();
-    ctx.print(`uploaded ${file.name} → ${path}`, "accent");
+    // The VFS holds text; readAsText mangles binary, so refuse it rather than
+    // silently corrupt the file on a later download. NUL / replacement chars are
+    // a reliable sign the bytes weren't UTF-8 text.
+    if ([...file.content].some((c) => c.charCodeAt(0) === 0 || c.charCodeAt(0) === 0xfffd)) {
+      ctx.error("upload: only text files are supported (this one looks binary)");
+      return;
+    }
+    const name = file.name.split(/[\\/]/).pop() || file.name; // basename only
+    const path = ctx.vfs.resolve(dir, name);
+    const existing = ctx.vfs.getNode(path);
+    const shareId = existing && existing.type === "file" ? existing.shareId : undefined;
+    if (shareId) {
+      // Overwriting a cloud-linked file: push through the share backend so
+      // collaborators get the new content and it isn't lost on the next open.
+      await linkedSave(ctx, path, shareId)(file.content);
+    } else {
+      ctx.vfs.writeFile(path, file.content);
+      await ctx.persist();
+    }
+    ctx.print(`uploaded ${name} → ${path}`, "accent");
   },
 };
 
@@ -36,7 +52,7 @@ export const download: Command = {
   name: "download",
   help: "download a file from the VFS to your computer",
   usage: "download <file>",
-  run(args, ctx) {
+  async run(args, ctx) {
     if (!ctx.saveFile) {
       ctx.error("download: not supported here");
       return;
@@ -46,13 +62,20 @@ export const download: Command = {
       return;
     }
     const path = ctx.vfs.resolve(ctx.cwd, args[0]);
-    let content: string;
-    try {
-      content = ctx.vfs.readFile(path);
-    } catch (err) {
-      ctx.error(err instanceof VfsError ? `download: ${err.message}` : String(err));
+    const node = ctx.vfs.getNode(path);
+    if (!node) {
+      ctx.error(`download: no such file: ${args[0]}`);
       return;
     }
+    if (node.type !== "file") {
+      ctx.error(`download: not a file: ${args[0]}`);
+      return;
+    }
+    // For a cloud-linked file, export the current cloud copy rather than a cache
+    // a collaborator may have moved past.
+    const content = node.shareId
+      ? await linkedContent(ctx, node.shareId, node.content)
+      : node.content;
     const name = path.split("/").pop() || "download";
     ctx.saveFile(name, content);
     ctx.print(`downloading ${name}`, "dim");

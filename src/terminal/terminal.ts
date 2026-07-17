@@ -303,6 +303,9 @@ export class Terminal {
     return new Promise((resolve) => {
       const input = document.createElement("input");
       input.type = "file";
+      // A hint toward text files — the VFS stores text, and `upload` rejects
+      // anything that decodes as binary. Not a hard filter (users can override).
+      input.accept = "text/*,.md,.json,.csv,.log,.yml,.yaml,.sh,.ts,.js,.css,.html,.xml,.ini";
       input.style.display = "none";
       let settled = false;
       const done = (v: { name: string; content: string } | null): void => {
