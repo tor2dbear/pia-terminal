@@ -13,7 +13,7 @@ updated: 2026-07-18
 
 ## Katalog idag (klart)
 `snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
-`cmatrix` · `tutor`.
+`cmatrix` · `tutor` · `life` · `tetris`.
 
 ## Kandidater (S/M/L = insats)
 
@@ -37,7 +37,7 @@ updated: 2026-07-18
    med i touren).
 2. ~~`sl` + `cmatrix`~~ — **klart** (animerade screen-appar).
 3. ~~`tutor` 🎯~~ — **klart** (8-lektioners syntax-kurs, screen-app).
-4. `life` + `tetris` — mer arkad.
+4. ~~`life` + `tetris`~~ — **klart** (arkad screen-appar).
 5. `qr` — knyter ihop med share/publish.
 
 Individuella puckar finns för första omgången (`pkg-*`). Resten bor här tills de
