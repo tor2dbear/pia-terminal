@@ -39,20 +39,90 @@ function sourcesOf(
   return out;
 }
 
+interface GrepOptions {
+  ignoreCase: boolean;
+  showLineNo: boolean;
+  invert: boolean;
+  /** Lines of trailing (`-A`) / leading (`-B`) context to show around a match. */
+  after: number;
+  before: number;
+  positionals: string[];
+  error?: string;
+}
+
+/**
+ * Parse grep's args, GNU-style. Handles the value-bearing context flags
+ * `-A`/`-B`/`-C` in both attached (`-A2`) and separated (`-A 2`) forms, mixed
+ * into clusters (`-inA2`). `-C` sets both directions; an explicit `-A`/`-B`
+ * wins over `-C` regardless of order. Unknown single-letter flags are ignored,
+ * matching the previous lenient behaviour.
+ */
+function parseGrepArgs(args: string[]): GrepOptions {
+  let ignoreCase = false;
+  let showLineNo = false;
+  let invert = false;
+  let after: number | null = null;
+  let before: number | null = null;
+  let both: number | null = null;
+  const positionals: string[] = [];
+
+  const invalid = (): GrepOptions => ({
+    ignoreCase,
+    showLineNo,
+    invert,
+    after: 0,
+    before: 0,
+    positionals,
+    error: "grep: invalid context length argument",
+  });
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "-" || !arg.startsWith("-")) {
+      positionals.push(arg);
+      continue;
+    }
+    for (let j = 1; j < arg.length; j++) {
+      const ch = arg[j];
+      if (ch === "i") ignoreCase = true;
+      else if (ch === "n") showLineNo = true;
+      else if (ch === "v") invert = true;
+      else if (ch === "A" || ch === "B" || ch === "C") {
+        // The count is the rest of this token, or the next token if none.
+        let numStr = arg.slice(j + 1);
+        if (numStr === "") numStr = args[++i] ?? "";
+        const n = Number(numStr);
+        if (numStr === "" || !Number.isInteger(n) || n < 0) return invalid();
+        if (ch === "A") after = n;
+        else if (ch === "B") before = n;
+        else both = n;
+        break; // consumed the remainder of this token as the count
+      }
+      // unknown flag: ignore, as before
+    }
+  }
+
+  return {
+    ignoreCase,
+    showLineNo,
+    invert,
+    after: after ?? both ?? 0,
+    before: before ?? both ?? 0,
+    positionals,
+  };
+}
+
 export const grep: Command = {
   name: "grep",
   help: "print lines matching a pattern (from files or piped input)",
-  usage: "grep [-inv] <pattern> [file...]",
+  usage: "grep [-inv] [-A<n>] [-B<n>] [-C<n>] <pattern> [file...]",
   run(args, ctx) {
-    const flags = flagsOf(args);
-    const rest = args.filter((a) => a === "-" || !a.startsWith("-"));
-    const pattern = rest[0];
+    const opts = parseGrepArgs(args);
+    if (opts.error) return ctx.error(opts.error);
+    const pattern = opts.positionals[0];
     if (pattern === undefined) return ctx.error("grep: specify a pattern");
-    const files = rest.slice(1);
-
-    const ignoreCase = flags.has("i");
-    const showLineNo = flags.has("n");
-    const invert = flags.has("v");
+    const files = opts.positionals.slice(1);
+    const { ignoreCase, showLineNo, invert, after, before } = opts;
 
     let regex: RegExp | null = null;
     try {
@@ -70,14 +140,51 @@ export const grep: Command = {
 
     const sources = sourcesOf(ctx, files);
     const withName = files.length > 1;
+    const hasContext = after > 0 || before > 0;
+
+    // A match line uses `:` after its name/number, a context line uses `-`,
+    // the way real grep distinguishes the two.
+    const format = (name: string, lineNo: number, line: string, match: boolean): string => {
+      const sep = match ? ":" : "-";
+      let out = line;
+      if (showLineNo) out = `${lineNo}${sep}${out}`;
+      if (withName) out = `${name}${sep}${out}`;
+      return out;
+    };
+
+    let groupPrinted = false; // for the `--` separator between context groups
     for (const src of sources) {
-      src.text.split("\n").forEach((line, i) => {
-        if (!hit(line)) return;
-        let out = line;
-        if (showLineNo) out = `${i + 1}:${out}`;
-        if (withName) out = `${src.name}:${out}`;
-        ctx.print(out);
+      const lines = src.text.split("\n");
+      const matches: number[] = [];
+      lines.forEach((line, i) => {
+        if (hit(line)) matches.push(i);
       });
+      if (matches.length === 0) continue;
+
+      if (!hasContext) {
+        for (const i of matches) ctx.print(format(src.name, i + 1, lines[i], true));
+        continue;
+      }
+
+      // Expand each match to its context window, merging windows that overlap
+      // or touch so shared lines are printed once.
+      const groups: Array<[number, number]> = [];
+      for (const m of matches) {
+        const start = Math.max(0, m - before);
+        const end = Math.min(lines.length - 1, m + after);
+        const last = groups[groups.length - 1];
+        if (last && start <= last[1] + 1) last[1] = Math.max(last[1], end);
+        else groups.push([start, end]);
+      }
+
+      const matched = new Set(matches);
+      for (const [start, end] of groups) {
+        if (groupPrinted) ctx.print("--");
+        for (let i = start; i <= end; i++) {
+          ctx.print(format(src.name, i + 1, lines[i], matched.has(i)));
+        }
+        groupPrinted = true;
+      }
     }
   },
 };

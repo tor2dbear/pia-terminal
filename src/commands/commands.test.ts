@@ -310,6 +310,79 @@ describe("text/search commands", () => {
     expect(h.text()).toEqual(["two", "three"]);
   });
 
+  it("grep -A shows trailing context after a match", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nMATCH\nd\ne";
+    await h.run("grep -A1 MATCH");
+    expect(h.text()).toEqual(["MATCH", "d"]);
+  });
+
+  it("grep -B shows leading context before a match", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nMATCH\nd\ne";
+    await h.run("grep -B1 MATCH");
+    expect(h.text()).toEqual(["b", "MATCH"]);
+  });
+
+  it("grep -C shows context on both sides", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nMATCH\nd\ne";
+    await h.run("grep -C1 MATCH");
+    expect(h.text()).toEqual(["b", "MATCH", "d"]);
+  });
+
+  it("grep accepts a separated context count (-A 2)", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nMATCH\nd\ne";
+    await h.run("grep -A 2 MATCH");
+    expect(h.text()).toEqual(["MATCH", "d", "e"]);
+  });
+
+  it("grep merges overlapping context windows without duplicating lines", async () => {
+    const h = harness();
+    h.ctx.stdin = "x\nhit\ny\nhit\nz";
+    await h.run("grep -C1 hit");
+    // windows [0,2] and [2,4] touch → one group, no `--`, `y` printed once
+    expect(h.text()).toEqual(["x", "hit", "y", "hit", "z"]);
+  });
+
+  it("grep separates non-adjacent context groups with --", async () => {
+    const h = harness();
+    h.ctx.stdin = "hit\na\nb\nc\nhit";
+    await h.run("grep -C1 hit");
+    expect(h.text()).toEqual(["hit", "a", "--", "c", "hit"]);
+  });
+
+  it("grep -n marks context lines with - and matches with :", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nMATCH\nb";
+    await h.run("grep -n -A1 MATCH");
+    expect(h.text()).toEqual(["2:MATCH", "3-b"]);
+  });
+
+  it("grep lets an explicit -A override -C", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nMATCH\nb\nc\nd";
+    await h.run("grep -C1 -A2 MATCH");
+    // before from -C1, after from -A2 → window [0,3]
+    expect(h.text()).toEqual(["a", "MATCH", "b", "c"]);
+  });
+
+  it("grep -A0 behaves like no context", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nMATCH\nb";
+    await h.run("grep -A0 MATCH");
+    expect(h.text()).toEqual(["MATCH"]);
+  });
+
+  it("grep rejects an invalid context count", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nMATCH\nb";
+    await h.run("grep -A x MATCH");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    expect(h.lines.at(-1)?.text).toContain("invalid context");
+  });
+
   it("find lists a tree recursively", async () => {
     const h = harness();
     h.vfs.mkdirp(`${HOME}/proj/src`);
