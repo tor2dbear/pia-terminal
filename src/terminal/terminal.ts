@@ -10,11 +10,18 @@ import {
 } from "../commands/registry.js";
 import { tokenize, parseSequence, type Pipeline } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
-import { parseConfig, DEFAULT_CONFIG } from "../pia/rc.js";
-import { applyTheme, DEFAULT_THEME } from "../pia/themes.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 import type { AuthAdapter } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
+
+/** Prompt + aliases the terminal renders — the engine's view of user config,
+ * independent of any file format or theme system. */
+export interface TerminalConfig {
+  /** Prompt template with `{user}` `{host}` `{cwd}` placeholders. */
+  prompt?: string;
+  /** Command shortcuts: alias name → its expansion. */
+  aliases?: Record<string, string>;
+}
 
 export interface TerminalOptions {
   vfs: VFS;
@@ -24,6 +31,13 @@ export interface TerminalOptions {
   session: Session;
   /** Shared-list backend for collaboration; omitted → sharing is off. */
   share?: ShareStore;
+  /**
+   * Supply the prompt + aliases (and apply any theme as a side effect). Called
+   * at boot and again whenever a command triggers `applyConfig`. Omitted → the
+   * built-in default prompt and no aliases. This seam keeps the engine unaware
+   * of PIA's dotfile format and theming.
+   */
+  configure?: () => TerminalConfig;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -74,13 +88,14 @@ export class Terminal {
   private readonly auth: AuthAdapter;
   private readonly session: Session;
   private readonly share?: ShareStore;
+  private readonly configure?: () => TerminalConfig;
 
   private cwd = HOME;
   private buffer = "";
   private cursor = 0;
-  /** Prompt template from ~/.pia/config — placeholders {user} {host} {cwd}. */
+  /** Prompt template (from `configure`) — placeholders {user} {host} {cwd}. */
   private promptTemplate = "{user}@pia:{cwd}$";
-  /** User-defined command shortcuts from ~/.pia/config. */
+  /** User-defined command shortcuts (from `configure`). */
   private aliases = new Map<string, string>();
   private history: string[] = [];
   private historyIndex = 0; // points one past the last entry when not browsing
@@ -97,6 +112,7 @@ export class Terminal {
     this.auth = opts.auth;
     this.session = opts.session;
     this.share = opts.share;
+    this.configure = opts.configure;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -104,8 +120,8 @@ export class Terminal {
     this.vfs.home = home;
     this.cwd = home;
 
-    // Read ~/.pia/config (seeding a starter one if absent) and apply the theme,
-    // prompt and aliases before the first render.
+    // Pull the prompt + aliases (and apply any theme) via `configure` before
+    // the first render.
     this.loadConfig();
 
     this.kbd = document.createElement("input");
@@ -289,25 +305,14 @@ export class Terminal {
   // ---- prompt + input rendering --------------------------------------------
 
   /**
-   * Read ~/.pia/config and apply it: theme, prompt template, and aliases.
-   * Seeds a starter config into the home if none exists yet (so the file is
-   * there to `nano`). Called at boot and again by the `theme`/`alias` commands.
+   * (Re)load the prompt template and aliases from the injected `configure`
+   * (which also applies any theme as a side effect). Called at boot and again
+   * by the `theme`/`alias` commands via `applyConfig`.
    */
   private loadConfig(): void {
-    const path = `${this.vfs.home}/.pia/config`;
-    const node = this.vfs.getNode(path);
-    let text: string;
-    if (node && node.type === "file") {
-      text = this.vfs.readFile(path);
-    } else {
-      this.vfs.mkdirp(`${this.vfs.home}/.pia`);
-      this.vfs.writeFile(path, DEFAULT_CONFIG);
-      text = DEFAULT_CONFIG;
-    }
-    const cfg = parseConfig(text);
+    const cfg = this.configure?.() ?? {};
     this.promptTemplate = cfg.prompt || "{user}@pia:{cwd}$";
-    this.aliases = new Map(Object.entries(cfg.aliases));
-    applyTheme(cfg.theme ?? DEFAULT_THEME);
+    this.aliases = new Map(Object.entries(cfg.aliases ?? {}));
   }
 
   /**

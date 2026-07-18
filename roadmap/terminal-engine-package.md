@@ -62,9 +62,11 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
 
 ## Plan
 1. **Dela `CommandContext`** i `CoreCommandContext` (motor) + `CommandContext`
-   (PIA:s tillägg). Ren typ-ändring. — **klart** (denna puck satt `now`).
+   (PIA:s tillägg). Ren typ-ändring. — **klart** (PR #19).
 2. **Lossa renderaren:** injicera tema/config i `terminal.ts` istället för direkt
-   `pia/rc`/`pia/themes`-import.
+   `pia/rc`/`pia/themes`-import. — **klart**. `terminal.ts` importerar ingen
+   `pia/`-modul längre; en `configure`-option ger prompt+alias (och applicerar
+   temat), PIA:s glue bor i `pia/terminalConfig.ts` och injiceras i `main.ts`.
 3. **`engine/`-mapp + publik `index.ts`** (motorns API-yta) — flytta de rena
    delarna dit.
 4. **Bevisa:** bygg en *andra* pytteliten sak på samma motor (testet på gemet).
