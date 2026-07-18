@@ -14,20 +14,20 @@ export type PickResult =
   | null;
 
 /**
- * Everything a command is handed when it runs. Commands talk to the world
- * only through this — never to the DOM or storage directly.
+ * The engine half of a command's toolbox: what *any* shell built on this core
+ * offers — I/O, the working directory, the filesystem, the screen-app host,
+ * history, and the registry. Nothing here is PIA-specific, so this is the seam
+ * a reusable terminal engine would expose. {@link CommandContext} extends it
+ * with PIA's own capabilities.
+ *
+ * Commands talk to the world only through this — never the DOM or storage.
  */
-export interface CommandContext {
+export interface CoreCommandContext {
   vfs: VFS;
-  session: Session;
-  /** Auth backend, for login/logout. */
-  auth: AuthAdapter;
   /** Input piped from a previous command (`""` when there is none). */
   stdin: string;
   /** True when this command's output is captured (piped or redirected). */
   piped: boolean;
-  /** The app's own URL (origin + path, no hash) — for building share links. */
-  baseUrl: string;
   /** Current working directory, absolute. */
   cwd: string;
   /** Change the working directory (validated by the caller of the command). */
@@ -42,6 +42,25 @@ export interface CommandContext {
   persist(): Promise<void>;
   /** Hand the screen to a full-screen app; resolves when the app exits. */
   runApp(factory: ScreenAppFactory): Promise<void>;
+  /** The command history so far, most recent last (for the `history` command). */
+  history?(): string[];
+  /** Clear the command history (`history -c`). */
+  clearHistory?(): void;
+  /** The registry, so `help` can enumerate commands. */
+  registry: CommandRegistry;
+}
+
+/**
+ * PIA's command context: the engine core plus this app's own capabilities
+ * (accounts, sharing, the OS file bridges, live config). A different app built
+ * on the same engine would extend {@link CoreCommandContext} with its own set.
+ */
+export interface CommandContext extends CoreCommandContext {
+  session: Session;
+  /** Auth backend, for login/logout. */
+  auth: AuthAdapter;
+  /** The app's own URL (origin + path, no hash) — for building share links. */
+  baseUrl: string;
   /** Reload the filesystem tree from storage (e.g. after a cloud login). */
   reloadFs?(): Promise<void>;
   /** Re-read ~/.pia/config and apply it (theme, prompt, aliases) live. */
@@ -55,12 +74,6 @@ export interface CommandContext {
   saveFile?(name: string, content: string): void;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
-  /** The command history so far, most recent last (for the `history` command). */
-  history?(): string[];
-  /** Clear the command history (`history -c`). */
-  clearHistory?(): void;
-  /** The registry, so `help` can enumerate commands. */
-  registry: CommandRegistry;
 }
 
 /** A command is a small object: a name, help text, and a run function. */

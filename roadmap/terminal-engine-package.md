@@ -1,8 +1,8 @@
 ---
 title: Lyft ut terminal-motorn som fristående paket
-status: inbox
+status: now
 tags: [terminal, packaging]
-updated: 2026-07-17
+updated: 2026-07-18
 ---
 
 ## Mål
@@ -45,4 +45,29 @@ artefakt, inte en hit.
   runner) och vad stannar som PIA-specifik referens-renderare?
 - Namn/scope om det publiceras; licensval.
 
-_Ligger i `inbox` tills det blivit ett beslut. Befordra till `next/later` då._
+## Boundary-karta (uppmätt 2026-07-18)
+Av ~37 källfiler är bara **12** DOM-bundna; resten är redan ren motor.
+- **Ren motor (DOM-fri, lyft nästan som den är):** `parse.ts`, `glob.ts`,
+  `registry.ts`, hela `vfs/`, alla `commands/*`, de rena renderarna i `pia/`
+  (markdown/json/table), `share/*`, adapter-*interfaces*.
+- **Renderare (skärm-bunden, men redan parametriserad):** `terminal.ts` — tar
+  in `{vfs, adapter, registry, auth, session, share}` via konstruktorn. Kopplad
+  till PIA via `pia/rc` (config) + `pia/themes` (tema) + `ShareStore` — det som
+  ska injiceras bort i steg 2.
+- **PIA-specifikt (stannar):** teman, config, delning, boot, konkreta adaptrar,
+  `main.ts`-wiringen.
+
+Den enda riktiga design-frågan: `CommandContext` blandade motor-verktyg med
+PIA:s egna. Löst genom att dela den (se plan, steg 1).
+
+## Plan
+1. **Dela `CommandContext`** i `CoreCommandContext` (motor) + `CommandContext`
+   (PIA:s tillägg). Ren typ-ändring. — **klart** (denna puck satt `now`).
+2. **Lossa renderaren:** injicera tema/config i `terminal.ts` istället för direkt
+   `pia/rc`/`pia/themes`-import.
+3. **`engine/`-mapp + publik `index.ts`** (motorns API-yta) — flytta de rena
+   delarna dit.
+4. **Bevisa:** bygg en *andra* pytteliten sak på samma motor (testet på gemet).
+5. **(Senare)** paketera som npm.
+
+_Status `now`. Litet, säkert steg i taget; varje steg håller alla tester gröna._
