@@ -459,6 +459,56 @@ describe("text/search commands", () => {
     expect(h.lines.at(-1)?.text).toContain("invalid context");
   });
 
+  it("head prints the first 10 lines by default", async () => {
+    const h = harness();
+    h.ctx.stdin = Array.from({ length: 15 }, (_, i) => `L${i + 1}`).join("\n");
+    await h.run("head");
+    expect(h.text()).toEqual(Array.from({ length: 10 }, (_, i) => `L${i + 1}`));
+  });
+
+  it("head -n<k> limits the count", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nc\nd";
+    await h.run("head -n2");
+    expect(h.text()).toEqual(["a", "b"]);
+  });
+
+  it("head -<k> shorthand works", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nc\nd";
+    await h.run("head -1");
+    expect(h.text()).toEqual(["a"]);
+  });
+
+  it("tail prints the last lines and ignores a trailing newline", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb\nc\n";
+    await h.run("tail -n 2");
+    expect(h.text()).toEqual(["b", "c"]);
+  });
+
+  it("head reads a named file", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/f.txt`, "1\n2\n3\n4");
+    await h.run("head -n3 f.txt");
+    expect(h.text()).toEqual(["1", "2", "3"]);
+  });
+
+  it("head labels each file with a header when several are given", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "a1\na2");
+    h.vfs.writeFile(`${HOME}/b.txt`, "b1\nb2");
+    await h.run("head -n1 a.txt b.txt");
+    expect(h.text()).toEqual(["==> a.txt <==", "a1", "", "==> b.txt <==", "b1"]);
+  });
+
+  it("head reports an invalid line count", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\nb";
+    await h.run("head -n x");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
   it("find lists a tree recursively", async () => {
     const h = harness();
     h.vfs.mkdirp(`${HOME}/proj/src`);

@@ -262,4 +262,84 @@ export const wc: Command = {
   },
 };
 
-export const textCommands: Command[] = [grep, find, wc];
+/** Split text into lines, dropping the single empty line a trailing newline
+ * leaves behind (so `head`/`tail` count lines the way a real terminal does). */
+function toLines(text: string): string[] {
+  if (text === "") return [];
+  const lines = text.split("\n");
+  if (lines[lines.length - 1] === "") lines.pop();
+  return lines;
+}
+
+interface CountOptions {
+  count: number;
+  files: string[];
+  error?: string;
+}
+
+/** Parse `head`/`tail` args: a line count via `-n <k>`, `-n<k>` or `-<k>`
+ * (default 10), plus file operands. Unknown flags are ignored, like grep. */
+function parseCount(args: string[]): CountOptions {
+  let count = 10;
+  const files: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "-" || !a.startsWith("-")) {
+      files.push(a);
+      continue;
+    }
+    let value: string | null = null;
+    if (a === "-n") value = args[++i] ?? "";
+    else if (a.startsWith("-n")) value = a.slice(2);
+    else if (/^-\d+$/.test(a)) value = a.slice(1);
+    if (value === null) continue; // some other flag → ignore
+    const n = Number(value);
+    if (value === "" || !Number.isInteger(n) || n < 0) {
+      return { count, files, error: `invalid number of lines: '${value}'` };
+    }
+    count = n;
+  }
+  return { count, files };
+}
+
+/** Emit `pick`ed lines from each source, with `==> name <==` headers when more
+ * than one file is named (the way GNU head/tail separate multiple files). */
+function headTail(
+  ctx: CommandContext,
+  args: string[],
+  name: string,
+  pick: (lines: string[], count: number) => string[],
+): void {
+  const opts = parseCount(args);
+  if (opts.error) return ctx.error(`${name}: ${opts.error}`);
+  const withName = opts.files.length > 1;
+  sourcesOf(ctx, opts.files).forEach((src, i) => {
+    if (withName) {
+      if (i > 0) ctx.print("");
+      ctx.print(`==> ${src.name} <==`);
+    }
+    for (const line of pick(toLines(src.text), opts.count)) ctx.print(line);
+  });
+}
+
+export const head: Command = {
+  name: "head",
+  help: "print the first lines of a file (or piped input)",
+  usage: "head [-n <k>] [file...]",
+  run(args, ctx) {
+    headTail(ctx, args, "head", (lines, count) => lines.slice(0, count));
+  },
+};
+
+export const tail: Command = {
+  name: "tail",
+  help: "print the last lines of a file (or piped input)",
+  usage: "tail [-n <k>] [file...]",
+  run(args, ctx) {
+    headTail(ctx, args, "tail", (lines, count) =>
+      count <= 0 ? [] : lines.slice(-count),
+    );
+  },
+};
+
+export const textCommands: Command[] = [grep, find, wc, head, tail];

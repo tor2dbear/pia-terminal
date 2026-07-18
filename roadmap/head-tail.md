@@ -1,6 +1,6 @@
 ---
 title: head / tail — se början respektive slutet av en fil
-status: next
+status: done
 tags: [text, commands]
 updated: 2026-07-17
 ---
@@ -27,4 +27,20 @@ del.
 - Negativt/`+`-prefix (`tail -n +2` = från rad 2)? Idiom-troget men nisch — hoppa
   först.
 
-_Ligger i `next`. Grupperad puck: head och tail är spegelbilder, bygg ihop._
+## Levererat
+`head` och `tail` i `text.ts`, byggda ihop kring en delad `headTail`-hjälpare +
+`parseCount`. Så här landade det:
+- **Källor:** återanvänder `sourcesOf` — läser filargument *eller* piped stdin, så
+  `cat stor.log | tail -n5` komponerar.
+- **Antal:** `-n <k>`, `-n<k>` *och* `-<k>` (GNU-shorthand), default 10. Ogiltigt
+  antal ger ett rent fel.
+- **Radräkning:** en delad `toLines` släpper den tomma rad ett avslutande
+  radbryt lämnar, så `tail -n2` på `"a\nb\nc\n"` ger `b,c` (inte en blankrad).
+- **Flera filer:** `==> namn <==`-rubriker med blankrad emellan, som riktiga
+  head/tail; en enda källa → ingen rubrik.
+
+Täckt av 7 kommandotester (default 10, `-n<k>`, `-<k>`, tail + trailing newline,
+namngiven fil, multi-fil-rubriker, ogiltigt antal). 277 tester gröna; typecheck +
+build gröna.
+
+_`tail -f`, `head -c` och `+N`-offset är kvar som möjlig uppföljning._
