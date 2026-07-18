@@ -192,6 +192,44 @@ export class VFS {
     destParent.children[destName] = node;
   }
 
+  /** Deep-copy a node to another absolute path (like `cp` / `cp -r`). */
+  copy(fromPath: string, toPath: string, recursive = false): void {
+    const node = this.getNode(fromPath);
+    if (!node) throw new VfsError(`no such file or directory: ${fromPath}`);
+    if (isDir(node) && !recursive) {
+      throw new VfsError(`omitting directory (use -r): ${fromPath}`);
+    }
+
+    // If the destination is an existing directory, copy *into* it.
+    let dest = toPath;
+    const destNode = this.getNode(toPath);
+    if (destNode && isDir(destNode)) {
+      dest = (toPath === "/" ? "" : toPath) + "/" + node.name;
+    }
+
+    // Refuse to copy a directory onto itself or into one of its descendants.
+    if (dest === fromPath || dest.startsWith(fromPath + "/")) {
+      throw new VfsError(`cannot copy '${fromPath}' into itself`);
+    }
+
+    const { parent: destParent, name: destName } = this.parentOf(dest);
+    if (destParent.children[destName] && isDir(destParent.children[destName])) {
+      throw new VfsError(`cannot overwrite directory with non-directory: ${dest}`);
+    }
+    destParent.children[destName] = this.clone(node, destName);
+  }
+
+  /** Deep-clone a node under a new name. A copied file is an independent local
+   * file — it does not inherit the original's cloud share link. */
+  private clone(node: VNode, name: string): VNode {
+    if (isFile(node)) return { type: "file", name, content: node.content };
+    const dir: DirNode = { type: "dir", name, children: {} };
+    for (const child of Object.values(node.children)) {
+      dir.children[child.name] = this.clone(child, child.name);
+    }
+    return dir;
+  }
+
   /** shareIds of the node at `absPath` and everything under it (for `rm`). */
   shareIdsUnder(absPath: string): string[] {
     const node = this.getNode(absPath);

@@ -104,6 +104,56 @@ describe("filesystem commands", () => {
     expect(h.text()).toEqual(["one:", "x", "", "two:", "y"]);
   });
 
+  it("cp duplicates a file, leaving the original", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "data");
+    await h.run("cp a.txt b.txt");
+    expect(h.vfs.readFile(`${HOME}/b.txt`)).toBe("data");
+    expect(h.vfs.readFile(`${HOME}/a.txt`)).toBe("data");
+  });
+
+  it("cp into a directory keeps the filename", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "data");
+    h.vfs.mkdir(`${HOME}/dir`);
+    await h.run("cp a.txt dir");
+    expect(h.vfs.readFile(`${HOME}/dir/a.txt`)).toBe("data");
+  });
+
+  it("cp refuses a directory without -r", async () => {
+    const h = harness();
+    h.vfs.mkdirp(`${HOME}/d`);
+    await h.run("cp d d2");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    expect(h.vfs.getNode(`${HOME}/d2`)).toBeNull();
+  });
+
+  it("cp -r copies a directory tree", async () => {
+    const h = harness();
+    h.vfs.mkdirp(`${HOME}/d`);
+    h.vfs.writeFile(`${HOME}/d/f.txt`, "hi");
+    await h.run("cp -r d d2");
+    expect(h.vfs.readFile(`${HOME}/d2/f.txt`)).toBe("hi");
+  });
+
+  it("cp copies several files into a directory", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "1");
+    h.vfs.writeFile(`${HOME}/b.txt`, "2");
+    h.vfs.mkdir(`${HOME}/dir`);
+    await h.run("cp a.txt b.txt dir");
+    expect(h.vfs.readFile(`${HOME}/dir/a.txt`)).toBe("1");
+    expect(h.vfs.readFile(`${HOME}/dir/b.txt`)).toBe("2");
+  });
+
+  it("cp of several files requires a directory target", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "1");
+    h.vfs.writeFile(`${HOME}/b.txt`, "2");
+    await h.run("cp a.txt b.txt c.txt");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
   it("cd changes directory and updates pwd", async () => {
     const h = harness();
     await h.run("mkdir proj");

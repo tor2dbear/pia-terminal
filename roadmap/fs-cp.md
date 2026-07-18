@@ -1,6 +1,6 @@
 ---
 title: cp — kopiera filer och mappar
-status: next
+status: done
 tags: [fs, commands]
 updated: 2026-07-17
 ---
@@ -26,4 +26,25 @@ finns `mv` men ingen kopiering — en glaring lucka bland grunderna.
 - Interagerar med delade filer (`@`-märkta): ska en kopia ärva delningen eller bli
   en fristående lokal fil? Troligen fristående — flagga i bygget.
 
-_Ligger i `next`. Liten, avgränsad, hög vardagsnytta._
+## Levererat
+Ny VFS-metod `copy(from, to, recursive)` (bredvid `move`) med en privat
+`clone`-djupklon, plus `cp`-kommandot i `fs.ts`. Så här landade frågorna:
+- **Djup klon:** en kopierad mapp delar inga barn med originalet — muterar man
+  kopian rör originalet inte (testat explicit).
+- **`dir/`-mål:** `cp fil dir` lägger `fil` *i* mappen (speglar `move`s
+  into-dir-semantik). `cp a b` skriver/överskriver `b` tyst (cp-default).
+- **`-r` krävs för mappar:** utan → fel `omitting directory (use -r)`.
+- **Self-copy-skydd:** `cp -r d d/inner` (mål inuti källan) vägras — inget
+  oändligt träd.
+- **Delning strippas:** en kopia blir en fristående *lokal* fil, ärver inte
+  källans `shareId` (beslut från öppna frågan).
+- **Flera källor:** `cp a b c dir/` kopierar alla in i `dir` (kräver att målet är
+  en mapp) — vilket ger `cp *.md notes/` gratis nu när globbing finns.
+
+Täckt av 6 VFS-tester (`vfs.test.ts`) + 6 kommandotester (`commands.test.ts`):
+fil-kopia + oberoende, into-dir, `-r`-krav + djupklon, self-copy-vägran,
+share-strip, flera-källor + icke-mapp-fel. 266 tester gröna; typecheck + build
+gröna. (Autosuggestion-testet uppdaterat: `cp` är en ny `c`-completion.)
+
+_Övrig cp-yta (`-i` interaktiv, `-p` bevara, `-n` no-clobber) är kvar om behovet
+dyker upp._
