@@ -77,9 +77,13 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    (null-storage/-auth), noll av PIA:s kommandon/teman/config. Fyra tester
    spelar igenom det genom motorns `Terminal`. Tree-shakas bort ur PIA:s bundle.
    → **Gemet-testet passerat: motorn bär en helt annan app.**
-5. **Kvar (polish, ej brådskande):**
-   - Kör äventyret som en *öppningsbar sida* (vite multipage + deploy) så det
-     syns, inte bara testas.
+5. **Öppningsbar sida** — **klart**. Äventyret körs nu som en egen sida
+   (`/adventure/`) via vite multipage (`rollupOptions.input`: `main` + `adventure`).
+   Bygget bekräftar poängen: motorn blir en *delad chunk* (`assets/terminal-*.js`,
+   ~23 kB) som **båda** sidorna använder — inte en kopia per app. Sidan renderar i
+   riktig webbläsare under PIA:s strikta CSP utan runtime-/CSP-fel (där Python-spiken
+   föll). Så motorn syns nu, inte bara testas.
+6. **Kvar (polish, ej brådskande):**
    - Full genericisering (`Command<Ctx>`/`Terminal<Ctx>`) så en app slipper skicka
      oanvänd `vfs`/`auth`/`adapter` — idag passerar äventyret stubs.
    - Paketera `engine/` som npm.

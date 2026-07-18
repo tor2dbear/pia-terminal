@@ -83,6 +83,14 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: "es2020",
     outDir: "dist",
+    // Two pages: PIA itself, and the /adventure/ demo that proves the terminal
+    // engine is reusable (a different app on the same core).
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        adventure: "adventure/index.html",
+      },
+    },
   },
   test: {
     environment: "node",
