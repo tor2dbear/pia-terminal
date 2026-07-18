@@ -1,6 +1,6 @@
 ---
 title: Globbing — * och ? på shell-nivå
-status: next
+status: done
 tags: [shell, terminal]
 updated: 2026-07-17
 ---
@@ -31,4 +31,31 @@ enskilt största shell-luckan, och den bryter "riktig terminal"-känslan mest.
 - Matchning mot `/`: ett `*` ska inte korsa mappgränser (`src/*` ≠ `src/**`).
   Spika mot bash-beteende innan bygge.
 
-_Ligger i `next` — störst effekt av grund-luckorna, men shell-core så värt omsorg._
+## Levererat
+Ny ren modul `src/terminal/glob.ts` (`expandArg`/`expandArgs` + en liten
+`GlobFs`-söm, testbar utan VFS). `executePipeline` i `terminal.ts` expanderar
+args *efter* alias-expansion, som ett riktigt skal. Så här landade frågorna:
+- **Citat stänger av globbing:** löst i `parse.ts` — en `*`/`?` som skrivs *inom*
+  citat byts mot en sentinel (privat unicode-tecken) i tokenizern, så `"*.md"`
+  når kommandot literalt. Sentineln städas bort (`unescapeWild`) innan args
+  lämnas vidare, så inget kommando ser den. Normala tokens är byte-identiska —
+  alla gamla parse-tester gröna orörda.
+- **nullglob av:** ingen träff → token lämnas orörd (`*.zip` → `*.zip`).
+- **Dolda filer:** ett ledande `*`/`?` matchar inte punkt-filer; ett *literalt*
+  ledande `.` (som `.*`) gör det.
+- **`?`** = exakt ett tecken. Träffar sorteras.
+- **Alla stages** expanderas (inte bara filargument), som bash. Det ger rätt
+  idiom-beteende även på gotchas: `find . -name *.md` *osciterat* expanderar och
+  bråkar (precis som riktiga skal) — citera för att skydda mönstret.
+- **v1-avgränsning:** bara *sista* path-segmentet globbar (`*.md`, `src/*.ts`).
+  Wildcard i ett tidigare segment (`*/x.md`) lämnas literalt — ingen
+  mappöverskridande `*` eller `**` än. Redirect-mål (`> fil`) expanderas inte,
+  bara av-sentinelas.
+
+Täckt av 12 enhetstester (`glob.test.ts`) + 4 integrationstester genom hela
+terminalen (`terminal.test.ts`): expansion, citat-skydd, no-match-literal, och
+att expanderade filer faktiskt matas till kommandot. 252 tester gröna;
+typecheck + build gröna; boot verifierad i headless Chromium utan runtime-fel.
+
+_`**`, mappöverskridande wildcards och redirect-mål-globbing är kvar som möjlig
+uppföljning om behovet dyker upp._

@@ -358,3 +358,48 @@ describe("swipe gestures", () => {
     expect(typed(root)).toContain("helloX"); // cursor stayed at the end
   });
 });
+
+describe("filename globbing", () => {
+  const out = (root: HTMLElement) =>
+    [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+
+  it("expands * against the filesystem, sorted", async () => {
+    const root = mount();
+    await runLine(root, "touch b.md");
+    await runLine(root, "touch a.md");
+    await runLine(root, "touch c.txt");
+    await runLine(root, "echo *.md");
+    expect(out(root)).toContain("a.md b.md");
+  });
+
+  it("quoting protects a wildcard (literal)", async () => {
+    const root = mount();
+    await runLine(root, "touch a.md");
+    await runLine(root, 'echo "*.md"');
+    expect(out(root)).toContain("*.md");
+  });
+
+  it("leaves a non-matching pattern literal", async () => {
+    const root = mount();
+    await runLine(root, "echo *.zip");
+    expect(out(root)).toContain("*.zip");
+  });
+
+  it("feeds the expanded files to the command (cat *.md)", async () => {
+    const root = mount();
+    await runLine(root, "echo alpha > a.md");
+    await runLine(root, "echo beta > b.md");
+    await runLine(root, "cat *.md");
+    const lines = out(root);
+    expect(lines).toContain("alpha");
+    expect(lines).toContain("beta");
+  });
+
+  it("ls *.md lists every match, not just the first", async () => {
+    const root = mount();
+    await runLine(root, "touch a.md");
+    await runLine(root, "touch b.md");
+    await runLine(root, "ls *.md");
+    expect(out(root)).toContain("a.md  b.md");
+  });
+});

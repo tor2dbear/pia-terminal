@@ -35,30 +35,51 @@ export const pwd: Command = {
 export const ls: Command = {
   name: "ls",
   help: "list the contents of a directory",
-  usage: "ls [-a] [path]",
+  usage: "ls [-a] [path...]",
   run(args, ctx) {
     const showAll = hasAllFlag(args);
-    const pathArg = args.find((a) => !a.startsWith("-"));
-    const target = ctx.vfs.resolve(ctx.cwd, pathArg ?? ".");
-    guard(ctx, () => {
-      const node = ctx.vfs.getNode(target);
-      if (!node) throw new VfsError(`no such file or directory: ${target}`);
-      if (!isDir(node)) {
-        ctx.print(node.name);
-        return;
+    const paths = args.filter((a) => !a.startsWith("-"));
+    if (paths.length === 0) paths.push(".");
+
+    // `/` marks directories; `@` marks a shared (cloud-linked) file, the way
+    // `ls -F` flags a symlink. Suffixes are for the screen only — piped output
+    // stays clean names so `ls | grep` keeps working.
+    const decorate = (e: VNode): string => {
+      if (e.type === "dir") return `${e.name}/`;
+      return !ctx.piped && isFile(e) && e.shareId ? `${e.name}@` : e.name;
+    };
+    const emit = (names: string[]): void => {
+      if (ctx.piped) for (const n of names) ctx.print(n);
+      else if (names.length) ctx.print(names.join("  "));
+    };
+
+    // Split the operands into files and directories, keeping each path as typed
+    // (a real `ls` prints file operands under the name you gave, dirs expanded).
+    const files: string[] = [];
+    const dirs: { arg: string; abs: string }[] = [];
+    for (const arg of paths) {
+      const abs = ctx.vfs.resolve(ctx.cwd, arg);
+      const node = ctx.vfs.getNode(abs);
+      if (!node) {
+        ctx.error(`ls: cannot access '${arg}': no such file or directory`);
+      } else if (isDir(node)) {
+        dirs.push({ arg, abs });
+      } else {
+        files.push(!ctx.piped && isFile(node) && node.shareId ? `${arg}@` : arg);
       }
+    }
+
+    // Headers only when there is more than one block to disambiguate, like GNU.
+    const headers = dirs.length + (files.length ? 1 : 0) > 1;
+    emit(files);
+    dirs.forEach(({ arg, abs }, i) => {
       // Hide dotfiles (e.g. ~/.pia) unless -a, the way a real `ls` does.
-      const entries = ctx.vfs.list(target).filter((e) => showAll || !e.name.startsWith("."));
-      if (entries.length === 0) return;
-      // `/` marks directories; `@` marks a shared (cloud-linked) file, the way
-      // `ls -F` flags a symlink. Suffixes are for the screen only — piped output
-      // stays clean names so `ls | grep` keeps working.
-      const decorate = (e: VNode, marks: boolean): string => {
-        if (e.type === "dir") return `${e.name}/`;
-        return marks && isFile(e) && e.shareId ? `${e.name}@` : e.name;
-      };
-      if (ctx.piped) for (const e of entries) ctx.print(decorate(e, false));
-      else ctx.print(entries.map((e) => decorate(e, true)).join("  "));
+      const entries = ctx.vfs.list(abs).filter((e) => showAll || !e.name.startsWith("."));
+      if (headers) {
+        if (files.length || i > 0) ctx.print("");
+        ctx.print(`${arg}:`);
+      }
+      emit(entries.map(decorate));
     });
   },
 };

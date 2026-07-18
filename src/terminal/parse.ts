@@ -1,3 +1,12 @@
+import { WILD_STAR, WILD_QUES } from "./glob.js";
+
+/**
+ * A wildcard typed inside quotes is literal, so replace it with a sentinel the
+ * globber leaves alone; unquoted `*`/`?` pass through as real wildcards.
+ */
+const shield = (ch: string, inQuotes: boolean): string =>
+  !inQuotes ? ch : ch === "*" ? WILD_STAR : ch === "?" ? WILD_QUES : ch;
+
 /**
  * Split a command line into tokens. Supports double quotes so arguments with
  * spaces survive (e.g. `touch "my notes.txt"`). Operators (`|`, `>`, `>>`) are
@@ -24,7 +33,7 @@ export function tokenize(line: string): string[] {
       }
       continue;
     }
-    current += ch;
+    current += shield(ch, inQuotes);
     hasToken = true;
   }
   if (hasToken) tokens.push(current);
@@ -92,7 +101,7 @@ function lex(line: string): string[] {
         continue;
       }
     }
-    current += ch;
+    current += shield(ch, inQuotes);
     hasToken = true;
   }
   flush();
