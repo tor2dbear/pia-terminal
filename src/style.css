@@ -27,7 +27,8 @@ body {
   padding: 1rem clamp(0.75rem, 3vw, 2rem);
   /* Reserve room so the fixed key bar never covers the last line. */
   padding-bottom: 3.5rem;
-  font-size: 14px;
+  /* Driven by ~/.pia/config `font-size = N`; defaults to 14px. */
+  font-size: var(--font-size, 14px);
   line-height: 1.5;
   /* Default touch behaviour so long-press text selection (copy) works; the
      cursor-scrub swipe is driven by pointer deltas, not by owning the gesture. */
