@@ -111,6 +111,12 @@ const TOUR: string[] = [
   "publish site",
   "glow site/index.md",
 
+  'echo "# scheduling"',
+  "crontab -l",
+  "at now+5m echo remember",
+  "at -l",
+  "at -r 1",
+
   'echo "# system"',
   "whoami",
   "date -u",

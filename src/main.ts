@@ -10,6 +10,7 @@ import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
+import { createScheduler } from "./pia/scheduler.js";
 import { NullShareStore } from "./share/store.js";
 import { materializeShared } from "./share/materialize.js";
 import type { StorageAdapter } from "./storage/adapter.js";
@@ -161,6 +162,16 @@ async function main(): Promise<void> {
     await term.exec(`cd ${rel}`);
     await term.exec("ls");
   }
+
+  // Drive `at`/`crontab` jobs while the tab is open. One-second tick; the
+  // scheduler reads the jobs from ~/.pia and fires the due ones through the
+  // terminal. (Firing only while open is the honest limit of the learning tool.)
+  const scheduler = createScheduler({
+    vfs,
+    run: (command) => term.fireScheduled(command),
+    persist: () => adapter.save(vfs.root),
+  });
+  setInterval(() => void scheduler.tick(new Date()), 1000);
 }
 
 void main();

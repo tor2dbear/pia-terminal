@@ -762,6 +762,22 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     await this.submit();
   }
 
+  /**
+   * Run a scheduled (at/cron) command as if it fired now — a `⏰` marker, then
+   * the command echoed and run — without losing the user's half-typed input.
+   * Skips (to retry next tick) while a command or full-screen app is active.
+   */
+  async fireScheduled(line: string): Promise<void> {
+    if (this.busy || this.activeApp) return;
+    const savedBuffer = this.buffer;
+    const savedCursor = this.cursor;
+    this.print("⏰ scheduled:", "dim");
+    await this.exec(line);
+    this.buffer = savedBuffer;
+    this.cursor = savedCursor;
+    this.renderInput();
+  }
+
   private async submit(): Promise<void> {
     const line = this.buffer;
     this.printPromptLine(line);
