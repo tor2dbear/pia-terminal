@@ -74,6 +74,12 @@ specified.
 - **Tests:** Vitest. Run `npm run typecheck && npm test && npm run build` before
   shipping. Prefer driving real behaviour (jsdom terminal, injected rng) over
   shallow unit tests.
+- **The tour** (`src/tour.test.ts` → `src/tour.golden.txt`): one scripted session
+  through the real terminal, snapshotted as a human-readable transcript. When you
+  add a feature, add lines to `TOUR`, run `npx vitest -u`, and review the golden
+  diff — that diff is the output verification. Keep it deterministic (clock is
+  frozen; redact volatile output like share/publish payloads). It checks
+  *output/behaviour*, not pixels — colours/fonts still need a browser screenshot.
 - **Verify in a real browser** when practical: `--dump-dom` boot checks catch
   runtime errors the tests can't.
 - **Deploy:** Cloudflare Pages builds on push to `main` (`npm run build` →
