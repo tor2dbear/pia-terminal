@@ -148,6 +148,8 @@ guest@pia:~$ brew list
   cal          display a month calendar
   bc           an arithmetic calculator (+ - * / % ^, parentheses)
   fortune      print a random computing epigram
+  sl           a steam locomotive chuffs across the screen (mistype ls…)
+  cmatrix      Matrix-style falling digital rain
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -183,6 +185,10 @@ installed fortune — commands: fortune
 guest@pia:~$ fortune
 Programs must be written for people to read, and only incidentally for machines to execute.
     — Harold Abelson
+guest@pia:~$ brew install sl
+installed sl — commands: sl
+guest@pia:~$ brew install cmatrix
+installed cmatrix — commands: cmatrix
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -200,6 +206,7 @@ available commands:
   cat       print the contents of a file (or piped input)
   cd        change the current directory
   clear     clear the screen
+  cmatrix   Matrix-style falling digital rain (q or ^X to quit)
   column    format delimited text into a table (column -t [-s sep])
   cp        copy a file or directory
   crontab   recurring scheduled jobs (crontab -e edit, -l list, -r remove)
@@ -230,6 +237,7 @@ available commands:
   rm        remove files or directories (-r for directories)
   share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
   shared    list and open files shared with you (co-edited)
+  sl        Steam Locomotive — the train you get for mistyping ls
   sort      sort lines of text
   source    re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
   tail      print the last lines of a file (or piped input)
@@ -247,8 +255,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-63  echo "# system"
-64  whoami
-65  date -u
-66  help
-67  history | tail -5
+65  echo "# system"
+66  whoami
+67  date -u
+68  help
+69  history | tail -5

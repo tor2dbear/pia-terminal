@@ -12,7 +12,8 @@ updated: 2026-07-18
 - **Självständigt:** en mapp under `src/packages/`, egen lazy-chunk.
 
 ## Katalog idag (klart)
-`snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune`.
+`snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
+`cmatrix`.
 
 ## Kandidater (S/M/L = insats)
 
@@ -34,7 +35,7 @@ updated: 2026-07-18
 ## Rekommenderad ordning
 1. ~~`cal` + `bc` + `fortune`~~ — **klart** (första omgången, egna lazy-chunks,
    med i touren).
-2. `sl` + `cmatrix` — animerat kul-paket.
+2. ~~`sl` + `cmatrix`~~ — **klart** (animerade screen-appar).
 3. `tutor` 🎯 — själen.
 4. `life` + `tetris` — mer arkad.
 5. `qr` — knyter ihop med share/publish.

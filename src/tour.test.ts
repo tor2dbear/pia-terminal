@@ -135,6 +135,9 @@ const TOUR: string[] = [
   "echo 6*7 | bc",
   "brew install fortune",
   "fortune",
+  // Screen-app packages: install-only here (they take over the screen when run).
+  "brew install sl",
+  "brew install cmatrix",
 
   'echo "# system"',
   "whoami",

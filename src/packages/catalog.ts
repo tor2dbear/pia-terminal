@@ -61,6 +61,18 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["fortune"],
     load: () => import("./fortune/index.js").then((m) => m.pkg),
   },
+  sl: {
+    name: "sl",
+    description: "a steam locomotive chuffs across the screen (mistype ls…)",
+    commands: ["sl"],
+    load: () => import("./sl/index.js").then((m) => m.pkg),
+  },
+  cmatrix: {
+    name: "cmatrix",
+    description: "Matrix-style falling digital rain",
+    commands: ["cmatrix"],
+    load: () => import("./cmatrix/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */

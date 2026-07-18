@@ -528,3 +528,39 @@ body {
   font-size: 0.85rem;
   margin-top: 0.5rem;
 }
+
+/* ---- sl (brew package) ------------------------------------------------------ */
+.sl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.sl-board {
+  margin: 0;
+  line-height: 1.1;
+  white-space: pre;
+  color: var(--accent);
+  font-size: clamp(7px, 1.6vw, 13px);
+}
+
+/* ---- cmatrix (brew package) ------------------------------------------------- */
+.cm {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+.cm-board {
+  margin: 0;
+  line-height: 1.05;
+  white-space: pre;
+  color: var(--accent);
+  text-shadow: 0 0 6px var(--accent);
+  font-size: clamp(9px, 2.2vw, 15px);
+}
