@@ -13,7 +13,7 @@ updated: 2026-07-18
 
 ## Katalog idag (klart)
 `snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
-`cmatrix` · `tutor` · `life` · `tetris`.
+`cmatrix` · `tutor` · `life` · `tetris` · `qr`.
 
 ## Kandidater (S/M/L = insats)
 
@@ -38,7 +38,7 @@ updated: 2026-07-18
 2. ~~`sl` + `cmatrix`~~ — **klart** (animerade screen-appar).
 3. ~~`tutor` 🎯~~ — **klart** (8-lektioners syntax-kurs, screen-app).
 4. ~~`life` + `tetris`~~ — **klart** (arkad screen-appar).
-5. `qr` — knyter ihop med share/publish.
+5. ~~`qr`~~ — **klart** (QR av text/share-länk; vetat bibliotek, jsqr-verifierat).
 
-Individuella puckar finns för första omgången (`pkg-*`). Resten bor här tills de
-befordras.
+**Hela ordningen 1–5 är levererad.** Resten av kandidaterna ovan bor här tills de
+befordras. Nästa stora mål: `python` (Pyodide/iframe) — se `python-wasm.md`.

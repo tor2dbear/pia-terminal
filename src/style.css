@@ -668,3 +668,31 @@ body {
 .tetris-key:active {
   background: rgba(124, 242, 124, 0.32);
 }
+
+/* ---- qr (brew package) ------------------------------------------------------ */
+.qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+}
+.qr-code {
+  margin: 0;
+  /* Tight, square cells so the half-block modules read as a scannable code. */
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+  color: var(--fg);
+  font-size: clamp(6px, 1.8vw, 12px);
+}
+.qr-caption {
+  color: var(--dim);
+  text-align: center;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  word-break: break-all;
+  max-width: 60ch;
+}

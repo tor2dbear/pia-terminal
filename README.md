@@ -38,7 +38,7 @@ guest@pia:~/notes$ ls | sort | uniq -c
   cron syntax that fires while the tab is open.
 - **Packages**: `brew install <name>` adds opt-in apps — `snake`, `2048`,
   `draw`, `cowsay`, `cal`, `bc`, `fortune`, `sl`, `cmatrix`, `tutor`, `life`,
-  `tetris` — loaded on demand. See [Packages](#packages-brew).
+  `tetris`, `qr` — loaded on demand. See [Packages](#packages-brew).
 
 Type `help` in the terminal for the full command list.
 
@@ -82,7 +82,7 @@ src/supabase/   cloud adapters (dynamic-imported; dormant without config)
 src/commands/   command registry + commands
 src/apps/       screen apps (editor, todo)
 src/packages/   brew packages (lazy-loaded, opt-in): snake, 2048, draw, cowsay,
-                cal, bc, fortune, sl, cmatrix, tutor, life, tetris
+                cal, bc, fortune, sl, cmatrix, tutor, life, tetris, qr
 src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
 src/engine/     the reusable engine's public API (index.ts)
 src/examples/   a second app on the engine (a text adventure)

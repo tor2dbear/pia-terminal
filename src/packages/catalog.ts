@@ -91,6 +91,12 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["tetris"],
     load: () => import("./tetris/index.js").then((m) => m.pkg),
   },
+  qr: {
+    name: "qr",
+    description: "show a QR code for text or a share link",
+    commands: ["qr"],
+    load: () => import("./qr/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */
