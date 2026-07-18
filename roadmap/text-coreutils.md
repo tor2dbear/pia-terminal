@@ -1,6 +1,6 @@
 ---
 title: sort / uniq / cut — pipe-kompanjonerna
-status: later
+status: done
 tags: [text, commands]
 updated: 2026-07-17
 ---
@@ -29,4 +29,23 @@ puck (2B-beslut); dela vid bygge om nån växer.
 - Ska `uniq` varna/tolerera osorterad input, eller tyst följa GNU (bara
   intilliggande)? Följ GNU, men överväg en not i `help`.
 
-_Ligger i `later`. Bygg gärna en i taget även om pucken är grupperad._
+## Levererat
+Alla tre i `text.ts`, kring en delad `allLines`-hjälpare (läser filer *eller*
+stdin via `sourcesOf`, plus `toLines`), så de komponerar:
+`cat data.csv | cut -d, -f1 | sort | uniq -c`.
+- **`sort`** — lexikalisk default; `-r` omvänt, `-n` numeriskt (jämför på
+  ledande tal), `-u` unikt (efter sortering).
+- **`uniq`** — kollapsar *intilliggande* dubbletter (kräver sorterad input, som
+  GNU — noterat i `help`); `-c` prefixar antal (samma bredd som `wc`), `-d` bara
+  dubbletter.
+- **`cut`** — `-f <lista>` med `-d <delim>` (default TAB), eller `-c <lista>`.
+  Listor: `1`, `1,3`, `2-`, `-4`, `2-5`. Emitterar alltid i *input-ordning*
+  (`-f3,1` → fält 1 sen 3), och en rad utan delimiter skickas igenom hel (GNU
+  utan `-s`).
+
+Täckt av 10 kommandotester (sort lexikal/`-r`/`-n`/`-u`; uniq/`-c`/`-d`; cut
+fält-ordning/öppna intervall/`-c`/ingen-delim/fel utan lista). 287 tester gröna;
+typecheck + build gröna. (Autosuggestion-testet uppdaterat: `cut` är en ny
+`c`-completion.)
+
+_`sort -k`, `cut -s`, och teckenkodnings-nyanser kvar om behovet dyker upp._

@@ -342,4 +342,140 @@ export const tail: Command = {
   },
 };
 
-export const textCommands: Command[] = [grep, find, wc, head, tail];
+/** Gather every line across a command's sources (files and/or piped stdin). */
+function allLines(ctx: CommandContext, files: string[]): string[] {
+  const lines: string[] = [];
+  for (const src of sourcesOf(ctx, files)) lines.push(...toLines(src.text));
+  return lines;
+}
+
+export const sort: Command = {
+  name: "sort",
+  help: "sort lines of text",
+  usage: "sort [-rnu] [file...]",
+  run(args, ctx) {
+    const flags = flagsOf(args);
+    const files = args.filter((a) => a === "-" || !a.startsWith("-"));
+    const numeric = flags.has("n");
+    const lines = allLines(ctx, files);
+    lines.sort((a, b) => {
+      if (numeric) {
+        const na = parseFloat(a);
+        const nb = parseFloat(b);
+        return (Number.isNaN(na) ? 0 : na) - (Number.isNaN(nb) ? 0 : nb);
+      }
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    if (flags.has("r")) lines.reverse();
+    const out = flags.has("u")
+      ? lines.filter((l, i) => i === 0 || l !== lines[i - 1])
+      : lines;
+    for (const line of out) ctx.print(line);
+  },
+};
+
+export const uniq: Command = {
+  name: "uniq",
+  help: "collapse adjacent duplicate lines (needs sorted input)",
+  usage: "uniq [-cd] [file...]",
+  run(args, ctx) {
+    const flags = flagsOf(args);
+    const files = args.filter((a) => a === "-" || !a.startsWith("-"));
+    const showCount = flags.has("c");
+    const onlyDup = flags.has("d");
+    const lines = allLines(ctx, files);
+    for (let i = 0; i < lines.length; ) {
+      let j = i + 1;
+      while (j < lines.length && lines[j] === lines[i]) j++;
+      const count = j - i;
+      if (!onlyDup || count > 1) {
+        ctx.print(showCount ? `${String(count).padStart(4)} ${lines[i]}` : lines[i]);
+      }
+      i = j;
+    }
+  },
+};
+
+/** Parse a cut list like `1,3`, `2-`, `-4`, `2-5` into 1-based [start,end] pairs
+ * (end `null` = open-ended). Returns null on a malformed list. */
+function parseRanges(spec: string): Array<[number, number | null]> | null {
+  const ranges: Array<[number, number | null]> = [];
+  for (const tok of spec.split(",")) {
+    if (/^\d+$/.test(tok)) {
+      const n = Number(tok);
+      if (n < 1) return null;
+      ranges.push([n, n]);
+    } else if (/^\d+-$/.test(tok)) {
+      const n = Number(tok.slice(0, -1));
+      if (n < 1) return null;
+      ranges.push([n, null]);
+    } else if (/^-\d+$/.test(tok)) {
+      const m = Number(tok.slice(1));
+      if (m < 1) return null;
+      ranges.push([1, m]);
+    } else if (/^\d+-\d+$/.test(tok)) {
+      const [a, b] = tok.split("-").map(Number);
+      if (a < 1 || b < a) return null;
+      ranges.push([a, b]);
+    } else {
+      return null;
+    }
+  }
+  return ranges;
+}
+
+/** The 1-based positions a range list selects among `n` items, ascending and
+ * de-duplicated — cut always emits in input order, never the list's order. */
+function selectedPositions(ranges: Array<[number, number | null]>, n: number): number[] {
+  const set = new Set<number>();
+  for (const [a, b] of ranges) {
+    const end = b === null ? n : Math.min(b, n);
+    for (let k = a; k <= end; k++) set.add(k);
+  }
+  return [...set].sort((x, y) => x - y);
+}
+
+export const cut: Command = {
+  name: "cut",
+  help: "extract selected fields or characters from each line",
+  usage: "cut -f <list> [-d <delim>] [file...] | cut -c <list> [file...]",
+  run(args, ctx) {
+    let delim = "\t";
+    let fieldSpec: string | null = null;
+    let charSpec: string | null = null;
+    const files: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a === "-d") delim = args[++i] ?? "\t";
+      else if (a.startsWith("-d") && a.length > 2) delim = a.slice(2);
+      else if (a === "-f") fieldSpec = args[++i] ?? "";
+      else if (a.startsWith("-f") && a.length > 2) fieldSpec = a.slice(2);
+      else if (a === "-c") charSpec = args[++i] ?? "";
+      else if (a.startsWith("-c") && a.length > 2) charSpec = a.slice(2);
+      else if (a === "-" || !a.startsWith("-")) files.push(a);
+    }
+    if (fieldSpec === null && charSpec === null) {
+      return ctx.error("cut: specify a list with -f (fields) or -c (characters)");
+    }
+    const ranges = parseRanges(fieldSpec ?? charSpec!);
+    if (!ranges) return ctx.error("cut: invalid list");
+
+    for (const src of sourcesOf(ctx, files)) {
+      for (const line of toLines(src.text)) {
+        if (charSpec !== null) {
+          const chars = [...line];
+          const pos = selectedPositions(ranges, chars.length);
+          ctx.print(pos.map((k) => chars[k - 1]).join(""));
+        } else if (!line.includes(delim)) {
+          ctx.print(line); // no delimiter → whole line, like GNU cut without -s
+        } else {
+          const parts = line.split(delim);
+          const pos = selectedPositions(ranges, parts.length);
+          ctx.print(pos.map((k) => parts[k - 1]).join(delim));
+        }
+      }
+    }
+  },
+};
+
+export const textCommands: Command[] = [grep, find, wc, head, tail, sort, uniq, cut];
