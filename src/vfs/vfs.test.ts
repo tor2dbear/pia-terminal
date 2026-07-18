@@ -199,6 +199,17 @@ describe("VFS operations", () => {
     expect(vfs.readFile(`${HOME}/shared.txt`)).toBe("old"); // link + content intact
   });
 
+  it("copy -r merges into an existing directory, keeping its files", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp(`${HOME}/src`);
+    vfs.writeFile(`${HOME}/src/new.txt`, "1");
+    vfs.mkdirp(`${HOME}/dst/src`);
+    vfs.writeFile(`${HOME}/dst/src/keep.txt`, "old");
+    vfs.copy(`${HOME}/src`, `${HOME}/dst`, true); // dst exists → copy into dst/src
+    expect(vfs.readFile(`${HOME}/dst/src/keep.txt`)).toBe("old"); // preserved by merge
+    expect(vfs.readFile(`${HOME}/dst/src/new.txt`)).toBe("1"); // added
+  });
+
   it("move into an existing directory keeps the name", () => {
     const vfs = VFS.seed();
     vfs.writeFile(`${HOME}/a.txt`, "data");

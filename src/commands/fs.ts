@@ -248,12 +248,12 @@ export const cp: Command = {
     const destArg = rest[rest.length - 1];
     const sources = rest.slice(0, -1);
     const destAbs = ctx.vfs.resolve(ctx.cwd, destArg);
-    // Several sources can only land in a directory (like real `cp`).
-    if (sources.length > 1) {
-      const destNode = ctx.vfs.getNode(destAbs);
-      if (!destNode || !isDir(destNode)) {
-        return ctx.error(`cp: target '${destArg}' is not a directory`);
-      }
+    const destNode = ctx.vfs.getNode(destAbs);
+    const destIsDir = destNode !== null && isDir(destNode);
+    // A trailing slash asserts the target is a directory (like real `cp`), and
+    // several sources can only land in a directory.
+    if ((destArg.endsWith("/") || sources.length > 1) && !destIsDir) {
+      return ctx.error(`cp: target '${destArg}' is not a directory`);
     }
 
     let changed = false;

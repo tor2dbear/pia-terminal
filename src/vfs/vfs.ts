@@ -213,24 +213,38 @@ export class VFS {
     }
 
     const { parent: destParent, name: destName } = this.parentOf(dest);
-    const existing = destParent.children[destName];
+    this.placeCopy(destParent, destName, node);
+  }
+
+  /**
+   * Place a deep copy of `source` at `name` under `parent`. Overwrites a file,
+   * *merges* into an existing directory (GNU `cp -r`, so files only the target
+   * has survive), and refuses unsafe overwrites: a file↔directory type clash,
+   * or clobbering a cloud-linked file (replacing it would detach the share, and
+   * the cloud is the source of truth for a linked file — a local overwrite would
+   * be lost on the next sync; edit those via nano).
+   */
+  private placeCopy(parent: DirNode, name: string, source: VNode): void {
+    const existing = parent.children[name];
     if (existing) {
-      // A file and a directory can't overwrite each other (like GNU `cp`).
-      if (isDir(existing) !== isDir(node)) {
+      if (isDir(existing) !== isDir(source)) {
         throw new VfsError(
-          isDir(node)
-            ? `cannot overwrite non-directory with directory: ${dest}`
-            : `cannot overwrite directory with non-directory: ${dest}`,
+          isDir(source)
+            ? `cannot overwrite non-directory with directory: ${name}`
+            : `cannot overwrite directory with non-directory: ${name}`,
         );
       }
-      // Refuse to clobber a cloud-linked file: replacing it would detach the
-      // share, and the cloud is the source of truth for a linked file's content
-      // (a plain local overwrite would be lost on the next sync). Edit via nano.
+      if (isDir(existing) && isDir(source)) {
+        for (const child of Object.values(source.children)) {
+          this.placeCopy(existing, child.name, child);
+        }
+        return;
+      }
       if (isFile(existing) && existing.shareId !== undefined) {
-        throw new VfsError(`cannot overwrite shared file (edit it with nano): ${dest}`);
+        throw new VfsError(`cannot overwrite shared file (edit it with nano): ${name}`);
       }
     }
-    destParent.children[destName] = this.clone(node, destName);
+    parent.children[name] = this.clone(source, name);
   }
 
   /** Deep-clone a node under a new name. A copied file is an independent local

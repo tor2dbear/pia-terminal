@@ -154,6 +154,14 @@ describe("filesystem commands", () => {
     expect(h.lines.at(-1)?.cls).toBe("error");
   });
 
+  it("cp errors on a missing directory target with a trailing slash", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.txt`, "1");
+    await h.run("cp a.txt missing/");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    expect(h.vfs.getNode(`${HOME}/missing`)).toBeNull();
+  });
+
   it("cd changes directory and updates pwd", async () => {
     const h = harness();
     await h.run("mkdir proj");
