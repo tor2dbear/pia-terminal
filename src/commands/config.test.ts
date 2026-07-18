@@ -126,4 +126,32 @@ describe(".pia/config — themes, aliases, prompt", () => {
     await runLine(root, "pwd");
     expect(root.textContent).toContain("[guest@pia]$");
   });
+
+  it("applies custom colours and font from the config", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp("/home/guest/.pia");
+    vfs.writeFile(
+      "/home/guest/.pia/config",
+      ["color.accent = #ff8800", "font-size = 17"].join("\n"),
+    );
+    mount(vfs);
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#ff8800");
+    expect(document.documentElement.style.getPropertyValue("--font-size")).toBe("17px");
+  });
+
+  it("`source` re-applies the config after a hand-edit", async () => {
+    const root = mount();
+    await runLine(root, 'echo "color.accent = #abcdef" >> ~/.pia/config');
+    await runLine(root, "source ~/.pia/config");
+    expect(root.textContent).toContain("re-applied");
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#abcdef");
+  });
+
+  it("`source` refuses anything but the config file", async () => {
+    const root = mount();
+    await runLine(root, "source ~/notes.txt");
+    expect(root.querySelector(".term-line.error")?.textContent).toContain(
+      "only ~/.pia/config",
+    );
+  });
 });

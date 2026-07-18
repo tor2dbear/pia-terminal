@@ -67,3 +67,43 @@ describe("setAlias / removeAlias", () => {
     expect(removeAlias(text, "nope")).toBe(text);
   });
 });
+
+describe("parseConfig — colours, font, size", () => {
+  it("reads color.* overrides and font settings", () => {
+    const cfg = parseConfig(
+      [
+        "theme = amber",
+        "color.accent = #ff8800",
+        "color.bg = #001018",
+        'font = "Berkeley Mono", monospace',
+        "font-size = 15",
+      ].join("\n"),
+    );
+    expect(cfg.colors.accent).toBe("#ff8800");
+    expect(cfg.colors.bg).toBe("#001018");
+    expect(cfg.font).toBe('"Berkeley Mono", monospace');
+    expect(cfg.fontSize).toBe(15);
+  });
+
+  it("drops invalid values instead of applying them", () => {
+    const cfg = parseConfig(
+      [
+        "color.accent = not-a-hex",
+        "color.bogus = #ffffff", // unknown token
+        "font = bad;value{",
+        "font-size = 999", // out of range
+      ].join("\n"),
+    );
+    expect(cfg.colors.accent).toBeUndefined();
+    expect(cfg.colors).toEqual({});
+    expect(cfg.font).toBeUndefined();
+    expect(cfg.fontSize).toBeUndefined();
+  });
+
+  it("accepts 3-, 6- and 8-digit hex", () => {
+    const cfg = parseConfig("color.fg = #abc\ncolor.dim = #aabbcc\ncolor.error = #aabbccdd");
+    expect(cfg.colors.fg).toBe("#abc");
+    expect(cfg.colors.dim).toBe("#aabbcc");
+    expect(cfg.colors.error).toBe("#aabbccdd");
+  });
+});

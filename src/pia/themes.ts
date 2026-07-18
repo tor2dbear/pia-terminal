@@ -41,3 +41,24 @@ export function applyTheme(name: string, root: HTMLElement = document.documentEl
   root.style.setProperty("--accent", p.accent);
   root.style.setProperty("--error", p.error);
 }
+
+/**
+ * Layer the user's own appearance overrides on top of the theme: per-token hex
+ * colours, plus font family and size. Applied after {@link applyTheme}, so a
+ * removed override falls back to the theme (colours, re-set by applyTheme) or
+ * the stylesheet default (font, cleared here). All via the CSSOM, CSP-safe.
+ */
+export function applyAppearance(
+  colors: Partial<Palette>,
+  font: string | undefined,
+  fontSize: number | undefined,
+  root: HTMLElement = document.documentElement,
+): void {
+  for (const [key, value] of Object.entries(colors)) {
+    root.style.setProperty(`--${key}`, value);
+  }
+  if (font) root.style.setProperty("--font", font);
+  else root.style.removeProperty("--font");
+  if (fontSize) root.style.setProperty("--font-size", `${fontSize}px`);
+  else root.style.removeProperty("--font-size");
+}

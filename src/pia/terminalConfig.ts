@@ -1,5 +1,5 @@
 import { parseConfig, DEFAULT_CONFIG } from "./rc.js";
-import { applyTheme, DEFAULT_THEME } from "./themes.js";
+import { applyTheme, applyAppearance, DEFAULT_THEME } from "./themes.js";
 import type { VFS } from "../vfs/vfs.js";
 import type { TerminalConfig } from "../terminal/terminal.js";
 
@@ -22,5 +22,6 @@ export function loadTerminalConfig(vfs: VFS): TerminalConfig {
   }
   const cfg = parseConfig(text);
   applyTheme(cfg.theme ?? DEFAULT_THEME);
+  applyAppearance(cfg.colors, cfg.font, cfg.fontSize);
   return { prompt: cfg.prompt, aliases: cfg.aliases };
 }

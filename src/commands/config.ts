@@ -115,4 +115,22 @@ export const unalias: Command = {
   },
 };
 
-export const configCommands: Command[] = [theme, alias, unalias];
+export const source: Command = {
+  name: "source",
+  help: "re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)",
+  usage: "source ~/.pia/config",
+  aliases: ["."],
+  run(args, ctx) {
+    const cfgPath = rcPath(ctx);
+    const target = args[0] ? ctx.vfs.resolve(ctx.cwd, args[0]) : cfgPath;
+    // PIA can't execute arbitrary scripts — `source` only re-applies the config.
+    if (target !== cfgPath) {
+      ctx.error("source: only ~/.pia/config can be sourced");
+      return;
+    }
+    ctx.applyConfig?.();
+    ctx.print("re-applied ~/.pia/config", "dim");
+  },
+};
+
+export const configCommands: Command[] = [theme, alias, unalias, source];
