@@ -150,6 +150,7 @@ guest@pia:~$ brew list
   fortune      print a random computing epigram
   sl           a steam locomotive chuffs across the screen (mistype ls…)
   cmatrix      Matrix-style falling digital rain
+  tutor        an interactive course that teaches real terminal commands
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -189,6 +190,8 @@ guest@pia:~$ brew install sl
 installed sl — commands: sl
 guest@pia:~$ brew install cmatrix
 installed cmatrix — commands: cmatrix
+guest@pia:~$ brew install tutor
+installed tutor — commands: tutor
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -245,6 +248,7 @@ available commands:
   todo      manage checklists (in ~/todo/); share them to collaborate
   touch     create an empty file (leaving an existing one untouched)
   tree      show the directory tree (shared files marked @)
+  tutor     an interactive terminal course — learn real shell commands
   unalias   remove an alias (unalias ll)
   uniq      collapse adjacent duplicate lines (needs sorted input)
   upload    upload a file from your computer into the current directory
@@ -255,8 +259,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-65  echo "# system"
-66  whoami
-67  date -u
-68  help
-69  history | tail -5
+66  echo "# system"
+67  whoami
+68  date -u
+69  help
+70  history | tail -5
