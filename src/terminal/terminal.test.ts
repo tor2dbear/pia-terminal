@@ -403,3 +403,43 @@ describe("filename globbing", () => {
     expect(out(root)).toContain("a.md  b.md");
   });
 });
+
+describe("command chaining", () => {
+  const out = (root: HTMLElement) =>
+    [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+
+  it("; runs both commands in turn", async () => {
+    const root = mount();
+    await runLine(root, "echo one ; echo two");
+    const lines = out(root);
+    expect(lines).toContain("one");
+    expect(lines).toContain("two");
+  });
+
+  it("&& runs the second when the first succeeds", async () => {
+    const root = mount();
+    await runLine(root, "echo ok && echo yes");
+    expect(out(root)).toContain("yes");
+  });
+
+  it("&& short-circuits when the first fails", async () => {
+    const root = mount();
+    await runLine(root, "cd nope && echo unreached");
+    // the echo output line never appears (the typed line is a separate element)
+    expect(out(root)).not.toContain("unreached");
+  });
+
+  it("|| runs the second only when the first fails", async () => {
+    const root = mount();
+    await runLine(root, "cd nope || echo recovered");
+    expect(out(root)).toContain("recovered");
+  });
+
+  it("|| skips the second when the first succeeds", async () => {
+    const root = mount();
+    await runLine(root, "echo fine || echo skipped");
+    const lines = out(root);
+    expect(lines).toContain("fine");
+    expect(lines).not.toContain("skipped");
+  });
+});
