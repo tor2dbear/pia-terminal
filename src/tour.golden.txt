@@ -1,0 +1,193 @@
+pia:~$ █
+a little computer in the browser
+PIA v0.1 · Personal Integrated Applications
+memory ok · vfs mounted · adapters loaded
+
+hi. type 'help' to begin.
+
+guest@pia:~$ echo "# filesystem"
+# filesystem
+guest@pia:~$ pwd
+/home/guest
+guest@pia:~$ ls
+welcome.txt
+guest@pia:~$ ls -a
+.pia/  welcome.txt
+guest@pia:~$ mkdir notes
+guest@pia:~$ cd notes
+guest@pia:~/notes$ pwd
+/home/guest/notes
+guest@pia:~/notes$ echo "first line" > a.txt
+guest@pia:~/notes$ echo "second line" >> a.txt
+guest@pia:~/notes$ cat a.txt
+first line
+second line
+guest@pia:~/notes$ cp a.txt b.txt
+guest@pia:~/notes$ mv b.txt c.txt
+guest@pia:~/notes$ ls
+a.txt  c.txt
+guest@pia:~/notes$ rm c.txt
+guest@pia:~/notes$ ls
+a.txt
+guest@pia:~/notes$ cd ..
+guest@pia:~$ tree
+guest/
+├─ notes/
+│  └─ a.txt
+└─ welcome.txt
+guest@pia:~$ echo "# text & pipes"
+# text & pipes
+guest@pia:~$ echo "banana" > fruit.txt
+guest@pia:~$ echo "apple" >> fruit.txt
+guest@pia:~$ echo "apple" >> fruit.txt
+guest@pia:~$ echo "cherry" >> fruit.txt
+guest@pia:~$ sort fruit.txt
+apple
+apple
+banana
+cherry
+guest@pia:~$ sort fruit.txt | uniq
+apple
+banana
+cherry
+guest@pia:~$ cat fruit.txt | wc -l
+4
+guest@pia:~$ head -2 fruit.txt
+banana
+apple
+guest@pia:~$ tail -1 fruit.txt
+cherry
+guest@pia:~$ grep -n apple fruit.txt
+2:apple
+3:apple
+guest@pia:~$ cut -c1-3 fruit.txt
+ban
+app
+app
+che
+guest@pia:~$ ls *.txt
+fruit.txt  welcome.txt
+guest@pia:~$ echo hi && echo bye
+hi
+bye
+guest@pia:~$ cat nope.txt || echo recovered
+no such file: /home/guest/nope.txt
+recovered
+guest@pia:~$ echo "# config, theme, prompt"
+# config, theme, prompt
+guest@pia:~$ theme
+  amber
+  ice
+  mono
+* phosphor
+switch with `theme <name>`
+guest@pia:~$ theme amber
+theme set to amber
+guest@pia:~$ alias ll ls -la
+aliased ll → ls -la
+guest@pia:~$ alias
+alias ll = ls -la
+guest@pia:~$ source ~/.pia/config
+re-applied ~/.pia/config
+guest@pia:~$ cat ~/.pia/config
+# ~/.pia/config — your settings. edit me with `nano ~/.pia/config`,
+# then `source ~/.pia/config` to apply (or just reload).
+
+# theme: phosphor · amber · ice · mono   (or use `theme <name>`)
+theme = amber
+
+# custom colours — override the theme, any of: bg fg dim accent error
+# color.accent = #ff8800
+# color.bg = #001018
+
+# font (an installed font, by name) and size in px
+# font = "Berkeley Mono", monospace
+# font-size = 14
+
+# prompt template — placeholders: {user} {host} {cwd}
+# colour it zsh-style: %F{token|#hex}…%f  ·  bold: %B…%b
+#   e.g. prompt = %F{accent}{user}%f:%F{dim}{cwd}%f$ 
+prompt = {user}@pia:{cwd}$
+
+# shortcuts — `alias <name> = <expansion>`   (or use `alias ll ls -la`)
+alias ll = ls -la
+
+guest@pia:~$ echo "# share & publish"
+# share & publish
+guest@pia:~$ share fruit.txt
+public link (read-only):
+https://pia.example/#s=<payload>
+guest@pia:~$ mkdir site
+guest@pia:~$ echo "# My Site" > site/index.md
+guest@pia:~$ echo "welcome, visitor" >> site/index.md
+guest@pia:~$ publish site
+https://pia.example/#p=<payload>
+(1 file — open the link to receive them)
+guest@pia:~$ glow site/index.md
+MY SITE
+───────
+welcome, visitor
+guest@pia:~$ echo "# system"
+# system
+guest@pia:~$ whoami
+guest
+guest@pia:~$ date -u
+Sat Jul 18 12:00:00 UTC 2026
+guest@pia:~$ help
+available commands:
+
+  alias     make a shortcut (alias ll ls -la), or list aliases
+  cat       print the contents of a file (or piped input)
+  cd        change the current directory
+  clear     clear the screen
+  column    format delimited text into a table (column -t [-s sep])
+  cp        copy a file or directory
+  cut       extract selected fields or characters from each line
+  date      print the current date and time
+  download  download a file from the VFS to your computer
+  echo      print the arguments
+  find      list files and directories recursively
+  glow      render a Markdown file (headings, lists, quotes) in the terminal
+  grep      print lines matching a pattern (from files or piped input)
+  head      print the first lines of a file (or piped input)
+  help      show this help, or help for one command
+  history   show the commands you've run this session
+  invite    invite someone to PIA by email (sends them a sign-in link)
+  json_pp   pretty-print and colourise a JSON file
+  less      page through a file or piped input
+  login     log in (a username locally; email + password with a backend)
+  logout    log out and return to guest
+  ls        list the contents of a directory
+  mkdir     create a new directory
+  mv        move or rename a file or directory
+  nano      edit text files in a full-screen editor
+  neofetch  show system info with a small logo
+  passwd    set or change your account password
+  publish   publish a folder as a shareable link (its files land in the opener's ~/incoming)
+  pwd       print the current directory path
+  rm        remove files or directories (-r for directories)
+  share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
+  shared    list and open files shared with you (co-edited)
+  snake     play snake (arrows / WASD, or tap on mobile)
+  sort      sort lines of text
+  source    re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
+  tail      print the last lines of a file (or piped input)
+  theme     switch colour theme (theme <name>, or list them)
+  todo      manage checklists (in ~/todo/); share them to collaborate
+  touch     create an empty file (leaving an existing one untouched)
+  tree      show the directory tree (shared files marked @)
+  unalias   remove an alias (unalias ll)
+  uniq      collapse adjacent duplicate lines (needs sorted input)
+  upload    upload a file from your computer into the current directory
+  useradd   create an account and log in (add email + password with a backend)
+  usermod   rename the current user (home directory and files follow)
+  wc        count lines, words, and characters
+  whoami    show who you are logged in as
+
+type `help <command>` for usage.
+guest@pia:~$ history | tail -5
+46  echo "# system"
+47  whoami
+48  date -u
+49  help
+50  history | tail -5
