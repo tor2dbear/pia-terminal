@@ -615,6 +615,20 @@ describe("text/search commands", () => {
     expect(h.lines.at(-1)?.cls).toBe("error");
   });
 
+  it("less errors on a missing file", async () => {
+    const h = harness();
+    await h.run("less nope.txt");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
+  it("less passes content straight through when piped", async () => {
+    const h = harness();
+    h.ctx.piped = true;
+    h.ctx.stdin = "a\nb\nc";
+    await h.run("less");
+    expect(h.text()).toEqual(["a", "b", "c"]);
+  });
+
   it("find lists a tree recursively", async () => {
     const h = harness();
     h.vfs.mkdirp(`${HOME}/proj/src`);
