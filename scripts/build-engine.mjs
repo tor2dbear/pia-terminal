@@ -1,9 +1,13 @@
 // Finalize the standalone engine package: after `tsc -p tsconfig.engine.json`
 // has emitted JS + .d.ts into dist-engine/, write the package's own
-// package.json and README so the folder is a self-contained, publishable npm
-// package (`cd dist-engine && npm publish`). Run via `npm run build:engine`.
+// package.json, README and LICENSE so the folder is a self-contained,
+// publishable npm package (`cd dist-engine && npm publish`). Run via
+// `npm run build:engine`.
 //
-// No filesystem tricks beyond writing two files — keep it boring and readable.
+// The MIT licence is scoped to this package: it is written into dist-engine/
+// here, not placed at the repo root, so PIA's own source stays unlicensed.
+//
+// No filesystem tricks beyond writing three files — keep it boring and readable.
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -39,7 +43,7 @@ const pkg = {
   },
   // Pure modules: safe for consumers to tree-shake unused parts.
   sideEffects: false,
-  files: ["**/*.js", "**/*.d.ts", "README.md"],
+  files: ["**/*.js", "**/*.d.ts", "README.md", "LICENSE"],
   keywords: [
     "terminal",
     "shell",
@@ -49,9 +53,7 @@ const pkg = {
     "typescript",
     "esm",
   ],
-  // The engine is meant to be open-sourced, but the specific licence is still an
-  // open decision (see the roadmap puck) — pick one before the first publish.
-  license: "UNLICENSED",
+  license: "MIT",
   repository: {
     type: "git",
     url: "git+https://github.com/tor2dbear/pia-terminal.git",
@@ -114,9 +116,42 @@ see \`src/examples/adventure/\` in the source repository.
 ## Status
 
 Extracted from PIA and proven by running a second, unrelated app on the same
-core. A licence has not been chosen yet — do that before publishing.
+core.
+
+## Licence
+
+MIT — see the \`LICENSE\` file.
 `;
 
 writeFileSync(join(out, "README.md"), readme);
 
-console.log("dist-engine/ finalized: package.json + README.md written.");
+// MIT, scoped to this package (see the header note). Year is fixed rather than
+// derived from the clock so repeated builds are byte-for-byte reproducible.
+const license = `MIT License
+
+Copyright (c) 2026 Torbjörn Hedberg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`;
+
+writeFileSync(join(out, "LICENSE"), license);
+
+console.log(
+  "dist-engine/ finalized: package.json + README.md + LICENSE written.",
+);

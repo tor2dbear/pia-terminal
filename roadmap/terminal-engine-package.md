@@ -105,8 +105,9 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    är orört (separat tsconfig; `dist-engine/` är gitignore:at).
 
 ## Kvar (release-beslut, inte kod)
-- **Licens**: `package.json` säger `UNLICENSED` som platshållare — välj licens
-  (motorn är tänkt att öppen-källas) innan första publiceringen. `npm publish`
+- **Licens**: **MIT, valt.** Build-scriptet skriver en `LICENSE` in i
+  `dist-engine/` (scopad till paketet, inte repo-roten, så PIA:s egen källa
+  förblir olicensierad) och `package.json` säger `license: "MIT"`. `npm publish`
   körs från `dist-engine/` och är en manuell release-handling (kräver npm-konto).
 - **Valfri renhet**: motorns `Command`/`Terminal` defaultar fortfarande till PIA:s
   `CommandContext`, så typytan (och en död, tree-shakebar `share/store.js`) drar
