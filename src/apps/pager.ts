@@ -143,9 +143,17 @@ export class Pager implements ScreenApp {
    * the height can't be measured (headless / jsdom). */
   private fitRows(): void {
     const body = this.bodyEl;
-    const line = body?.firstElementChild as HTMLElement | null;
-    const bodyH = body?.getBoundingClientRect().height ?? 0;
-    const lineH = line?.getBoundingClientRect().height ?? 0;
+    if (!body) return;
+    // Measure a dedicated single-line probe, not the first content row — a long
+    // first line that wraps would otherwise report a multi-row block height and
+    // shrink the page to one or two lines.
+    const probe = document.createElement("div");
+    probe.className = "ed-line";
+    probe.textContent = "x";
+    body.append(probe);
+    const lineH = probe.getBoundingClientRect().height;
+    probe.remove();
+    const bodyH = body.getBoundingClientRect().height;
     if (bodyH > 0 && lineH > 0) {
       this.rows = Math.max(1, Math.floor(bodyH / lineH));
       this.goto(this.top); // re-clamp and re-render at the measured size
