@@ -10,6 +10,8 @@ import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
 import { parseShareHash } from "./share/share.js";
+import { parsePublishHash } from "./share/publish.js";
+import { renderPublishedSite } from "./pia/publishView.js";
 import { NullShareStore } from "./share/store.js";
 import { materializeShared } from "./share/materialize.js";
 import type { StorageAdapter } from "./storage/adapter.js";
@@ -77,6 +79,15 @@ function migrateLegacyKeys(): void {
 async function main(): Promise<void> {
   const root = document.getElementById("screen");
   if (!root) throw new Error("missing #screen element");
+
+  // A `#p=` link is a published page, not the app: render it read-only and stop
+  // — no terminal, no storage, no auth. Self-contained, so it works for anyone.
+  const published = parsePublishHash(location.hash);
+  if (published) {
+    document.body.classList.add("published");
+    root.replaceChildren(renderPublishedSite(published));
+    return;
+  }
 
   migrateLegacyKeys();
   const { adapter, auth, share } = await makeAdapters();
