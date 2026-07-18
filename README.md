@@ -89,45 +89,30 @@ det och synka innan vi bygger** — så blir avvikelsen ett beslut, inte en drif
 
 ---
 
-## Ambitionsnivåer (roadmap)
+## Ambitionsnivåer (trajektoria)
 
-### Nivå 0 — Kärnan (MVP, klientsida)
-`help` · `whoami` · `login`/`logout` (fejk) · `ls` · `cd` · `pwd` · `mkdir` ·
-`touch` · `cat` · `edit <fil>` · `rm` · `clear` · history + Tab-komplettering ·
-boot-sekvens · ett tema.
+> **Den levande planen bor i [`roadmap/`](roadmap/)** — en fil per puck, med
+> status `inbox → now/next/later → done`. Nivåerna nedan är projektets
+> *berättelse* och riktning, inte en aktuell att-göra-lista; för vad som faktiskt
+> är på gång, läs puckarna.
 
-Räcker för att kännas som en riktig liten dator.
+Grovt vart nivåerna leder:
 
-### Nivå 1 — "En riktig liten dator"
-- Fler filtyper: `.md` renderas, `.json` syntaxfärgas, `.csv` som tabell.
-- Pipes & operatorer: `cat notes.txt | grep todo`, `ls > filer.txt`.
-- Sök: `grep`, `find`.
-- Alias & config: en `.v/config`-fil användaren själv redigerar (teman, prompt, alias).
-- Export/import: ladda upp riktig fil från datorn in i VFS, eller ladda ner ut.
+- **Nivå 0 — Kärnan (MVP):** ✅ klar. `help`/`ls`/`cd`/`cat`/`nano`/fejk-login,
+  history, Tab, boot, tema.
+- **Nivå 1 — "En riktig liten dator":** i stort klar. Pipes & redirects,
+  `grep`/`find`, config-dotfil (teman/prompt/alias), `.md`/`.json`/`.csv`-vyer.
+  Kvar: `upload`/`download`.
+- **Nivå 2 — Appar i terminalen:** screen-app-hosten bär `nano`, `snake`, `todo`.
+  Fler appar (spel, rit-/musikverktyg) är "ännu en pizza i ugnen".
+- **Nivå 3 — Riktigt system (backend):** i stort in. Riktiga konton, filer som
+  följer mellan enheter, in-place-delning med live-sync. Kvar: `publish`,
+  multiplayer, schemalagt.
+- **Nivå 4 — Drömmål:** riktig kod-exekvering (Pyodide), retro/CRT-mode, en
+  AI-värd-persona.
 
-### Nivå 2 — Appar inuti terminalen
-Varje "app" är ett kommando som tar över skärmen:
-- `edit` — nano/vim-lik editor med statusrad.
-- `draw` — ASCII/pixel-ritverktyg.
-- `music` — liten tracker/step-sequencer via Web Audio.
-- `paint` — färglägg med ANSI-färger.
-- `present` — bildspel byggda av textfiler.
-- Spel: `snake`, `2048`, `tetris`, textadventyr-motor.
-
-### Nivå 3 — Riktigt system (backend)
-- Konton på riktigt (registrering, filer som följer mellan enheter).
-- `share <fil>` → publik länk i terminal-läge.
-- `publish <mapp>` → `.md`-filer blir en liten publik sida.
-- Multiplayer: `who`, `msg`, gemensamma rum (BBS-vibe).
-- `remind` / schemalagt.
-
-Trolig stack: Netlify/Vercel Functions + Supabase (Auth + Postgres, gratisnivå).
-
-### Nivå 4 — Drömmål
-- Riktig kod-exekvering i sandbox via WebAssembly (Pyodide): `python script.py`.
-- Fjärr-API:er: `weather`, `wiki`, `translate`.
-- `ask <fråga>` — AI-kommando som svarar i terminalen (knyter an till AI-värd-personan).
-- CRT/retro-mode, boot-BIOS — ren estetik, men det folk delar vidare.
+Detaljer, research och beslut för de kvarvarande punkterna ligger som puckar i
+[`roadmap/`](roadmap/) — inte här, så spec och plan inte driver isär.
 
 > **Nivå 5 (portfolio-som-terminal) är medvetet struken** — detta projekt är helt
 > frikopplat från portfolion.
