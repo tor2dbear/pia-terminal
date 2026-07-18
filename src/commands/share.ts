@@ -1,6 +1,7 @@
 import { encodeShare, MAX_SHARE_BYTES } from "../share/share.js";
 import { kindOf } from "../share/kind.js";
-import { isFile } from "../vfs/types.js";
+import { isDir, isFile } from "../vfs/types.js";
+import { folderLink } from "./publish.js";
 import { Todo } from "../apps/todo.js";
 import { Editor } from "../apps/editor.js";
 import type { Command, CommandContext } from "./registry.js";
@@ -10,11 +11,25 @@ export { kindOf };
 
 export const share: Command = {
   name: "share",
-  help: "share a file: a read-only link, or `share <file> <email>` to co-edit",
-  usage: "share <file> [email]",
+  help: "share a file or folder as a read-only link, or `share <file> <email>` to co-edit",
+  usage: "share <file|folder> [email]",
   async run(args, ctx) {
     const [name, email] = args;
-    if (!name) return ctx.error("share: specify a file");
+    if (!name) return ctx.error("share: specify a file or folder");
+
+    const node = ctx.vfs.getNode(ctx.vfs.resolve(ctx.cwd, name));
+    // A folder shares as a link only (co-editing is a per-file thing).
+    if (node && isDir(node)) {
+      if (email) {
+        return ctx.error("share: can't co-edit a folder — share a single file for that");
+      }
+      const result = folderLink(ctx, name);
+      if ("error" in result) return ctx.error(`share: ${result.error}`);
+      ctx.print("public link (read-only):", "dim");
+      ctx.print(result.url, "accent");
+      return;
+    }
+
     return email ? shareForEditing(name, email, ctx) : shareAsLink(name, ctx);
   },
 };
