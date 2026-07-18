@@ -1,4 +1,4 @@
-import type { ScreenApp } from "../terminal/screen.js";
+import type { ScreenApp } from "../../terminal/screen.js";
 
 interface Point {
   x: number;

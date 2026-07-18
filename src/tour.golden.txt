@@ -141,6 +141,9 @@ removed: echo remember
 guest@pia:~$ echo "# packages (brew)"
 # packages (brew)
 guest@pia:~$ brew list
+  2048         slide and merge tiles to reach 2048 (arrow keys / swipe)
+  snake        classic snake — arrows/WASD or the on-screen D-pad
+  draw         a tiny ASCII sketchpad — move, toggle blocks, print the art
   cowsay       an ASCII cow says (or thinks) what you type
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
@@ -200,7 +203,6 @@ available commands:
   rm        remove files or directories (-r for directories)
   share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
   shared    list and open files shared with you (co-edited)
-  snake     play snake (arrows / WASD, or tap on mobile)
   sort      sort lines of text
   source    re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
   tail      print the last lines of a file (or piped input)
