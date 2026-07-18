@@ -149,7 +149,9 @@ async function openSharedItem(item: SharedList, ctx: CommandContext): Promise<vo
 
   // Free text opens in the editor. No live-replace while editing — it would
   // clobber the other person's in-progress typing (last save wins instead).
-  await ctx.runApp((exit) => new Editor(`${item.name}  👥`, content, save, exit));
+  await ctx.runApp(
+    (exit) => new Editor([{ filename: `${item.name}  👥`, content, onSave: save }], exit),
+  );
 }
 
 /** Best-effort magic-link email; never throws (email is a nudge, not the seam). */
