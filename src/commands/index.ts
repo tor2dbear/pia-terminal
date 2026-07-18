@@ -11,6 +11,7 @@ import { configCommands } from "./config.js";
 import { glowCommands } from "./glow.js";
 import { viewCommands } from "./view.js";
 import { transferCommands } from "./transfer.js";
+import { pagerCommands } from "./pager.js";
 
 /** Build a registry with all commands registered. */
 export function buildRegistry(): CommandRegistry {
@@ -28,6 +29,7 @@ export function buildRegistry(): CommandRegistry {
     ...glowCommands,
     ...viewCommands,
     ...transferCommands,
+    ...pagerCommands,
   ]) {
     registry.register(cmd);
   }

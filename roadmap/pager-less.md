@@ -1,6 +1,6 @@
 ---
 title: less / more — bläddra i lång output
-status: inbox
+status: done
 tags: [terminal, commands]
 updated: 2026-07-17
 ---
@@ -26,4 +26,24 @@ för att det flödar förbi. Idag floodar lång output skärmen.
 - stdin → screen-app: verifiera att pipe-innehåll når appen innan vi lovar
   `... | less`.
 
-_Ligger i `inbox`. Låg arkitektur-risk (screen-app finns), men scope-frågan öppen._
+## Levererat
+Ny `Pager`-`ScreenApp` (`src/apps/pager.ts`) + `less`-kommando (alias `more`).
+- **Bläddring:** Space/`f`/PageDown en sida ner, `b`/PageUp upp, ↑↓/`j``k` en
+  rad, `g`/`G` till start/slut, `q`/Esc avslut. Skrivbara tangenter via `onText`,
+  special via `onKey` — varje tangent hanteras på *ett* ställe (verifierade
+  terminalens dispatch).
+- **Modell testbar utan DOM:** windowed render (`top`/`rows`), `render()` guardad
+  när ej mountad, `snapshot()`/`visible()` för test — som `snake`. Sidstorlek
+  default 20, mäts från viewporten i browsern (`fitRows`, faller tillbaka
+  headless).
+- **stdin:** läser fil-arg *eller* `ctx.stdin`, så `cat stor.log | less`
+  komponerar (less är sista steget → ej capturead → `runApp` funkar). Capturead
+  (`less foo | grep`) → passerar innehållet rakt igenom istället.
+- **Chrome:** återanvänder editorns `.ed-*`-layout (title/scroll-body/status),
+  ingen ny CSS.
+
+Täckt av 7 app-tester (sidor/rader/ändar/avslut/render) + 2 kommandotester
+(saknad fil, piped pass-through). 300 tester gröna; typecheck + build gröna; boot
+verifierad i headless Chromium.
+
+_`/`-sök, auto-paging av lång output, och `man` ovanpå pagern kvar som uppföljning._
