@@ -14,35 +14,33 @@ terminalen.
 - **`publish <mapp>`** samlar mappens `.md`-filer (toppnivå), packar dem
   self-contained i URL:en och skriver ut en länk `…#p=<payload>`. `index.md` /
   `README.md` läggs först, resten alfabetiskt.
-- **Öppnar man en `#p=`-länk bootar en read-only PIA-terminal med mappen
-  monterad** — inte en renderad webbsida. En banner förklarar ("published folder:
-  … · throwaway sandbox — nothing is saved"), `ls` körs automatiskt så filerna
-  syns direkt, och mottagaren utforskar med `cat`/`glow`/`cd`. En delad länk *är*
-  en liten dator man petar på — samma idiom som `share <fil>` (som redan visar
-  innehåll i terminalen). Sessionen är efemär (fräsch VFS, `MemoryStorageAdapter`,
-  fake auth), så inget mottagaren gör läcker tillbaka till publiceraren.
-- **Återanvänder `glow`** för markdown-rendering istället för en egen renderare —
-  den terminal-native vägen behöver ingen bespoke md→HTML. Ny liten motor-metod
-  `Terminal.exec(line)` kör ett kommando programmatiskt (auto-`ls` vid boot; även
-  användbar i tester).
+- **Öppnar man en `#p=`- (eller `#s=`-) länk landar innehållet i *din egen*
+  session** — inte i en främmande sandlåda. `main.ts` bootar den vanliga
+  terminalen (inloggad om du är det, annars guest) och materialiserar det delade
+  i **`~/incoming/`** (mapp → `~/incoming/<namn>/`, ensam fil → `~/incoming/`),
+  **i minnet** (inget sparas). En banner + auto-`cd`/`ls` visar filerna direkt.
+  Mottagaren **behåller det den vill med `cp`** — att bara öppna en länk skriver
+  aldrig tyst till kontot. `share` och `publish` delar nu exakt denna väg
+  (`pia/incoming.ts`), så beteendet är synkat.
+- **Återanvänder `glow`/`cat`** för att läsa markdown istället för en egen
+  renderare. Ny liten motor-metod `Terminal.exec(line)` kör ett kommando
+  programmatiskt (auto-`ls` vid boot; även användbar i tester).
 
 ## Beslut på öppna frågor
-- **Var bor sidan:** hash-URL, precis som `share <fil>` — self-contained, ingen
-  server, funkar för guests. (Supabase-rad / Cloudflare-funktion valdes bort: mer
-  infra, kräver login.)
-- **Hur visas den:** som en **prompt** (read-only terminal med mappen monterad) —
-  inte en renderad webbsida. Detta gör `share` och `publish` konsekventa (båda
-  terminal-native) och är mer on-brand än en commodity-webbsida. *(Reviderat: den
-  första versionen var en renderad HTML-sida; togs bort till förmån för prompten.)*
-- **Login eller guest:** guest — hashen bär allt, ingen inloggning behövs.
-- **Storleksgräns:** `MAX_PUBLISH_PAYLOAD` = 32 KB (mot `share`s 4 KB); över det
-  ett tydligt fel. Web-divergensen (`publish` → URL) stod redan som accepterad i
-  CLAUDE.md.
+- **Var bor det:** hash-URL, precis som `share <fil>` — self-contained, ingen
+  server, funkar för guests. (Supabase-rad / Cloudflare-funktion valdes bort.)
+- **Hur visas det:** som en **prompt** i din egen session. Innehållet blir riktiga
+  filer i `~/incoming/` som du kan `cat`/`glow`/`nano`/`cp`. *(Reviderat två
+  gånger: v1 var en renderad HTML-sida; v2 en efemär sandlåda; v3 — detta —
+  landar i din egen session så du kan **behålla** det, vilket var poängen.)*
+- **Spara automatiskt?** Nej (val "B"): landar i minnet, du behåller med `cp`. Att
+  tjuvkika smutsar inte ner kontot; det matchar ändå `~/shared/`-mönstret för
+  e-post-delning, fast utan tyst skrivning.
+- **Login eller guest:** din session — inloggad behåller i molnet, guest lokalt.
+- **Storleksgräns:** `MAX_PUBLISH_PAYLOAD` = 32 KB. Web-divergensen (`publish` →
+  URL) stod redan som accepterad i CLAUDE.md.
 
 ## Ev. följd (ej gjort, valfritt)
-- Montera i en namngiven undermapp (`~/<mapp>/`) och `cd` dit vid boot, istället
-  för löst i `~`.
-- Rekursiv mapp (undermappar med), och bilder/assets (idag bara toppnivå-`.md`,
-  ingen binärdata i hashen).
-- Ev. göra `share <fil>`-länken lika standalone som publish (idag previewar den i
-  din egen session).
+- **`share <mapp>`** (idag bara `share <fil>` + `publish <mapp>`) — encodern och
+  incoming-vägen generaliserar redan, så det är ett litet steg.
+- Rekursiv mapp (undermappar med), och bilder/assets (idag bara text i hashen).
