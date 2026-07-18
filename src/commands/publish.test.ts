@@ -16,7 +16,7 @@ function mount(): { root: HTMLElement; vfs: VFS } {
   vfs.mkdirp("/home/guest/notes");
   vfs.writeFile("/home/guest/notes/index.md", "# Home\n\nWelcome.");
   vfs.writeFile("/home/guest/notes/about.md", "About *us*.");
-  vfs.writeFile("/home/guest/notes/photo.png", "not markdown");
+  vfs.writeFile("/home/guest/notes/plan.txt", "not markdown, still shared");
   const root = document.createElement("div");
   document.body.append(root);
   term = new Terminal(root, {
@@ -46,15 +46,19 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+const linkSite = (root: HTMLElement) => {
+  const url = lines(root).find((l) => l.includes("#p="));
+  return url ? parsePublishHash(url.slice(url.indexOf("#"))) : null;
+};
+
 describe("publish command", () => {
-  it("prints a #p= link carrying the folder's .md files (only)", async () => {
+  it("prints a #p= link carrying all the folder's files (index.md first)", async () => {
     const { root } = mount();
     await run(root, "publish notes");
-    const url = lines(root).find((l) => l.includes("#p="));
-    expect(url).toBeDefined();
-    const site = parsePublishHash(url!.slice(url!.indexOf("#")));
+    const site = linkSite(root);
     expect(site?.title).toBe("notes");
-    expect(site?.pages.map((p) => p.name)).toEqual(["index.md", "about.md"]); // no .png
+    // All files, not just Markdown; index.md leads, then alphabetical.
+    expect(site?.pages.map((p) => p.name)).toEqual(["index.md", "about.md", "plan.txt"]);
   });
 
   it("errors clearly on bad input", async () => {
@@ -71,6 +75,28 @@ describe("publish command", () => {
     expect(lines(root).join("\n")).toContain("not a directory");
 
     await run(root, "publish empty");
-    expect(lines(root).join("\n")).toContain("no .md files");
+    expect(lines(root).join("\n")).toContain("no files");
+  });
+});
+
+describe("share <folder>", () => {
+  it("shares a folder as the same #p= link publish makes", async () => {
+    const { root } = mount();
+    await run(root, "share notes");
+    const site = linkSite(root);
+    expect(site?.title).toBe("notes");
+    expect(site?.pages.map((p) => p.name)).toEqual(["index.md", "about.md", "plan.txt"]);
+  });
+
+  it("refuses to co-edit a folder", async () => {
+    const { root } = mount();
+    await run(root, "share notes bob@example.com");
+    expect(root.querySelector(".term-line.error")?.textContent).toContain("can't co-edit a folder");
+  });
+
+  it("still shares a single file as a #s= link", async () => {
+    const { root } = mount();
+    await run(root, "share notes/index.md");
+    expect(lines(root).join("\n")).toContain("#s=");
   });
 });

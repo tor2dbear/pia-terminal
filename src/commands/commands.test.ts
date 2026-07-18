@@ -352,13 +352,14 @@ describe("share", () => {
     expect(decodeShare(payload)).toEqual({ name: "note.txt", content: "shared hej" });
   });
 
-  it("errors on a missing file or a directory", async () => {
+  it("errors on a missing target, and on an empty folder", async () => {
     const h = harness();
     await h.run("share nope.txt");
     expect(h.lines.at(-1)?.cls).toBe("error");
+    // A folder is now shareable (as a link), but an empty one has nothing to send.
     await h.run("mkdir d");
     await h.run("share d");
-    expect(h.lines.at(-1)?.text).toContain("not a file");
+    expect(h.lines.at(-1)?.text).toContain("no files");
   });
 });
 

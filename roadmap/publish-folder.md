@@ -40,7 +40,14 @@ terminalen.
 - **Storleksgräns:** `MAX_PUBLISH_PAYLOAD` = 32 KB. Web-divergensen (`publish` →
   URL) stod redan som accepterad i CLAUDE.md.
 
+## Levererat (forts.)
+- **`share <mapp>`** funkar nu också — `share` tar fil *eller* mapp, `publish`
+  finns kvar som eget kommando, och båda bygger exakt samma `#p=`-länk via en
+  delad `folderLink`-helper. En delad mapp tar med **alla** toppnivå-filer (inte
+  bara `.md`), eftersom viewern nu är ett filsystem-drop där `cat`/`glow` läser
+  vad som helst. `share <mapp> <email>` avvisas (sam-redigering är per fil).
+  *(Vi valde bort alias — inga `scp`/`shar`/`tar`-alias; deras arg-grammatik
+  krockar. `share`/`publish` är rena verb med korrekt beteende.)*
+
 ## Ev. följd (ej gjort, valfritt)
-- **`share <mapp>`** (idag bara `share <fil>` + `publish <mapp>`) — encodern och
-  incoming-vägen generaliserar redan, så det är ett litet steg.
 - Rekursiv mapp (undermappar med), och bilder/assets (idag bara text i hashen).
