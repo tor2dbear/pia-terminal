@@ -67,9 +67,14 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    `pia/rc`/`pia/themes`-import. — **klart**. `terminal.ts` importerar ingen
    `pia/`-modul längre; en `configure`-option ger prompt+alias (och applicerar
    temat), PIA:s glue bor i `pia/terminalConfig.ts` och injiceras i `main.ts`.
-3. **`engine/`-mapp + publik `index.ts`** (motorns API-yta) — flytta de rena
-   delarna dit.
-4. **Bevisa:** bygg en *andra* pytteliten sak på samma motor (testet på gemet).
+3. **`engine/`-mapp + publik `index.ts`** (motorns API-yta) — **klart** (PR #21).
+   `src/engine/index.ts` re-exporterar den återanvändbara ytan (command-modell,
+   parser, globbing, screen-app-interface, `Terminal`, VFS, adapter-*interfaces*)
+   bakom en dörr; ett smoke-test importerar *bara* genom den.
+4. **Genericisera + bevisa:** gör `Command`/`Terminal` generiska över appens
+   context-tillägg (så en *annan* app kan lägga sina egna), och bygg en andra
+   pytteliten sak på motorn (testet på gemet). Den *stora* kvarvarande biten —
+   här bor API-design-smaken.
 5. **(Senare)** paketera som npm.
 
 _Status `now`. Litet, säkert steg i taget; varje steg håller alla tester gröna._
