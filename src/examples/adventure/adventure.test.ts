@@ -57,4 +57,15 @@ describe("text adventure — a second shell on the engine", () => {
     await play(root, "i");
     expect(out(root).join("\n")).toContain("carrying nothing");
   });
+
+  it("is replayable — a second game still has its items", async () => {
+    const first = start();
+    await play(first, "north");
+    await play(first, "take key"); // deplete items in game 1
+
+    const second = start(); // a fresh World must not share game 1's state
+    await play(second, "north");
+    await play(second, "take key");
+    expect(out(second).join("\n")).toContain("You take the key");
+  });
 });

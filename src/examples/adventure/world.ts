@@ -53,12 +53,22 @@ export class World {
   private room = "hall";
   private readonly carried = new Set<string>();
   won = false;
+  /**
+   * Per-instance copy of each room's items, so playing (and taking things)
+   * never mutates the shared `ROOMS` definitions — a fresh `new World()` is
+   * always fully replayable. The static parts (name/description/exits) are read
+   * from `ROOMS` directly since nothing mutates them.
+   */
+  private readonly items: Record<string, string[]> = Object.fromEntries(
+    Object.entries(ROOMS).map(([id, r]) => [id, [...r.items]]),
+  );
 
   /** Lines describing the current room. */
   look(): string[] {
     const r = ROOMS[this.room];
+    const here = this.items[this.room];
     const lines = [r.name, r.description];
-    if (r.items.length) lines.push(`You see: ${r.items.join(", ")}.`);
+    if (here.length) lines.push(`You see: ${here.join(", ")}.`);
     lines.push(`Exits: ${Object.keys(r.exits).join(", ")}.`);
     return lines;
   }
@@ -77,11 +87,11 @@ export class World {
 
   /** Pick up an item in the room; returns the message to print. */
   take(item: string): string {
-    const r = ROOMS[this.room];
+    const here = this.items[this.room];
     const name = item.toLowerCase();
-    const i = r.items.indexOf(name);
+    const i = here.indexOf(name);
     if (i === -1) return `There is no ${name} here.`;
-    r.items.splice(i, 1);
+    here.splice(i, 1);
     this.carried.add(name);
     if (name === "treasure") {
       this.won = true;
