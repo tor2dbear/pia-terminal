@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Isolated Python sandbox. This page runs in its own browsing context with a
+      *looser* CSP than the main app — it needs wasm-eval and a connection to the
+      Pyodide CDN. Because it's a separate document reached only through an
+      iframe and talks to the terminal solely via postMessage, that relaxation
+      never touches the main app's strict policy. (A `_headers` rule sets the
+      same CSP for hosts that serve headers; this <meta> covers static hosts.)
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; child-src blob:; style-src 'unsafe-inline'; base-uri 'none'"
+    />
+    <title>PIA · python sandbox</title>
+  </head>
+  <body>
+    <script src="./python-sandbox.js"></script>
+  </body>
+</html>

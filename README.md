@@ -38,7 +38,10 @@ guest@pia:~/notes$ ls | sort | uniq -c
   cron syntax that fires while the tab is open.
 - **Packages**: `brew install <name>` adds opt-in apps — `snake`, `2048`,
   `draw`, `cowsay`, `cal`, `bc`, `fortune`, `sl`, `cmatrix`, `tutor`, `life`,
-  `tetris`, `qr` — loaded on demand. See [Packages](#packages-brew).
+  `tetris`, `qr`, `python` — loaded on demand. See [Packages](#packages-brew).
+- **Real Python**: `python file.py` (or `python -c "…"`) runs CPython on WASM
+  (Pyodide) inside an isolated sandbox iframe — installed with `brew install
+  python`.
 
 Type `help` in the terminal for the full command list.
 
@@ -82,7 +85,8 @@ src/supabase/   cloud adapters (dynamic-imported; dormant without config)
 src/commands/   command registry + commands
 src/apps/       screen apps (editor, todo)
 src/packages/   brew packages (lazy-loaded, opt-in): snake, 2048, draw, cowsay,
-                cal, bc, fortune, sl, cmatrix, tutor, life, tetris, qr
+                cal, bc, fortune, sl, cmatrix, tutor, life, tetris, qr,
+                python
 src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
 src/engine/     the reusable engine's public API (index.ts)
 src/examples/   a second app on the engine (a text adventure)
@@ -128,6 +132,12 @@ the core bundle never pays for it. Installed packages persist in
 
 Because of the strict CSP (`script-src 'self'`), packages are same-origin and
 curated — not arbitrary third-party code from the internet.
+
+`python` is the one **"fat package"**: alongside its lazy command chunk it relies
+on two pieces that live in the core — a sandbox page (`/python-sandbox.html`) and
+`frame-src 'self'` in the main CSP — both cheap and inert until you run `python`.
+The Pyodide runtime loads lazily inside that isolated iframe, which carries its
+own relaxed CSP so the main app's stays strict.
 
 ---
 
