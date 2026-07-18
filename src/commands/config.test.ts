@@ -127,6 +127,20 @@ describe(".pia/config — themes, aliases, prompt", () => {
     expect(root.textContent).toContain("[guest@pia]$");
   });
 
+  it("colours the prompt from %F markup in the template", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp("/home/guest/.pia");
+    vfs.writeFile("/home/guest/.pia/config", "prompt = %F{accent}{user}%f:%F{#ff8800}{cwd}%f$");
+    const root = mount(vfs);
+    const spans = [...root.querySelectorAll(".term-prompt span")];
+    const colors = spans.map((s) => (s as HTMLElement).style.color);
+    // The live prompt renders coloured spans (a palette var and a hex).
+    expect(colors).toContain("var(--accent)");
+    expect(colors).toContain("rgb(255, 136, 0)"); // jsdom normalises #ff8800
+    // The plain text is still all there.
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest:~$");
+  });
+
   it("applies custom colours and font from the config", () => {
     const vfs = VFS.seed();
     vfs.mkdirp("/home/guest/.pia");

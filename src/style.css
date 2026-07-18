@@ -125,8 +125,11 @@ body {
   pointer-events: auto;
 }
 
-.term-prompt {
+.term-prompt,
+.term-echo-prompt {
   color: var(--accent);
+}
+.term-prompt {
   flex: 0 0 auto;
   margin-right: 0.5ch;
 }

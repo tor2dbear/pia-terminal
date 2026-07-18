@@ -1,6 +1,6 @@
 ---
 title: Utseende i ~/.pia/config — egna färger, font, prompt
-status: now
+status: done
 tags: [config, theme]
 updated: 2026-07-18
 ---
@@ -23,12 +23,17 @@ terminaltroget sätt att styla prompten.
   (`source ~/.bashrc`). Vägrar allt utom config-filen (PIA kör inga skript).
 - Seed-configen visar nu exempel på `color.*`, `font`, `font-size`.
 
-## Kvar: prompt-styling (nästa PR)
-Terminaltroget sätt att färga prompten per segment (user grön, cwd blå …).
-Kandidater: zsh `%F{...}%f` (läsbart, modernt), rå ANSI `\e[…m` (mest äkta men
-otympligt), eller egen `{token|färg}`-syntax. Luta åt **zsh `%F{}`** med
-palett-token *eller* hex som färg. Kräver att prompt-renderaren bygger flera
-färgade spans (både i live-raden och de ekade rad-/`^C`-raderna).
+## Levererat (prompt-styling)
+- **Prompten färgas per segment, zsh-stil:** `%F{token|#hex}…%f` (foreground),
+  `%B…%b` (fet), `%%` (literalt %). En token → `var(--token)` (tema-medvetet),
+  hex passerar rakt igenom. Valet blev zsh `%F{}` (läsbart + tema-medvetet)
+  framför rå ANSI.
+- Parsern (`terminal/prompt.ts`) ger styled-segment; renderaren bygger färgade
+  spans via CSSOM (CSP-säkert) — både i **live-raden** och de **ekade**
+  kommando-/`^C`/Tab-raderna (ny `printPromptLine`). Ekade prompter matchar nu
+  live-promptens färger (`.term-echo-prompt` delar färg med `.term-prompt`).
+- Seed-configen visar ett `%F`-exempel. Verifierat i riktig Chromium: en
+  `%F`-prompt renderas med rätt färger per segment, utan CSP-fel.
 
 ## Öppna frågor
 - Font-**filer** (egna `.woff`) krockar med CSP `font-src 'self'` — separat större

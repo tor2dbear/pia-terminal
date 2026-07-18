@@ -10,6 +10,7 @@ import {
 } from "../commands/registry.js";
 import { tokenize, parseSequence, type Pipeline } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
+import { parsePromptSegments } from "./prompt.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 
 /** A do-nothing storage adapter: the engine default when an app has no backend
@@ -382,15 +383,51 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     URL.revokeObjectURL(url);
   }
 
-  private promptText(): string {
+  /** Fill the prompt placeholders ({user} {host} {cwd}) in a run of text. */
+  private substituteVars(text: string): string {
     const home = this.vfs.home;
     let shown = this.cwd;
     if (shown === home) shown = "~";
     else if (shown.startsWith(`${home}/`)) shown = `~${shown.slice(home.length)}`;
-    return this.promptTemplate
+    return text
       .replaceAll("{user}", this.session.user)
       .replaceAll("{host}", "pia")
       .replaceAll("{cwd}", shown);
+  }
+
+  /**
+   * Build the prompt as styled spans (from its `%F{…}`/`%B` markup) and append
+   * them to `parent`. Colours/weight are set via the CSSOM, not a style
+   * attribute, so this stays within the site's CSP — the same way themes apply.
+   */
+  private appendPrompt(parent: HTMLElement): void {
+    const segments = parsePromptSegments(this.promptTemplate, (t) => this.substituteVars(t));
+    for (const seg of segments) {
+      if (!seg.color && !seg.bold) {
+        parent.append(document.createTextNode(seg.text));
+        continue;
+      }
+      const span = document.createElement("span");
+      span.textContent = seg.text;
+      if (seg.color) span.style.color = seg.color;
+      if (seg.bold) span.style.fontWeight = "bold";
+      parent.append(span);
+    }
+  }
+
+  /** Echo a prompt line into the output — the styled prompt followed by `text`
+   * (a submitted command, a ^C, a Tab listing). */
+  private printPromptLine(text: string, cls: LineClass = "normal"): void {
+    const line = document.createElement("div");
+    line.className = cls === "normal" ? "term-line" : `term-line ${cls}`;
+    const prompt = document.createElement("span");
+    // A sibling of the live `.term-prompt` — shares its colour, not its input-
+    // line layout, and keeps `.term-prompt` unique to the active line.
+    prompt.className = "term-echo-prompt";
+    this.appendPrompt(prompt);
+    line.append(prompt, document.createTextNode(` ${text}`));
+    this.outputEl.append(line);
+    this.scrollToBottom();
   }
 
   /** Redraw the active input line, with the block cursor at its position. */
@@ -399,7 +436,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
     const prompt = document.createElement("span");
     prompt.className = "term-prompt";
-    prompt.textContent = this.promptText();
+    this.appendPrompt(prompt);
 
     const typed = document.createElement("span");
     typed.className = "term-typed";
@@ -596,7 +633,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
     if (e.ctrlKey && e.key === "c") {
       e.preventDefault();
-      this.print(`${this.promptText()} ${this.buffer}^C`, "dim");
+      this.printPromptLine(`${this.buffer}^C`, "dim");
       this.resetLine();
       return;
     }
@@ -682,7 +719,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     if (shared.length > fragment.length) {
       this.replaceFragment(fragment, shared);
     } else {
-      this.print(`${this.promptText()} ${this.buffer}`, "dim");
+      this.printPromptLine(this.buffer, "dim");
       this.print(candidates.join("  "));
     }
   }
@@ -727,7 +764,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
   private async submit(): Promise<void> {
     const line = this.buffer;
-    this.print(`${this.promptText()} ${line}`);
+    this.printPromptLine(line);
     this.buffer = "";
     this.cursor = 0;
 
@@ -953,7 +990,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   }
 
   private cancelLine(): void {
-    this.print(`${this.promptText()} ${this.buffer}^C`, "dim");
+    this.printPromptLine(`${this.buffer}^C`, "dim");
     this.resetLine();
   }
 
