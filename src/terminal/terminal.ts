@@ -712,6 +712,19 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
   // ---- read-eval-print ------------------------------------------------------
 
+  /**
+   * Run a command line programmatically, as if the user had typed it and
+   * pressed Enter (the prompt + line are echoed, then it executes). Used to seed
+   * a session — e.g. a published folder that auto-runs `ls` on open — and by
+   * tests. No-op while another command is running.
+   */
+  async exec(line: string): Promise<void> {
+    if (this.busy) return;
+    this.buffer = line;
+    this.cursor = line.length;
+    await this.submit();
+  }
+
   private async submit(): Promise<void> {
     const line = this.buffer;
     this.print(`${this.promptText()} ${line}`);
