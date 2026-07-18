@@ -450,3 +450,25 @@ describe("command chaining", () => {
     expect(out(root)).not.toContain("unreached");
   });
 });
+
+describe("history", () => {
+  const out = (root: HTMLElement) =>
+    [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+
+  it("lists the commands run this session, numbered", async () => {
+    const root = mount();
+    await runLine(root, "echo one");
+    await runLine(root, "history");
+    // history() includes the echo and the history command itself
+    expect(out(root)).toContain("1  echo one");
+  });
+
+  it("-c empties the history", async () => {
+    const root = mount();
+    await runLine(root, "echo one");
+    await runLine(root, "history -c");
+    await runLine(root, "history");
+    // after clearing, only the post-clear `history` invocations remain
+    expect(out(root)).not.toContain("1  echo one");
+  });
+});

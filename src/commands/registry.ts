@@ -55,6 +55,10 @@ export interface CommandContext {
   saveFile?(name: string, content: string): void;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
+  /** The command history so far, most recent last (for the `history` command). */
+  history?(): string[];
+  /** Clear the command history (`history -c`). */
+  clearHistory?(): void;
   /** The registry, so `help` can enumerate commands. */
   registry: CommandRegistry;
 }
