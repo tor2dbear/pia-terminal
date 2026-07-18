@@ -79,4 +79,33 @@ export const neofetch: Command = {
   },
 };
 
-export const systemCommands: Command[] = [help, whoami, echo, clear, neofetch];
+export const date: Command = {
+  name: "date",
+  help: "print the current date and time",
+  usage: "date [-u]",
+  run(args, ctx) {
+    const utc = args.includes("-u") || args.includes("--utc");
+    const d = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    const p = (n: number): string => String(n).padStart(2, "0");
+    const wd = days[utc ? d.getUTCDay() : d.getDay()];
+    const mo = months[utc ? d.getUTCMonth() : d.getMonth()];
+    const day = utc ? d.getUTCDate() : d.getDate();
+    const hh = utc ? d.getUTCHours() : d.getHours();
+    const mm = utc ? d.getUTCMinutes() : d.getMinutes();
+    const ss = utc ? d.getUTCSeconds() : d.getSeconds();
+    const year = utc ? d.getUTCFullYear() : d.getFullYear();
+    const offset = d.getTimezoneOffset(); // minutes behind UTC
+    const tz =
+      utc || offset === 0
+        ? "UTC"
+        : `UTC${offset < 0 ? "+" : "-"}${Math.floor(Math.abs(offset) / 60)}`;
+    ctx.print(`${wd} ${mo} ${p(day)} ${p(hh)}:${p(mm)}:${p(ss)} ${tz} ${year}`);
+  },
+};
+
+export const systemCommands: Command[] = [help, whoami, echo, clear, neofetch, date];

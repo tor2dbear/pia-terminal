@@ -1,6 +1,6 @@
 ---
 title: date — visa klocka och datum
-status: inbox
+status: done
 tags: [system, commands]
 updated: 2026-07-17
 ---
@@ -24,4 +24,15 @@ updated: 2026-07-17
 - Hur mycket format-flaggor (`+FORMAT`) från start? Troligen ingen — bara
   default + `-u`.
 
-_Ligger i `inbox` — litet, men klock-injektionsfrågan är värd ett beslut först._
+## Levererat
+`date` i `system.ts`, bredvid `whoami`/`neofetch`. Beslut:
+- **Format:** GNU-likt `Fri Jul 18 09:18:03 UTC 2026`. `-u` (alias `--utc`) ger
+  UTC; annars lokal tid med en `UTC±h`-etikett (0 → `UTC`).
+- **Testbarhet:** valde **formatassertion** (ingen klock-injektion, inget nytt
+  seam på `CommandContext`) — testerna matchar mönstret, inte värdet. Enklast,
+  och `date` behöver inte determinism i produktion.
+
+Täckt av 2 tester (format-regex + att `-u` säger UTC). 291 tester gröna;
+typecheck + build gröna.
+
+_`+FORMAT`-strängar och lokala TZ-förkortningar kvar om behovet dyker upp._
