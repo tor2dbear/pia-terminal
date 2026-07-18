@@ -46,6 +46,8 @@ export const DEFAULT_CONFIG = [
   "# font-size = 14",
   "",
   "# prompt template — placeholders: {user} {host} {cwd}",
+  "# colour it zsh-style: %F{token|#hex}…%f  ·  bold: %B…%b",
+  "#   e.g. prompt = %F{accent}{user}%f:%F{dim}{cwd}%f$ ",
   "prompt = {user}@pia:{cwd}$",
   "",
   "# shortcuts — `alias <name> = <expansion>`   (or use `alias ll ls -la`)",
