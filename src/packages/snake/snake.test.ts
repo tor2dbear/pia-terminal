@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { Snake } from "./snake.js";
-import { Terminal } from "../terminal/terminal.js";
-import { VFS } from "../vfs/vfs.js";
-import { MemoryStorageAdapter } from "../storage/localStorage.js";
-import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
-import { buildRegistry } from "../commands/index.js";
-import { piaExtendContext } from "../pia/context.js";
+import { pkg as snakePkg } from "./index.js";
+import { Terminal } from "../../terminal/terminal.js";
+import { VFS } from "../../vfs/vfs.js";
+import { MemoryStorageAdapter } from "../../storage/localStorage.js";
+import { MemoryAuthAdapter } from "../../auth/fakeAuth.js";
+import { buildRegistry } from "../../commands/index.js";
+import { piaExtendContext } from "../../pia/context.js";
 
 describe("Snake (game logic)", () => {
   // Deterministic rng so food placement never interferes with movement tests.
@@ -77,10 +78,12 @@ describe("snake (through the terminal)", () => {
   function mount(): HTMLElement {
     const root = document.createElement("div");
     document.body.append(root);
+    const registry = buildRegistry();
+    for (const command of snakePkg.commands) registry.register(command); // snake is a package now
     term = new Terminal(root, {
       vfs: VFS.seed(),
       adapter: new MemoryStorageAdapter(),
-      registry: buildRegistry(),
+      registry,
       session: { user: "guest" },
       extendContext: piaExtendContext(new MemoryAuthAdapter()),
     });

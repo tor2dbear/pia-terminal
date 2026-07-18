@@ -38,7 +38,7 @@ Idiom notes in force: editor is `nano` (alias `edit`), saves with `^O`
 - **Command registry.** Each command is `{ name, help, run(args, ctx), aliases? }`.
   Commands reach the world only through `CommandContext` (print, vfs, auth,
   stdin, piped, runApp, …) — never the DOM or storage.
-- **Screen-app host.** Full-screen apps (editor, snake) implement `ScreenApp`
+- **Screen-app host.** Full-screen apps (editor, and the game packages) implement `ScreenApp`
   and take over via `ctx.runApp()`. New games/apps are "just another screen app".
 - **VFS** is an in-memory tree serialized by the storage adapter.
 
@@ -51,7 +51,8 @@ src/auth/       AuthAdapter + Fake/Memory
 src/share/      share.ts (URL sharing) + store.ts (ShareStore + Null/Memory)
 src/supabase/   cloud adapters (dynamic-imported; dormant without config)
 src/commands/   registry + commands (fs, system, edit, auth, text, games)
-src/apps/       screen apps (editor, snake, todo)
+src/apps/       screen apps (editor, todo)
+src/packages/   brew packages (lazy-loaded, opt-in): snake, 2048, draw, cowsay
 src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
 roadmap/        one markdown file per planned item ("puck") — see roadmap/README.md
 ```

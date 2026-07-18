@@ -19,6 +19,24 @@ export interface CatalogEntry {
 }
 
 export const CATALOG: Record<string, CatalogEntry> = {
+  snake: {
+    name: "snake",
+    description: "classic snake — arrows/WASD or the on-screen D-pad",
+    commands: ["snake"],
+    load: () => import("./snake/index.js").then((m) => m.pkg),
+  },
+  "2048": {
+    name: "2048",
+    description: "slide and merge tiles to reach 2048 (arrow keys / swipe)",
+    commands: ["2048"],
+    load: () => import("./2048/index.js").then((m) => m.pkg),
+  },
+  draw: {
+    name: "draw",
+    description: "a tiny ASCII sketchpad — move, toggle blocks, print the art",
+    commands: ["draw"],
+    load: () => import("./draw/index.js").then((m) => m.pkg),
+  },
   cowsay: {
     name: "cowsay",
     description: "an ASCII cow says (or thinks) what you type",

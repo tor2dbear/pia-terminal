@@ -24,10 +24,17 @@ appar i din PIA utan att blåsa upp kärnan.
   end-to-end (install → kommandot funkar → uninstall → borta).
 - **Demo:** `cowsay` (`cowsay`/`cowthink`). Fler paket = ny mapp + en katalog-rad.
 
-## Kvar / nästa paket
-Bygg fler paket för att visa att mönstret skalar: **2048**, **draw** (screen-app-
-paket), ev. flytta ut `snake`/äventyret. Screen-appar funkar redan via `runApp`
-(core-context), så ett spel-paket är bara en mapp till.
+## Katalog (v2)
+Fyra paket nu: **snake** (utflyttat från kärnan), **2048** och **draw** (nya
+screen-app-spel), och **cowsay**. Screen-appar funkar via `runApp` (core-context),
+så ett spel-paket är bara en mapp under `src/packages/`. Varje paket blir en egen
+lazy-chunk (2–4 kB) — inget av dem ligger i huvudbundlen förrän man installerar
+det. `snake` kräver alltså `brew install snake` nu (opt-in, inte default).
+
+## Kvar (valfritt)
+- CSS-i-paket: spelens CSS bor fortfarande i globala `style.css` (JS är lazy, CSS
+  inte). En helt fristående paket-CSS är en större CSP-fråga.
+- Fler paket: `2048`s svep-styrning på mobil, en `fortune`, m.m.
 
 ## Varför det passar PIA
 - Extension-punkterna finns redan: command-registry (`{name,help,run}`) och
