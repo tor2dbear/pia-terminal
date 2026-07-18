@@ -31,8 +31,25 @@ CPython 3.12** i webbläsaren via Pyodide/WASM — **helt self-contained, ingen 
   CDN behövs. CI-säkra tester: `parsePythonArgs` (enhet) + `brew install python`
   i touren. Pyodide/WASM körs inte i vitest — för tungt för CI.
 
+## REPL + VFS-brygga (2026-07-18)
+- **REPL:** `python` utan argument öppnar ett interaktivt läge (screen-app) med
+  `>>>`-prompt, historik, och **persistent session** (variabler/funktioner lever
+  mellan rader). Flerradsblock hanteras via Pythons egen `codeop.compile_command`
+  i sandboxen — ofullständig input (`def f():`…) byter prompt till `...` tills
+  blocket är klart. `exit()`/`quit()`/`^X`/`^D` avslutar.
+- **VFS-brygga:** filerna i arbetsmappen mountas in i Pyodides FS före varje
+  körning och nya/ändrade filer synkas tillbaka efteråt. Så `python foo.py` kan
+  **läsa** dina filer, och filer det **skapar** dyker upp i `ls`/`cat`. Gäller
+  både script och REPL.
+- **Verifierat i Chromium** (nät blockerat, noll externa requests): ofullständig-
+  block-detektering (`def f():` → incomplete), persistent state (`x = f()*2` → 42
+  över tre rader), och fil-round-trip (Python läser `in.txt`, skriver `out.txt`
+  som synkas tillbaka). Enhetstester: `collectDirFiles` + REPL-flödet (jsdom,
+  mockad runner).
+
 ## Kvar (valfri polish)
-- REPL (`python` utan arg), VFS-skrivningar tillbaka från Python, micropip/paket.
+- **micropip/paket** — kräver att sandbox-CSP:n öppnas för PyPI/Pyodide-CDN, dvs.
+  ett medvetet avsteg från self-containment (opt-in nätverk). Eget beslut.
 - Reproducerbart e2e-skript (Playwright) som valfri `test:python` utanför CI.
 - Version-bump av Pyodide sker i `scripts/fetch-pyodide.mjs` (bustar CI-cachen).
 

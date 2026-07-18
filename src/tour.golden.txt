@@ -250,7 +250,7 @@ available commands:
   passwd    set or change your account password
   publish   publish a folder as a shareable link (its files land in the opener's ~/incoming)
   pwd       print the current directory path
-  python    run Python via Pyodide (python file.py, or python -c 'code')
+  python    run Python via Pyodide (python, python file.py, or python -c 'code')
   qr        show a QR code for text or a URL
   rm        remove files or directories (-r for directories)
   share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit

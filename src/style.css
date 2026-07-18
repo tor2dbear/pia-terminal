@@ -696,3 +696,29 @@ body {
   word-break: break-all;
   max-width: 60ch;
 }
+
+/* ---- python REPL (brew package) --------------------------------------------- */
+.pyrepl {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem 0.75rem;
+  box-sizing: border-box;
+}
+.pyrepl-out {
+  flex: 1 1 auto;
+  margin: 0;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+  line-height: 1.35;
+}
+.pyrepl-prompt {
+  flex: 0 0 auto;
+  padding-top: 0.35rem;
+  color: var(--accent);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
