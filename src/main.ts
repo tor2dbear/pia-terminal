@@ -9,9 +9,7 @@ import { piaExtendContext } from "./pia/context.js";
 import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
-import { parseShareHash } from "./share/share.js";
-import { parsePublishHash } from "./share/publish.js";
-import { bootPublishedSession } from "./pia/publishSession.js";
+import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { NullShareStore } from "./share/store.js";
 import { materializeShared } from "./share/materialize.js";
 import type { StorageAdapter } from "./storage/adapter.js";
@@ -80,15 +78,6 @@ async function main(): Promise<void> {
   const root = document.getElementById("screen");
   if (!root) throw new Error("missing #screen element");
 
-  // A `#p=` link is a published folder: open it as a read-only PIA terminal with
-  // the files mounted — a shared link *is* a little computer, the same idiom as
-  // `share`. Ephemeral and self-contained, so it works for anyone.
-  const published = parsePublishHash(location.hash);
-  if (published) {
-    await bootPublishedSession(root, published);
-    return;
-  }
-
   migrateLegacyKeys();
   const { adapter, auth, share } = await makeAdapters();
   const saved = await adapter.load();
@@ -153,14 +142,24 @@ async function main(): Promise<void> {
     /* best-effort hint only */
   }
 
-  // Opened via a share link? Show the shared file (read-only) after boot.
-  const shared = parseShareHash(location.hash);
-  if (shared) {
+  // Opened via a share/publish link? Drop the content into ~/incoming in *this*
+  // session (in memory — nothing is saved), then land there and `ls` it. It's a
+  // scratch inbox: the recipient keeps what they want with `cp`, so opening a
+  // link never silently writes to their account.
+  const incoming = parseIncoming(location.hash);
+  if (incoming) {
+    const dir = materializeIncoming(vfs, incoming);
+    const rel = dir.replace(vfs.home, "~");
+    const label = incoming.folder ?? incoming.files[0]?.name ?? "content";
+    const n = incoming.files.length;
     term.print();
-    term.print(`— shared file: ${shared.name} —`, "accent");
-    for (const line of shared.content.split("\n")) term.print(line);
-    term.print();
-    term.print("(read-only preview — type 'help' to explore)", "dim");
+    term.print(`received: ${label}`, "accent");
+    term.print(
+      `${n} file${n === 1 ? "" : "s"} in ${rel} — not saved. keep with \`cp\`, e.g. \`cp ${rel}/${incoming.files[0]?.name ?? ""} ~/\``,
+      "dim",
+    );
+    await term.exec(`cd ${rel}`);
+    await term.exec("ls");
   }
 }
 

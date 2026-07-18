@@ -7,7 +7,6 @@ import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
 import { piaExtendContext } from "../pia/context.js";
 import { parsePublishHash } from "../share/publish.js";
-import { bootPublishedSession } from "../pia/publishSession.js";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 let term: Terminal | undefined;
@@ -73,46 +72,5 @@ describe("publish command", () => {
 
     await run(root, "publish empty");
     expect(lines(root).join("\n")).toContain("no .md files");
-  });
-});
-
-describe("published-folder session (opening a #p= link)", () => {
-  const site = {
-    title: "my-notes",
-    pages: [
-      { name: "index.md", content: "# Home\n\nWelcome to my notes." },
-      { name: "todo.md", content: "- ship it" },
-    ],
-  };
-
-  it("opens a terminal, banners the folder, and auto-lists the files", async () => {
-    const root = document.createElement("div");
-    document.body.append(root);
-    term = await bootPublishedSession(root, site);
-    const text = [...root.querySelectorAll(".term-line")].map((n) => n.textContent).join("\n");
-    expect(text).toContain("published folder: my-notes");
-    expect(text).toContain("ls"); // the echoed auto-command
-    expect(text).toContain("index.md");
-    expect(text).toContain("todo.md");
-    // A real prompt is present — it's a terminal, not a static page.
-    expect(root.querySelector(".term-prompt")).not.toBeNull();
-  });
-
-  it("lets the viewer read a published file with cat", async () => {
-    const root = document.createElement("div");
-    document.body.append(root);
-    term = await bootPublishedSession(root, site);
-    await term.exec("cat index.md");
-    const text = [...root.querySelectorAll(".term-line")].map((n) => n.textContent).join("\n");
-    expect(text).toContain("Welcome to my notes.");
-  });
-
-  it("mounts only the published files — no default welcome file", async () => {
-    const root = document.createElement("div");
-    document.body.append(root);
-    term = await bootPublishedSession(root, site);
-    await term.exec("ls");
-    const text = [...root.querySelectorAll(".term-line")].map((n) => n.textContent).join("\n");
-    expect(text).not.toContain("welcome.txt");
   });
 });
