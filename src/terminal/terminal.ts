@@ -9,6 +9,7 @@ import {
   type Session,
 } from "../commands/registry.js";
 import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
+import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
 import { parseConfig, DEFAULT_CONFIG } from "../pia/rc.js";
 import { applyTheme, DEFAULT_THEME } from "../pia/themes.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
@@ -728,6 +729,16 @@ export class Terminal {
     this.setInputVisible(false);
     try {
       let input = "";
+      // Filesystem view for globbing: resolve paths and list a directory.
+      const globFs: GlobFs = {
+        resolve: (cwd, path) => this.vfs.resolve(cwd, path),
+        entries: (dirAbs) => {
+          const node = this.vfs.getNode(dirAbs);
+          return node?.type === "dir"
+            ? this.vfs.list(dirAbs).map((entry) => entry.name)
+            : null;
+        },
+      };
       for (let i = 0; i < stages.length; i++) {
         const stage = stages[i];
         // Expand a user alias once (no recursion): `ll` → `ls -la`, with the
@@ -744,6 +755,11 @@ export class Terminal {
             args = [...words.slice(1), ...stage.args];
           }
         }
+        // Filename globbing (after alias expansion, like a real shell):
+        // `*.md`, `src/*.ts` expand against the VFS. Quoted wildcards were
+        // shielded by the tokenizer, so they pass through literal here.
+        name = unescapeWild(name);
+        args = expandArgs(args, this.cwd, globFs);
         const command = this.registry.get(name);
         if (!command) {
           this.print(`unknown command: ${name}. type 'help'.`, "error");
@@ -758,7 +774,7 @@ export class Terminal {
       }
 
       if (redirect) {
-        const path = this.vfs.resolve(this.cwd, redirect.file);
+        const path = this.vfs.resolve(this.cwd, unescapeWild(redirect.file));
         const prefix =
           redirect.append && this.vfs.getNode(path)
             ? this.vfs.readFile(path) + "\n"
