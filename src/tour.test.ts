@@ -128,6 +128,13 @@ const TOUR: string[] = [
   "brew install cowsay",
   "cowsay hello from a package",
   "brew uninstall cowsay",
+  "brew install cal",
+  "cal 7 2026",
+  "brew install bc",
+  'bc "2 + 3 * 4"',
+  "echo 6*7 | bc",
+  "brew install fortune",
+  "fortune",
 
   'echo "# system"',
   "whoami",

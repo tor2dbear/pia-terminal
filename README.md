@@ -37,7 +37,8 @@ guest@pia:~/notes$ ls | sort | uniq -c
 - **Scheduling**: `at` (one-off) and `crontab` (recurring) — a learning tool for
   cron syntax that fires while the tab is open.
 - **Packages**: `brew install <name>` adds opt-in apps — `snake`, `2048`,
-  `draw`, `cowsay` — loaded on demand. See [Packages](#packages-brew).
+  `draw`, `cowsay`, `cal`, `bc`, `fortune` — loaded on demand. See
+  [Packages](#packages-brew).
 
 Type `help` in the terminal for the full command list.
 
@@ -80,7 +81,8 @@ src/share/      share.ts / publish.ts (URL links) + store.ts (ShareStore)
 src/supabase/   cloud adapters (dynamic-imported; dormant without config)
 src/commands/   command registry + commands
 src/apps/       screen apps (editor, todo)
-src/packages/   brew packages (lazy-loaded, opt-in): snake, 2048, draw, cowsay
+src/packages/   brew packages (lazy-loaded, opt-in): snake, 2048, draw, cowsay,
+                cal, bc, fortune
 src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
 src/engine/     the reusable engine's public API (index.ts)
 src/examples/   a second app on the engine (a text adventure)
