@@ -8,7 +8,7 @@ import {
   type PickResult,
   type Session,
 } from "../commands/registry.js";
-import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
+import { tokenize, parseSequence, type Pipeline } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
 import { parseConfig, DEFAULT_CONFIG } from "../pia/rc.js";
 import { applyTheme, DEFAULT_THEME } from "../pia/themes.js";
@@ -709,24 +709,39 @@ export class Terminal {
     }
     this.historyIndex = this.history.length;
 
-    const parsed = parsePipeline(trimmed);
+    const parsed = parseSequence(trimmed);
     if (!parsed.ok) {
       this.print(parsed.error, "error");
       this.renderInput();
       return;
     }
 
-    await this.executePipeline(parsed.pipeline);
+    this.busy = true;
+    this.setInputVisible(false);
+    try {
+      // Run each pipeline in turn; `&&` skips on the previous failure, `||`
+      // skips on the previous success, `;` always runs. A skipped pipeline
+      // leaves the running status untouched, like a real shell.
+      let ok = true;
+      for (const item of parsed.items) {
+        if (item.connector === "&&" && !ok) continue;
+        if (item.connector === "||" && ok) continue;
+        ok = await this.executePipeline(item.pipeline);
+      }
+    } finally {
+      this.busy = false;
+      this.setInputVisible(true);
+    }
     this.renderInput();
   }
 
-  /** Run a parsed pipeline: each stage's captured output feeds the next. */
-  private async executePipeline(pipeline: Pipeline): Promise<void> {
+  /** Run one pipeline (each stage's captured output feeds the next); returns
+   * whether it succeeded — i.e. no stage reported an error. */
+  private async executePipeline(pipeline: Pipeline): Promise<boolean> {
     const { stages, redirect } = pipeline;
-    if (stages.length === 0) return;
+    if (stages.length === 0) return true;
 
-    this.busy = true;
-    this.setInputVisible(false);
+    const status = { failed: false };
     try {
       let input = "";
       // Filesystem view for globbing: resolve paths and list a directory.
@@ -763,13 +778,13 @@ export class Terminal {
         const command = this.registry.get(name);
         if (!command) {
           this.print(`unknown command: ${name}. type 'help'.`, "error");
-          return;
+          return false;
         }
         const isLast = i === stages.length - 1;
         // Capture output for every stage but the last, and for the last stage
         // when its output is being redirected to a file.
         const capture = !isLast || redirect !== null ? [] : undefined;
-        await command.run(args, this.context({ stdin: input, capture }));
+        await command.run(args, this.context({ stdin: input, capture, status }));
         input = capture ? capture.join("\n") : "";
       }
 
@@ -785,16 +800,23 @@ export class Terminal {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.print(`error: ${message}`, "error");
-    } finally {
-      this.busy = false;
-      this.setInputVisible(true);
+      return false;
     }
+    return !status.failed;
   }
 
   /** Build the context handed to a command for one invocation. */
-  private context(opts: { stdin?: string; capture?: string[] } = {}): CommandContext {
+  private context(
+    opts: { stdin?: string; capture?: string[]; status?: { failed: boolean } } = {},
+  ): CommandContext {
     const term = this;
     const capture = opts.capture;
+    // Route stderr and internal refusals through one place so they both print
+    // and mark the pipeline failed (so `&&`/`||` can branch on it).
+    const fail = (text: string): void => {
+      if (opts.status) opts.status.failed = true;
+      this.print(text, "error");
+    };
     return {
       vfs: this.vfs,
       session: this.session,
@@ -814,7 +836,7 @@ export class Terminal {
         ? (text = "") => capture.push(text)
         : (text, cls) => this.print(text, cls),
       // stderr always goes to the screen, never into the pipe.
-      error: (text) => this.print(text, "error"),
+      error: (text) => fail(text),
       clear: () => this.clear(),
       persist: () => this.adapter.save(this.vfs.root),
       reloadFs: async () => {
@@ -827,7 +849,7 @@ export class Terminal {
       share: this.share,
       runApp: capture
         ? () => {
-            this.print("cannot run a full-screen app in a pipeline", "error");
+            fail("cannot run a full-screen app in a pipeline");
             return Promise.resolve();
           }
         : (factory) => this.runApp(factory),

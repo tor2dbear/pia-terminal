@@ -147,3 +147,77 @@ export function parsePipeline(line: string): ParseResult {
   }
   return { ok: true, pipeline: { stages, redirect } };
 }
+
+/** How a pipeline relates to the one before it. `null` = the first one. */
+export type Connector = "&&" | "||" | ";";
+
+export interface SequenceItem {
+  connector: Connector | null;
+  pipeline: Pipeline;
+}
+
+export type SequenceResult =
+  | { ok: true; items: SequenceItem[] }
+  | { ok: false; error: string };
+
+/**
+ * Split a line into pipeline segments at top-level `;`, `&&`, `||` (a single
+ * `|` stays inside its pipeline). Quotes shield the operators. Each segment
+ * carries the connector that preceded it.
+ */
+function splitSequence(line: string): { connector: Connector | null; text: string }[] {
+  const segments: { connector: Connector | null; text: string }[] = [];
+  let text = "";
+  let connector: Connector | null = null;
+  let inQuotes = false;
+  const cut = (next: Connector): void => {
+    segments.push({ connector, text });
+    connector = next;
+    text = "";
+  };
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      text += ch;
+    } else if (inQuotes) {
+      text += ch;
+    } else if (ch === ";") {
+      cut(";");
+    } else if (ch === "&" && line[i + 1] === "&") {
+      cut("&&");
+      i++;
+    } else if (ch === "|" && line[i + 1] === "|") {
+      cut("||");
+      i++;
+    } else {
+      text += ch;
+    }
+  }
+  segments.push({ connector, text });
+  return segments;
+}
+
+/**
+ * Parse a full command line into a sequence of pipelines joined by `;`/`&&`/
+ * `||`. A single pipeline (no operators) yields one item with a `null`
+ * connector. A trailing `;` is allowed; an empty segment anywhere else — a
+ * leading operator or `a && && b` — is a syntax error.
+ */
+export function parseSequence(line: string): SequenceResult {
+  const segments = splitSequence(line);
+  const items: SequenceItem[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.text.trim() === "") {
+      // A trailing `;` leaves an empty final segment — that's fine; anything
+      // else empty (leading operator, `&&` with nothing after) is an error.
+      if (seg.connector === ";" && i === segments.length - 1) continue;
+      return { ok: false, error: `syntax error near '${seg.connector ?? ""}'` };
+    }
+    const parsed = parsePipeline(seg.text);
+    if (!parsed.ok) return parsed;
+    items.push({ connector: seg.connector, pipeline: parsed.pipeline });
+  }
+  return { ok: true, items };
+}

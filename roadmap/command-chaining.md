@@ -1,6 +1,6 @@
 ---
 title: Kommando-kedjning — && || ;
-status: later
+status: done
 tags: [shell, terminal]
 updated: 2026-07-17
 ---
@@ -30,4 +30,26 @@ flerstegsflöde.
 - Interaktion med redirect (`a && b > fil`) — bind redirect till rätt pipeline.
 - Behövs subshells/`( )`? Nej, långt bortom grunderna.
 
-_Ligger i `later` — värdefull men rör terminal-kärnan och kräver ett status-beslut._
+## Levererat
+Spikade **beslut (b): `ctx.error()` sätter en fail-flagga** — inget kommando behöver
+ändras, och det stämmer för nästan alla fall (terminalen dirigerar redan alla fel
+genom `error()`).
+- **Parsning:** ny `parseSequence` i `parse.ts` ovanpå `parsePipeline` — splittar
+  på topp-nivå `;`/`&&`/`||` (citat-medvetet; ett ensamt `|` stannar i sin
+  pipeline), och varje segment parsas som förut. Trailing `;` tillåtet; ledande
+  operator / tom operand = syntaxfel.
+- **Exekvering:** `executePipeline` returnerar nu `boolean` (success = inget fel
+  skrevs). `submit` kör sekvensen vänster→höger med kortslutning: `&&` hoppar vid
+  föregående *fail*, `||` vid *success*, `;` alltid. Ett hoppat steg lämnar
+  status orörd, som ett riktigt skal.
+- **Söm:** `context()` tar ett delat `status`-objekt; `error()` sätter
+  `failed = true`. `busy`/input-synlighet flyttades upp till `submit` så det inte
+  flimrar mellan pipelines. Skärm-appar (`nano foo && echo klart`) väntar korrekt
+  via `runApp`.
+
+Täckt av 7 parse-tester (split/connectorer/citat/trailing-`;`/fel) + 5 end-to-end
+(`;`, `&&` success/fail, `||` fail/success). 312 tester gröna; typecheck + build
+gröna; boot verifierad i headless Chromium.
+
+_`$?`, subshells `( )` och `&` (bakgrund) kvar som möjlig uppföljning — men den
+implicita fail-flaggan räcker för kedjning._
