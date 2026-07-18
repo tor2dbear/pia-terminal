@@ -38,6 +38,10 @@ function securityHeaders(mode: string): Plugin {
     "img-src 'self' data:",
     "font-src 'self'",
     `connect-src ${connect.join(" ")}`,
+    // The python package runs Pyodide inside a same-origin sandbox iframe
+    // (/python-sandbox.html), which carries its own relaxed CSP. The main app
+    // only needs permission to *frame* that same-origin page.
+    "frame-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -45,6 +49,20 @@ function securityHeaders(mode: string): Plugin {
   ];
   const metaCsp = base.join("; ");
   const headerCsp = [...base, "frame-ancestors 'none'"].join("; ");
+
+  // The isolated Python sandbox needs wasm-eval and the Pyodide CDN. This
+  // relaxation is scoped to that one page (a separate browsing context reached
+  // only via an iframe), so it never applies to the main app.
+  const sandboxCsp = [
+    "default-src 'none'",
+    "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net",
+    "connect-src 'self' https://cdn.jsdelivr.net",
+    "worker-src 'self' blob:",
+    "child-src blob:",
+    "style-src 'unsafe-inline'",
+    "base-uri 'none'",
+    "frame-ancestors 'self'",
+  ].join("; ");
 
   return {
     name: "pia-security-headers",
@@ -64,6 +82,17 @@ function securityHeaders(mode: string): Plugin {
     generateBundle() {
       const headers =
         [
+          // More specific paths must come first in a Cloudflare _headers file.
+          // The sandbox page opts into its own looser policy; the terminal may
+          // frame it (same-origin) but the page itself refuses to be framed by
+          // anyone else.
+          "/python-sandbox.html",
+          `  Content-Security-Policy: ${sandboxCsp}`,
+          // Overrides the DENY below so the terminal (same origin) may frame it.
+          "  X-Frame-Options: SAMEORIGIN",
+          "  X-Content-Type-Options: nosniff",
+          "  Referrer-Policy: no-referrer",
+          "",
           "/*",
           `  Content-Security-Policy: ${headerCsp}`,
           "  X-Frame-Options: DENY",

@@ -154,6 +154,7 @@ guest@pia:~$ brew list
   life         Conway's Game of Life — a cellular-automaton sandbox
   tetris       play Tetris — the falling-blocks classic
   qr           show a QR code for text or a share link
+  python       run real Python in a sandbox (Pyodide/WASM)
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -201,6 +202,8 @@ guest@pia:~$ brew install tetris
 installed tetris — commands: tetris
 guest@pia:~$ brew install qr
 installed qr — commands: qr
+guest@pia:~$ brew install python
+installed python — commands: python
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -247,6 +250,7 @@ available commands:
   passwd    set or change your account password
   publish   publish a folder as a shareable link (its files land in the opener's ~/incoming)
   pwd       print the current directory path
+  python    run Python via Pyodide (python file.py, or python -c 'code')
   qr        show a QR code for text or a URL
   rm        remove files or directories (-r for directories)
   share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
@@ -271,8 +275,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-69  echo "# system"
-70  whoami
-71  date -u
-72  help
-73  history | tail -5
+70  echo "# system"
+71  whoami
+72  date -u
+73  help
+74  history | tail -5

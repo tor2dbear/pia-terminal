@@ -97,6 +97,12 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["qr"],
     load: () => import("./qr/index.js").then((m) => m.pkg),
   },
+  python: {
+    name: "python",
+    description: "run real Python in a sandbox (Pyodide/WASM)",
+    commands: ["python"],
+    load: () => import("./python/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */

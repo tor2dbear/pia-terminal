@@ -1,9 +1,42 @@
 ---
 title: python — kör riktig kod i sandbox (Pyodide/WASM)
-status: later
+status: now
 tags: [apps, wasm]
-updated: 2026-07-17
+updated: 2026-07-18
 ---
+
+## Levererat (PoC, 2026-07-18)
+`brew install python`, sedan `python fil.py` / `python -c "kod"` kör **riktig
+CPython 3.12** i webbläsaren via Pyodide/WASM.
+
+- **Isolerad sandbox-iframe:** `public/python-sandbox.html` + `.js` kör Pyodide
+  i en egen browsing-context med en *lösare* CSP (`wasm-unsafe-eval` m.m.).
+  Huvudappens strikta CSP rörs inte — den fick bara `frame-src 'self'` (och en
+  per-path-regel i `_headers` + `<meta>` för sandbox-sidan, med
+  `X-Frame-Options: SAMEORIGIN`).
+- **postMessage-brygga:** `src/packages/python/bridge.ts` skapar en dold,
+  återanvänd iframe (Pyodide laddas lazy en gång) och skickar kod / tar emot
+  `{stdout, stderr, result, error}`. `index.ts` läser filer ur VFS:en, kör, och
+  skriver ut rader + fel; ett bart uttryck skrivs ut REPL-likt.
+- **Verifierat end-to-end** i riktig Chromium (Playwright): `print`,
+  flerradsutskrift, listkomprehension-repr (`[0, 1, 4, 9]`), och en riktig
+  Python-traceback för fel — allt korrekt. (Container-egress blockerar
+  Chromium→jsdelivr, så verifieringen kördes mot en **självhostad** Pyodide på
+  localhost; se hooken nedan.)
+- CI-säkra tester: `parsePythonArgs` (enhet) + `brew install python` i touren.
+  Pyodide/WASM körs inte i vitest — för tungt/nätverksberoende för CI.
+
+## Kvar (hardening efter PoC)
+- **Självhosta Pyodide** för full self-containment. Sandboxen laddar idag från
+  jsdelivr-CDN (som sandbox-CSP:n tillåter) — funkar för riktiga användare, men
+  är ett tredjeparts-runtime-anrop. Hooken finns redan: sätt
+  `window.PIA_PYODIDE_BASE = "/pyodide/"` och lägg ~14 MB kärnfiler (pyodide.js,
+  .asm.js, .asm.wasm, python_stdlib.zip, pyodide-lock.json) under `dist/pyodide/`
+  (build-fetch eller vendoring). Då kan `connect-src`/`script-src` i sandbox-CSP:n
+  dra bort CDN:n helt.
+- REPL (`python` utan arg), VFS-skrivningar tillbaka från Python, micropip/paket.
+- Reproducerbart e2e-skript (Playwright) som valfri `test:python` utanför CI.
+
 
 ## Mål
 `python script.py` kör riktig Python i webbläsaren via Pyodide (WASM), mot en fil
