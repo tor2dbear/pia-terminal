@@ -1,8 +1,8 @@
-import { HOME } from "../vfs/vfs.js";
-import type { VFS } from "../vfs/vfs.js";
+import { HOME, VFS } from "../vfs/vfs.js";
 import type { StorageAdapter } from "../storage/adapter.js";
 import {
   type CommandContext,
+  type CoreCommandContext,
   type CommandRegistry,
   type LineClass,
   type PickResult,
@@ -11,8 +11,15 @@ import {
 import { tokenize, parseSequence, type Pipeline } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
-import type { AuthAdapter } from "../auth/adapter.js";
-import type { ShareStore } from "../share/store.js";
+
+/** A do-nothing storage adapter: the engine default when an app has no backend
+ * (e.g. the adventure example). Nothing to load, saves are dropped. */
+const NULL_ADAPTER: StorageAdapter = {
+  async load() {
+    return null;
+  },
+  async save() {},
+};
 
 /** Prompt + aliases the terminal renders — the engine's view of user config,
  * independent of any file format or theme system. */
@@ -23,14 +30,24 @@ export interface TerminalConfig {
   aliases?: Record<string, string>;
 }
 
-export interface TerminalOptions {
-  vfs: VFS;
-  adapter: StorageAdapter;
-  registry: CommandRegistry;
-  auth: AuthAdapter;
-  session: Session;
-  /** Shared-list backend for collaboration; omitted → sharing is off. */
-  share?: ShareStore;
+export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext> {
+  /** The commands this shell offers. Its context type `Ctx` decides what the
+   * commands can reach — {@link CommandContext} (PIA) or a leaner core. */
+  registry: CommandRegistry<Ctx>;
+  /** The filesystem. Omitted → a fresh empty tree (a shell with no persistence,
+   * like the adventure example). */
+  vfs?: VFS;
+  /** Storage backend for persistence. Omitted → a null adapter (saves dropped). */
+  adapter?: StorageAdapter;
+  /** Who's at the prompt. Omitted → a generic `user`. */
+  session?: Session;
+  /**
+   * Add app-specific fields to the engine's core context, turning a
+   * {@link CoreCommandContext} into the app's own `Ctx` (PIA adds auth, share,
+   * baseUrl). Omitted → the commands run on the core context alone. Called once
+   * per command invocation, so it may read live state.
+   */
+  extendContext?: (core: CoreCommandContext) => Ctx;
   /**
    * Supply the prompt + aliases (and apply any theme as a side effect). Called
    * at boot and again whenever a command triggers `applyConfig`. Omitted → the
@@ -69,7 +86,7 @@ function decodeText(bytes: Uint8Array): string | null {
  * command history, Tab-completion, and the read-eval-print loop. Commands
  * reach the outside world only through the {@link CommandContext} it builds.
  */
-export class Terminal {
+export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly outputEl: HTMLDivElement;
   private readonly inputEl: HTMLDivElement;
   /** Visible layer of the input line (the field overlays it). */
@@ -84,10 +101,9 @@ export class Terminal {
 
   private readonly vfs: VFS;
   private readonly adapter: StorageAdapter;
-  private readonly registry: CommandRegistry;
-  private readonly auth: AuthAdapter;
+  private readonly registry: CommandRegistry<Ctx>;
   private readonly session: Session;
-  private readonly share?: ShareStore;
+  private readonly extendContext?: (core: CoreCommandContext) => Ctx;
   private readonly configure?: () => TerminalConfig;
 
   private cwd = HOME;
@@ -104,14 +120,13 @@ export class Terminal {
 
   constructor(
     private readonly root: HTMLElement,
-    opts: TerminalOptions,
+    opts: TerminalOptions<Ctx>,
   ) {
-    this.vfs = opts.vfs;
-    this.adapter = opts.adapter;
+    this.vfs = opts.vfs ?? VFS.seed();
+    this.adapter = opts.adapter ?? NULL_ADAPTER;
     this.registry = opts.registry;
-    this.auth = opts.auth;
-    this.session = opts.session;
-    this.share = opts.share;
+    this.session = opts.session ?? { user: "user" };
+    this.extendContext = opts.extendContext;
     this.configure = opts.configure;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
@@ -810,11 +825,15 @@ export class Terminal {
     return !status.failed;
   }
 
-  /** Build the context handed to a command for one invocation. */
+  /**
+   * Build the context handed to a command for one invocation. The engine builds
+   * the {@link CoreCommandContext}; an app's `extendContext` (if any) adds its
+   * own fields to produce the full `Ctx`. Called once per command, so `cwd` is a
+   * fresh snapshot — no command reads it after `setCwd` within the same run.
+   */
   private context(
     opts: { stdin?: string; capture?: string[]; status?: { failed: boolean } } = {},
-  ): CommandContext {
-    const term = this;
+  ): Ctx {
     const capture = opts.capture;
     // Route stderr and internal refusals through one place so they both print
     // and mark the pipeline failed (so `&&`/`||` can branch on it).
@@ -822,19 +841,15 @@ export class Terminal {
       if (opts.status) opts.status.failed = true;
       this.print(text, "error");
     };
-    return {
+    const core: CoreCommandContext = {
       vfs: this.vfs,
       session: this.session,
-      auth: this.auth,
       registry: this.registry,
       stdin: opts.stdin ?? "",
       piped: capture !== undefined,
-      baseUrl: `${location.origin}${location.pathname}`,
-      get cwd() {
-        return term.cwd;
-      },
-      setCwd(path: string) {
-        term.cwd = path;
+      cwd: this.cwd,
+      setCwd: (path: string) => {
+        this.cwd = path;
       },
       // Captured stages collect stdout into a buffer; otherwise it hits the DOM.
       print: capture
@@ -851,7 +866,6 @@ export class Terminal {
       applyConfig: () => this.loadConfig(),
       pickFile: () => this.pickFile(),
       saveFile: (name, content) => this.saveFile(name, content),
-      share: this.share,
       history: () => [...this.history],
       clearHistory: () => {
         this.history.length = 0;
@@ -864,6 +878,7 @@ export class Terminal {
           }
         : (factory) => this.runApp(factory),
     };
+    return this.extendContext ? this.extendContext(core) : (core as Ctx);
   }
 
   /** Hand the screen to a full-screen app; resolves when it exits. */

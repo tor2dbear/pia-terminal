@@ -4,14 +4,16 @@
  * implements). PIA's own commands, adapters, themes and config live *outside*
  * this door.
  *
- * A different app builds a shell by: implementing the adapter interfaces,
- * registering its own {@link Command}s on a {@link CommandRegistry}, and
- * handing them to a {@link Terminal}.
+ * A different app builds a shell by registering its own {@link Command}s on a
+ * {@link CommandRegistry} and handing them to a {@link Terminal}. Everything
+ * else is optional: with no filesystem, storage, auth or session the engine
+ * supplies sensible defaults (see `examples/adventure/`).
  *
- * NOTE: {@link Command} / the command context are not yet fully generic over an
- * app's own context extensions — that genericization is the next refinement,
- * and it's what a genuinely different second shell needs. This index defines
- * the intended surface; the internals are still being tidied behind it.
+ * {@link Command} / {@link CommandRegistry} / {@link Terminal} are generic over
+ * the command context. The default is PIA's own `CommandContext` (which lives
+ * outside this door); a leaner shell uses {@link CoreCommandContext} (the engine
+ * core) and, if it needs its own fields, supplies a `TerminalOptions.extendContext`
+ * to add them.
  */
 
 // ---- command model --------------------------------------------------------

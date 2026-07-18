@@ -4,6 +4,8 @@ import { LocalStorageAdapter } from "./storage/localStorage.js";
 import { FakeAuthAdapter } from "./auth/fakeAuth.js";
 import { buildRegistry } from "./commands/index.js";
 import { Terminal } from "./terminal/terminal.js";
+import type { CommandContext } from "./commands/registry.js";
+import { piaExtendContext } from "./pia/context.js";
 import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
@@ -95,14 +97,16 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
-  const term = new Terminal(root, {
+  const term = new Terminal<CommandContext>(root, {
     vfs,
     adapter,
     registry,
-    auth,
     session,
-    share,
     configure: () => loadTerminalConfig(vfs),
+    // PIA's half of the command context — the auth backend, share store and app
+    // URL for share links. The engine supplies the core (fs, io, config, file
+    // bridges); this adds the PIA-specific fields.
+    extendContext: piaExtendContext(auth, share),
   });
   await boot(term);
 

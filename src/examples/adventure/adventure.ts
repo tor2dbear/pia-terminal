@@ -7,17 +7,21 @@
 import {
   Terminal,
   CommandRegistry,
-  VFS,
-  type Command,
-  type StorageAdapter,
-  type AuthAdapter,
+  type CoreCommandContext,
 } from "../../engine/index.js";
 import { World } from "./world.js";
 
+/**
+ * The adventure's commands run on the engine's *core* context alone —
+ * `CoreCommandContext`, not PIA's richer `CommandContext`. No auth, no share, no
+ * baseUrl: the type says exactly what this shell depends on.
+ */
+type Ctx = CoreCommandContext;
+
 /** Build a registry of adventure commands, all closing over one shared world. */
-export function buildAdventureRegistry(world: World): CommandRegistry {
-  const reg = new CommandRegistry();
-  const print = (ctx: Parameters<Command["run"]>[1], text: string): void => {
+export function buildAdventureRegistry(world: World): CommandRegistry<Ctx> {
+  const reg = new CommandRegistry<Ctx>();
+  const print = (ctx: Ctx, text: string): void => {
     for (const line of text.split("\n")) ctx.print(line);
   };
 
@@ -65,39 +69,13 @@ export function buildAdventureRegistry(world: World): CommandRegistry {
   return reg;
 }
 
-// The adapter seams the engine needs — the adventure has no accounts or saved
-// files, so these are the smallest possible implementations of the contracts.
-const nullStorage: StorageAdapter = {
-  async load() {
-    return null;
-  },
-  async save() {},
-};
-const nullAuth: AuthAdapter = {
-  requiresPassword: false,
-  async current() {
-    return { user: "adventurer" };
-  },
-  async login() {
-    throw new Error("there are no accounts in the dungeon");
-  },
-  async register() {
-    throw new Error("there are no accounts in the dungeon");
-  },
-  async rename() {},
-  async logout() {},
-};
-
 /** Wire the adventure onto the engine's `Terminal` and show the opening room. */
-export function mountAdventure(root: HTMLElement): { term: Terminal; world: World } {
+export function mountAdventure(root: HTMLElement): { term: Terminal<Ctx>; world: World } {
   const world = new World();
-  const term = new Terminal(root, {
-    // The engine bundles a filesystem; this app doesn't use it, so it gets a
-    // throwaway seed. (Making the VFS optional is a later engine refinement.)
-    vfs: VFS.seed(),
-    adapter: nullStorage,
-    auth: nullAuth,
-    session: { user: "adventurer" },
+  // The whole wiring an app needs: its registry and a prompt. No filesystem,
+  // storage, auth or session — the engine defaults them all, and this shell uses
+  // none of them.
+  const term = new Terminal<Ctx>(root, {
     registry: buildAdventureRegistry(world),
     configure: () => ({ prompt: ">" }),
   });

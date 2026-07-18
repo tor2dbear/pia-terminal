@@ -5,6 +5,7 @@ import { VFS } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
+import { piaExtendContext } from "../pia/context.js";
 import { THEMES } from "../pia/themes.js";
 import { loadTerminalConfig } from "../pia/terminalConfig.js";
 
@@ -19,9 +20,9 @@ describe(".pia/config — themes, aliases, prompt", () => {
       vfs,
       adapter: new MemoryStorageAdapter(),
       registry: buildRegistry(),
-      auth: new MemoryAuthAdapter(),
       session: { user: "guest" },
       configure: () => loadTerminalConfig(vfs),
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
     });
     return root;
   }

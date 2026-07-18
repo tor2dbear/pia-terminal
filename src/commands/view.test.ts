@@ -5,6 +5,7 @@ import { VFS } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
+import { piaExtendContext } from "../pia/context.js";
 
 describe("json_pp and column", () => {
   let term: Terminal | undefined;
@@ -17,8 +18,8 @@ describe("json_pp and column", () => {
       vfs,
       adapter: new MemoryStorageAdapter(),
       registry: buildRegistry(),
-      auth: new MemoryAuthAdapter(),
       session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
     });
     return root;
   }
