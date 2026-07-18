@@ -1,4 +1,5 @@
 import type { Command, CommandContext, Session } from "./registry.js";
+import { reconcilePackages } from "../packages/catalog.js";
 
 const GUEST = "guest";
 const VALID_USER = /^[a-z0-9_-]+$/i;
@@ -18,6 +19,9 @@ async function enter(ctx: CommandContext, user: string): Promise<void> {
   // Adopt the new home's ~/.pia/config (theme, prompt, aliases) — otherwise an
   // in-place account switch keeps the previous user's settings.
   ctx.applyConfig?.();
+  // …and its brew packages: drop the previous account's, register this one's, so
+  // the live commands match `brew list` for the account you're now in.
+  await reconcilePackages(ctx.vfs, ctx.vfs.home, ctx.registry);
 }
 
 export const login: Command = {

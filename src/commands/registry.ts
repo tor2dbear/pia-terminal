@@ -110,6 +110,16 @@ export class CommandRegistry<Ctx extends CoreCommandContext = CommandContext> {
     return this;
   }
 
+  /** Remove a command (by primary name) and its aliases — used by `brew
+   * uninstall` to drop a package's commands from a live registry. */
+  unregister(name: string): void {
+    const command = this.byName.get(name);
+    if (!command || command.name !== name) return;
+    this.byName.delete(command.name);
+    for (const alias of command.aliases ?? []) this.byName.delete(alias);
+    this.primaries = this.primaries.filter((c) => c !== command);
+  }
+
   get(name: string): Command<Ctx> | undefined {
     return this.byName.get(name);
   }

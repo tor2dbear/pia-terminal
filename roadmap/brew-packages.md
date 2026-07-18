@@ -1,6 +1,6 @@
 ---
 title: brew — paket/appar frikopplade från kärnan
-status: inbox
+status: done
 tags: [packages, architecture]
 updated: 2026-07-18
 ---
@@ -9,6 +9,25 @@ updated: 2026-07-18
 Ett sätt att bygga "appar/paket" **frikopplade från huvudappen**, installerade
 on-demand — homebrew-känsla: `brew install <app>` lägger till kommandon/screen-
 appar i din PIA utan att blåsa upp kärnan.
+
+## Levererat (v1)
+- **`brew list` / `install <name>` / `uninstall <name>`.** Paket bor i
+  `src/packages/<namn>/` och exporterar ett `Package`-manifest (`{name,
+  description, commands}`). Install laddar paketet (**dynamisk import** → egen
+  chunk), registrerar kommandona i det levande registret (nytt
+  `CommandRegistry.unregister`), och sparar namnet i `~/.pia/packages`. Vid boot
+  återregistreras installerade paket (`registerInstalled` i `main.ts`), så de
+  överlever reload.
+- **CSP-säkert & tree-shakat:** dynamisk import av *lokala* chunks (samma origin).
+  Demo-paketet `cowsay` blev en egen **0,7 kB-chunk** som *inte* ligger i
+  huvudbundlen förrän man installerar det. Verifierat i bygget + tester +
+  end-to-end (install → kommandot funkar → uninstall → borta).
+- **Demo:** `cowsay` (`cowsay`/`cowthink`). Fler paket = ny mapp + en katalog-rad.
+
+## Kvar / nästa paket
+Bygg fler paket för att visa att mönstret skalar: **2048**, **draw** (screen-app-
+paket), ev. flytta ut `snake`/äventyret. Screen-appar funkar redan via `runApp`
+(core-context), så ett spel-paket är bara en mapp till.
 
 ## Varför det passar PIA
 - Extension-punkterna finns redan: command-registry (`{name,help,run}`) och

@@ -20,7 +20,7 @@ import { piaExtendContext } from "./pia/context.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { boot } from "./boot.js";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
+const tick = () => new Promise((r) => setTimeout(r, 1));
 /** A fixed instant so `date -u` is deterministic regardless of the CI clock. */
 const FIXED = new Date("2026-07-18T12:00:00Z");
 
@@ -48,7 +48,13 @@ async function run(line: string): Promise<void> {
   field.value = line;
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-  await flush();
+  // Wait for the command to actually finish (busy collapses the input line;
+  // it un-collapses when done) rather than a fixed delay — async commands like
+  // `brew install` (a dynamic import) can take longer on a slow CI runner.
+  const inputline = root.querySelector(".term-inputline") as HTMLElement;
+  for (let i = 0; i < 2000 && inputline.classList.contains("collapsed"); i++) {
+    await tick();
+  }
 }
 
 /** The whole session transcript, with volatile bits redacted. */
@@ -116,6 +122,12 @@ const TOUR: string[] = [
   "at now+5m echo remember",
   "at -l",
   "at -r 1",
+
+  'echo "# packages (brew)"',
+  "brew list",
+  "brew install cowsay",
+  "cowsay hello from a package",
+  "brew uninstall cowsay",
 
   'echo "# system"',
   "whoami",
