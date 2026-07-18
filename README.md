@@ -1,317 +1,196 @@
-# PIA — projektspec
+# PIA — Personal Integrated Applications
 
-> **PIA** — *Personal Integrated Applications*. Namnet är spikat (döpt efter Pia);
-> backronymen i Apple Lisa-andan.
-> En fristående webbterminal. Helt frikopplad från portfolion — eget repo, egen app.
+**A little computer in the browser.** PIA is a standalone web terminal — a
+filesystem, a text editor, text tools, accounts, sharing, and games — that
+behaves like a real shell. It's a place to *learn the terminal* (the muscle
+memory transfers straight to a real one) and a self-contained playground.
 
-Detta dokument är fröet till projektet. Det sammanfattar vad vi bollat fram och är
-tänkt att läsas i början av nästa session innan vi rör en rad kod.
+**Live:** [pia.tor2dbear.com](https://pia.tor2dbear.com)
 
----
-
-## Vad det är
-
-En terminal i webbläsaren som beter sig som en riktig liten dator. Man kan skapa
-och redigera textfiler, navigera ett filsystem, logga in, och köra kommandon — allt
-på ett terminaltroget sätt. En egen liten värld, inte en Unix-emulator på riktigt,
-men med tillräckligt av känslan för att kännas äkta.
-
-Det är en **riktig mini-app**, inte bara en portfolio-gimmick.
-
----
-
-## Beslut (spikade)
-
-| Fråga | Val |
-|-------|-----|
-| Själ | Riktig mini-app (verktyg med konton och sparade dokument) |
-| Lagring | **Starta klientsida** (localStorage), **backend som mål** |
-| Rendering | **Egen lättviktig** terminal-renderer (DOM/Canvas) — ingen xterm.js |
-| Språk | **TypeScript** |
-| Byggverktyg | Vite |
-| Tester | Vitest |
-| Deploy | Statisk sida först (Netlify/Vercel/valfritt), backend-steg senare |
-| Personlighet | Lutar åt "diskret värd" — en namngiven AI som hälsar vid boot och svarar torrt ibland. Ej spikat. |
-
-**Öppna frågor att bestämma tidigt:**
-- Namn på appen/personan.
-- Estetik: ren modern terminal vs. retro CRT (scanlines, glöd, boot-brus).
-- Prompt-tecken: klassiskt `$` eller något eget.
-- Editor: helskärms mini-editor (nano-stuk) vs. enkel inline-inmatning.
-
----
-
-## Arkitektur
-
-Målet är att backend-steget ska bli ett **byte, inte en omskrivning**. Det uppnås
-genom adaptrar mellan appen och lagringen. Terminalen rör aldrig `localStorage`
-direkt — den pratar med ett interface.
+Named after Pia — a backronym in the spirit of Apple's Lisa.
 
 ```
-┌─────────────────────────────────────────────┐
-│  Terminal-kärna (input, markör, history,     │
-│  Tab-komplettering, utskrift, rendering)     │
-├─────────────────────────────────────────────┤
-│  Command registry                            │
-│  { name, help, run(args, ctx) }              │
-├─────────────────────────────────────────────┤
-│  VFS (virtuellt filsystem — träd i minnet)   │
-├─────────────────────────────────────────────┤
-│  Adaptrar (interface):                        │
-│   • StorageAdapter → filer läs/skriv          │
-│   • AuthAdapter    → login/logout/whoami      │
-│                                               │
-│  Steg 1: LocalStorageAdapter / FakeAuth       │
-│  Steg 2: ApiAdapter / RealAuth (samma API)    │
-└─────────────────────────────────────────────┘
-```
-
-### De tre bärande delarna
-
-1. **VFS (virtuellt filsystem)** — ett träd av mappar/filer i minnet, serialiserat
-   via `StorageAdapter`. Grunden för `ls`, `cd`, `mkdir`, `touch`, `cat`, `rm`, `mv`, `pwd`.
-2. **Command registry** — varje kommando är ett litet objekt `{ name, help, run(args, ctx) }`.
-   Gör det trivialt att lägga till nya kommandon och att auto-generera `help`.
-3. **Terminal-kärna** — input-rad med blinkande markör, history (pil upp/ner),
-   Tab-komplettering, utskrift. Egen DOM-rendering för full designkontroll.
-
-**Bärande princip:** bygg kärnan (VFS + kommandon + editor) rock-solid. Allt
-annat — spel, appar, delning, AI — är bara "ännu ett kommando" ovanpå den. Ju
-stabilare kärna, desto billigare blir varje ny idé.
-
-**Designprincip — terminal-idiom först:** varje kommando/flöde ska följa
-Unix/shell-konvention (namn, flaggor, beteende). Föredra riktiga terminalnamn
-(`nano`, `useradd`, `grep -n`) framför vänliga/web-myntade (`edit`, `register`) —
-behåll de vänliga som *alias*. **När ett flöde saknar terminal-motsvarighet
-(t.ex. e-post + lösenord + bekräftelse, `share`→URL, touch-kontroller): flagga
-det och synka innan vi bygger** — så blir avvikelsen ett beslut, inte en drift.
-(Se `CLAUDE.md` för den fulla regeln.)
-
----
-
-## Ambitionsnivåer (trajektoria)
-
-> **Den levande planen bor i [`roadmap/`](roadmap/)** — en fil per puck, med
-> status `inbox → now/next/later → done`. Nivåerna nedan är projektets
-> *berättelse* och riktning, inte en aktuell att-göra-lista; för vad som faktiskt
-> är på gång, läs puckarna.
-
-Grovt vart nivåerna leder:
-
-- **Nivå 0 — Kärnan (MVP):** ✅ klar. `help`/`ls`/`cd`/`cat`/`nano`/fejk-login,
-  history, Tab, boot, tema.
-- **Nivå 1 — "En riktig liten dator":** i stort klar. Pipes & redirects,
-  `grep`/`find`, config-dotfil (teman/prompt/alias), `.md`/`.json`/`.csv`-vyer.
-  Kvar: `upload`/`download`.
-- **Nivå 2 — Appar i terminalen:** screen-app-hosten bär `nano`, `snake`, `todo`.
-  Fler appar (spel, rit-/musikverktyg) är "ännu en pizza i ugnen".
-- **Nivå 3 — Riktigt system (backend):** i stort in. Riktiga konton, filer som
-  följer mellan enheter, in-place-delning med live-sync. Kvar: `publish`,
-  multiplayer, schemalagt.
-- **Nivå 4 — Drömmål:** riktig kod-exekvering (Pyodide), retro/CRT-mode, en
-  AI-värd-persona.
-
-Detaljer, research och beslut för de kvarvarande punkterna ligger som puckar i
-[`roadmap/`](roadmap/) — inte här, så spec och plan inte driver isär.
-
-> **Nivå 5 (portfolio-som-terminal) är medvetet struken** — detta projekt är helt
-> frikopplat från portfolion.
-
----
-
-## Föreslagen startordning för nästa session
-
-1. Scaffolda Vite + TypeScript + Vitest.
-2. Bygg terminal-kärnan: input-rad, markör, utskrift, history, Tab.
-3. Bygg VFS + `StorageAdapter`-interface med `LocalStorageAdapter`.
-4. Bygg command registry + Nivå 0-kommandon.
-5. Bygg `edit` (mini-editor).
-6. `AuthAdapter` med fejk-login.
-7. Tema + boot-sekvens.
-8. → Härifrån är resten bara fler kommandon.
-
----
-
-## Terminalkänsla (designnoteringar)
-
-Blinkande blockmarkör · omsorgsfull monospace (JetBrains Mono / Berkeley Mono-vibe) ·
-scanline/CRT-filter som tillval · boot-sekvens vid load · ljud-toggle för
-tangenttryck · en `neofetch`-ruta med egen logga.
-
-Exempel på boot:
-
-```
-PIA v0.1
-Personal Integrated Applications
-hej. skriv 'help' för att börja.
-
-user@pia:~$ ▮
+guest@pia:~$ mkdir notes && cd notes
+guest@pia:~/notes$ echo "hello" > hi.txt && cat hi.txt
+hello
+guest@pia:~/notes$ ls | sort | uniq -c
 ```
 
 ---
 
-## Getting started (implementation)
+## What you can do
 
-> Note: the app UI is in English. The design spec above is still in Swedish.
+- **A real filesystem** in memory: `ls`, `cd`, `pwd`, `mkdir`, `touch`, `cp`,
+  `mv`, `rm`, `tree`, `find`, plus shell **globbing** (`*.md`).
+- **A text editor** — `nano` (full-screen, multi-buffer: `nano a.md b.md`,
+  switch with `M-,`/`M-.`), saves with `^O`, exits with `^X`.
+- **Text tools & pipes**: `cat`, `head`, `tail`, `sort`, `uniq`, `cut`, `wc`,
+  `grep` (with `-n`/`-A`/`-B`/`-C`), `column`, `glow` (render Markdown),
+  redirects (`>`, `>>`), pipelines (`|`), and command chaining (`&&`, `||`, `;`).
+- **Accounts**: `useradd`/`login`/`logout`/`passwd` — local by default, real
+  auth when a backend is configured.
+- **Config** in `~/.pia/config`: themes, custom hex colours, font, a coloured
+  prompt, and aliases (`source ~/.pia/config` to re-apply). See [Config](#config).
+- **Share & publish**: `share <file>` and `share`/`publish <folder>` produce a
+  self-contained link; opening it drops the content into the recipient's
+  `~/incoming`, in their own session, to keep with `cp`.
+- **Scheduling**: `at` (one-off) and `crontab` (recurring) — a learning tool for
+  cron syntax that fires while the tab is open.
+- **Packages**: `brew install <name>` adds opt-in apps — `snake`, `2048`,
+  `draw`, `cowsay` — loaded on demand. See [Packages](#packages-brew).
 
-**Live:** https://pia.tor2dbear.com — deployed automatically by Cloudflare Pages
-on every push to `main` (`npm run build` → `dist/`). CI
-(`.github/workflows/ci.yml`) runs typecheck + tests + build on every PR, and
-each PR gets its own preview URL before merge.
+Type `help` in the terminal for the full command list.
 
-The core (Level 0) is scaffolded and runnable.
-
-```bash
-npm install
-npm run dev        # start the dev server (Vite + HMR)
-npm test           # run the test suite (Vitest)
-npm run typecheck  # type-check without building
-npm run build      # production build to dist/
-```
-
-### Why TypeScript + Vite (not vanilla JS)?
-
-The architecture rests on **contracts** — `StorageAdapter`/`AuthAdapter` are
-interfaces and every command is a typed `{ name, help, run(args, ctx) }`. TS
-enforces those contracts for us, so the backend step becomes a *swap, not a
-rewrite*. Vite follows almost for free (runs TS + gives HMR for quickly tuning
-the boot sequence, cursor, and colors).
-
-### Code layout
-
-```
-src/
-  vfs/          virtual filesystem (tree + path resolution)
-  storage/      StorageAdapter interface + LocalStorage/Memory implementations
-  auth/         AuthAdapter interface + Fake/Memory implementations
-  share/        URL sharing + ShareStore (shared lists: Null/Memory/Supabase)
-  commands/     command registry + all commands (fs, system, edit, auth, text, games)
-  terminal/     terminal core (input, cursor, history, Tab, pipes) + screen-app host
-  apps/         full-screen apps (editor, snake, todo)
-  boot.ts       boot sequence
-  main.ts       entry point (wires everything together)
-```
-
-### What exists
-
-Commands: `help` · `whoami` · `echo` · `clear` · `neofetch` · `pwd` · `ls` ·
-`tree` · `cd` · `mkdir` · `touch` · `cat` · `rm` · `mv` · `nano` · `login` · `useradd` ·
-`usermod` · `passwd` · `invite` · `logout` · `grep` · `find` · `wc` · `snake` ·
-`share` · `shared` · `todo`.
-(`edit`→`nano`,
-`register`→`useradd` are aliases.) `share <file>` makes a self-contained public
-link (the file is packed into the URL hash — no server, works for guests);
-opening it shows the file read-only. `share <file> <email>` instead promotes the
-file to a **cloud-shared item** two logged-in people co-edit; `shared` lists
-what's shared with you and opens each in the right app (a `.list` in the todo
-app, text/`.md` in the editor), dispatched by filename. With a backend, `useradd <username> <email>
-<password>` picks a real username (stored as account metadata); `usermod
-<username>` renames you and moves your home directory. `todo share <name>
-<email>` promotes a checklist to a **shared list** two logged-in people can
-edit together (e.g. a shopping list) — see Collaboration below.
-
-- **Terminal core:** blinking block cursor, command history, Tab-completion
-  (commands + paths), a soft-keyboard capture field for mobile, a `paste` key
-  (Clipboard API) and long-press-selectable output for copying.
-- **Pipes & redirects:** `a | b | c`, `> file`, `>> file` — commands have real
-  stdin/stdout; `grep`/`find`/`wc` read files or piped input.
-- **Screen apps** (via the app host): `nano` (^O save, ^X exit) and `snake`
-  (arrows/WASD, on-screen D-pad) — both fully playable on a phone.
-- **Fake auth** with per-user home directories (`AuthAdapter`), the boot
-  sequence, and persistence via `LocalStorageAdapter`.
-
-136 tests cover the VFS, parser + pipelines, commands, auth, the keyboard-driven
-terminal, the editor, the snake game and todo apps, sharing, and the Supabase
-adapters.
-
-Level 0 and Level 1 are complete: pipes, `grep`/`find`, a user `~/.pia/config`
-dotfile (themes, prompt template, aliases; `ls -a` for dotfiles), file-type
-rendering (`.md` via `glow`, `.json` via `json_pp`, `.csv` as a table via
-`column`), and file import/export (`upload`/`download` between the OS and the
-VFS). Level 2 has three screen-apps (nano, snake, todo). Level 3 is largely
-in — real accounts, files that follow you between devices, and in-place file
-sharing with live-sync (see below).
-
-### Backend (Supabase) — live
-
-Real accounts (`register`/`login <email> <password>`) and files that follow you
-between devices. Guests stay on localStorage; logged-in users get cloud storage
-(`HybridStorageAdapter`). The cloud path loads via dynamic import, so
-`supabase-js` is a lazy chunk — the base bundle never pays for it.
-
-Config lives in the committed [`.env.production`](.env.production) — the URL and
-the Supabase **publishable** key. These are client-side keys that ship in the
-public bundle regardless; **Row-Level Security** (see
-[`supabase/schema.sql`](supabase/schema.sql)) is what protects the data. With no
-config present the app falls back to fully local (guest) mode and Supabase is
-tree-shaken out.
-
-Note: the app expects email confirmation to be **off** (Authentication →
-Sign-in → Email) so `register` logs you straight in; otherwise it tells you to
-confirm via the email link first, then `login`.
-
-### Collaboration — shared lists
-
-Two logged-in users can co-edit a file. `share <file> <email>` (or the checklist
-shortcut `todo share <name> <email>`) **links the file to a cloud shared object
-in place** — the file stays exactly where it lives in your tree (sharing is a
-property, not a move); its content becomes a synced cache and `nano`/`todo` then
-read and write it through the cloud. `ls` marks a linked file with a trailing
-`@` (like a symlink). On login, files shared *with* you are placed into a
-`~/shared/` inbox as real linked files — so they show up in `ls`/`cat`/`nano`
-and you can `mv` them wherever you like in your own tree (the path is per-user;
-moving your copy doesn't touch anyone else's). The `shared` command lists any
-membership not yet placed and opens each in the right app by filename
-(`.list` → todo, text/`.md` → editor). the local copy is handed over so the cloud stays the one
-source of truth. The invitee gets a **magic-link email** (`signInWithOtp` with
-`shouldCreateUser`) — clicking it creates their account (if new) and lands them
-logged in. On that first login the pending invite is claimed automatically, and
-the list shows up under `todo` (marked 👥) for both of them. Editing saves
-straight to the cloud, and an open list **live-syncs**: a co-editor's changes
-arrive over Supabase Realtime and update the open checklist in place (saves are
-still last-write-wins; the live push just keeps both screens current).
-
-The invite *row* is the source of truth: it's claimed on login whether or not
-the email arrives, so the emailed link is a best-effort nudge — a failed or
-unavailable send never fails the share (the invitee can just log in manually
-with the same address).
-
-The email sender is a Supabase dashboard setting, independent of this code: the
-built-in sender (Supabase-branded, rate-limited — fine for now) today, custom
-SMTP + your own domain for unbranded mail later. For the magic link to redirect
-back, the app's URL must be in **Auth → URL Configuration → Redirect URLs**.
-
-The seam is a `ShareStore` interface (`src/share/store.ts`) — `NullShareStore`
-for guests, `SupabaseShareStore` (dynamic-imported) for logged-in users, and a
-`MemoryShareStore` for tests. The schema lives in
-[`supabase/shared_lists.sql`](supabase/shared_lists.sql): three tables
-(`shared_lists`, `shared_list_members`, `shared_list_invites`) behind RLS, with
-membership changes going through `SECURITY DEFINER` RPCs so a client can never
-add itself to a list it wasn't invited to.
-
-### Next steps
-
-Level 1 is done. Next is Level 3: `publish <folder>` → a public page ·
-`who`/`msg` multiplayer · `remind`. And more Level 2 apps along the way
-(`2048`, `draw`).
 ---
 
-## The engine as a package
+## Design principle: terminal-idiom first
 
-PIA's terminal core is extractable. `src/engine/index.ts` is a dependency-free
-public API — command registry, pipe/sequence parsing, globbing, the screen-app
-host, the `Terminal` DOM renderer, the VFS, and the storage/auth adapter seams —
-and `src/examples/adventure/` is a second, unrelated shell (a text adventure)
-built on it alone, opened at `/adventure/` and sharing the same `terminal-*.js`
-chunk as PIA in the build.
+Every command and flow follows Unix/shell convention — real command **names**,
+**flags**, and **behaviour**. Prefer the real terminal name (`nano`, `useradd`,
+`grep -n`) over friendly/web coinages. Where a flow has no terminal equivalent —
+`share`/`publish` returning a URL, `upload`/`download` reaching the OS file
+picker, on-screen touch controls — it's called out as a deliberate, accepted web
+divergence, not drift.
+
+---
+
+## Architecture
+
+The design is built to stay swappable — the backend was a *swap, not a rewrite*.
+
+- **Adapters are the seam.** The terminal never touches storage or auth directly,
+  only the `StorageAdapter` / `AuthAdapter` / `ShareStore` interfaces. Guests get
+  `Local`/`Fake`/`Null` implementations; logged-in users get Supabase — behind the
+  same interfaces.
+- **Command registry.** Each command is `{ name, help, run(args, ctx), aliases? }`.
+  Commands reach the world only through a `CommandContext` (print, vfs, auth,
+  stdin, runApp, …) — never the DOM or storage.
+- **Screen-app host.** Full-screen apps (the editor, the games) implement
+  `ScreenApp` and take over the screen via `ctx.runApp()`. A new game or app is
+  "just another screen app".
+- **VFS.** An in-memory filesystem tree, serialized by the storage adapter.
+
+### Layout
+
+```
+src/vfs/        filesystem tree + path resolution
+src/storage/    StorageAdapter + Local/Memory
+src/auth/       AuthAdapter + Fake/Memory
+src/share/      share.ts / publish.ts (URL links) + store.ts (ShareStore)
+src/supabase/   cloud adapters (dynamic-imported; dormant without config)
+src/commands/   command registry + commands
+src/apps/       screen apps (editor, todo)
+src/packages/   brew packages (lazy-loaded, opt-in): snake, 2048, draw, cowsay
+src/terminal/   terminal core (input, cursor, history, Tab, pipes) + app host
+src/engine/     the reusable engine's public API (index.ts)
+src/examples/   a second app on the engine (a text adventure)
+roadmap/        one markdown file per planned item ("puck")
+```
+
+---
+
+## The engine
+
+PIA's terminal core is **extractable**. `src/engine/index.ts` is a
+dependency-free public API — command registry, pipe/sequence parsing, globbing,
+the screen-app host, the `Terminal` DOM renderer, the VFS, and the adapter
+seams. `src/examples/adventure/` is a **second, unrelated app** (a text
+adventure) built on that API alone, opened at `/adventure/` and sharing the same
+`terminal-*.js` chunk as PIA in the build.
 
 `Command`, `CommandRegistry` and `Terminal` are generic over the command
-context: PIA extends `CoreCommandContext` with its own fields (auth, share,
-baseUrl) via `TerminalOptions.extendContext` — a leaner shell runs on the core
-alone and omits the filesystem, storage, auth and session entirely (the engine
-defaults them).
+context: PIA extends `CoreCommandContext` with its own fields via
+`TerminalOptions.extendContext`; a leaner shell runs on the core alone.
 
-`npm run build:engine` builds the standalone package into `dist-engine/` (JS +
-`.d.ts` + its own `package.json`), publishable with `cd dist-engine && npm
-publish`. Pick a licence first — see the roadmap puck. The app build
-(`npm run build`) is untouched by this.
+`npm run build:engine` builds the engine as a standalone, installable npm package
+into `dist-engine/`.
+
+---
+
+## Packages (brew)
+
+Optional apps are **decoupled from the core** and installed on demand:
+
+```
+guest@pia:~$ brew list
+guest@pia:~$ brew install snake
+installed snake — commands: snake
+guest@pia:~$ snake
+```
+
+Each package lives in `src/packages/<name>/` and exports a manifest
+(`{ name, description, commands }`). The catalog maps names to **dynamic-import
+loaders**, so a package's code is a separate chunk fetched only when installed —
+the core bundle never pays for it. Installed packages persist in
+`~/.pia/packages` and are re-registered at boot.
+
+Because of the strict CSP (`script-src 'self'`), packages are same-origin and
+curated — not arbitrary third-party code from the internet.
+
+---
+
+## Config
+
+`~/.pia/config` is a small rc file you edit with `nano ~/.pia/config`, then
+apply with `source ~/.pia/config` (or a reload):
+
+```
+theme = phosphor            # phosphor · amber · ice · mono
+color.accent = #ff8800      # override any of: bg fg dim accent error
+font = "Berkeley Mono", monospace
+font-size = 15
+prompt = %F{accent}{user}%f:%F{dim}{cwd}%f$    # zsh-style colour markup
+alias ll = ls -la
+```
+
+Themes and colours apply via the CSSOM (CSP-safe). The prompt supports zsh-style
+`%F{token|#hex}…%f` colour and `%B…%b` bold, with placeholders `{user}`
+`{host}` `{cwd}`.
+
+---
+
+## Development
+
+TypeScript + Vite + Vitest. Node 18+.
+
+```
+npm install
+npm run dev          # dev server
+npm run typecheck    # tsc --noEmit
+npm test             # vitest
+npm run build        # production build → dist/
+```
+
+Run `npm run typecheck && npm test && npm run build` before shipping.
+
+**The tour** (`src/tour.test.ts` → `src/tour.golden.txt`) is one scripted
+session driven through the real terminal, snapshotted as a human-readable golden
+transcript. When you add a feature, add lines to `TOUR`, run `npx vitest -u`, and
+review the golden diff — that diff is the output verification. It's deterministic
+(frozen clock, redacted volatile output) and checks output/behaviour, not pixels.
+
+Tests prefer driving real behaviour (the jsdom terminal, injected rng) over
+shallow unit tests.
+
+---
+
+## Deploy
+
+Cloudflare Pages builds on push to `main` (`npm run build` → `dist/`) and serves
+the custom domain over HTTPS; every PR gets its own preview URL. Work lands via
+**branch → PR → CI → merge** — `.github/workflows/ci.yml` runs typecheck, tests
+and build on each PR (required by branch protection on `main`).
+
+Security headers — CSP, `frame-ancestors`, `X-Frame-Options`, … — are emitted at
+build time (`dist/_headers` plus a matching `<meta>` CSP) by the `vite.config.ts`
+plugin. Cloud config lives in committed `.env.production` (public client keys;
+RLS is the security boundary). With no Supabase configured, the app is fully
+local and the cloud path is tree-shaken out.
+
+---
+
+## Roadmap
+
+Planned work lives in `roadmap/` as one markdown file per item ("puck"), each
+with YAML frontmatter and a free-form body. Status flows
+`inbox → now / next / later → done`. See `roadmap/README.md` for the convention.
