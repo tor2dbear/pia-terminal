@@ -7,6 +7,12 @@ export type { Session };
 
 export type LineClass = "normal" | "dim" | "accent" | "error";
 
+/** The outcome of an OS file pick: a text file, a rejection reason, or cancel. */
+export type PickResult =
+  | { name: string; content: string }
+  | { error: "too-large" | "binary" }
+  | null;
+
 /**
  * Everything a command is handed when it runs. Commands talk to the world
  * only through this — never to the DOM or storage directly.
@@ -40,6 +46,13 @@ export interface CommandContext {
   reloadFs?(): Promise<void>;
   /** Re-read ~/.pia/config and apply it (theme, prompt, aliases) live. */
   applyConfig?(): void;
+  /**
+   * Web bridges (no terminal equivalent — accepted divergences, like share→URL):
+   * open the OS file picker, resolving to the chosen text file (or null if
+   * cancelled), and trigger a browser download of a VFS file.
+   */
+  pickFile?(): Promise<PickResult>;
+  saveFile?(name: string, content: string): void;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
   /** The registry, so `help` can enumerate commands. */

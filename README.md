@@ -239,11 +239,11 @@ edit together (e.g. a shopping list) — see Collaboration below.
 terminal, the editor, the snake game and todo apps, sharing, and the Supabase
 adapters.
 
-Level 0 is complete. Level 1 is well underway (pipes, `grep`/`find`, and a user
-`~/.pia/config` dotfile with themes, a prompt template and aliases; `ls -a` for
-dotfiles; `.md` renders with `glow`, `.json` with `json_pp`, `.csv` as a table
-via `column`). Level 2 has three screen-apps (nano, snake, todo). Level 3 is
-largely
+Level 0 and Level 1 are complete: pipes, `grep`/`find`, a user `~/.pia/config`
+dotfile (themes, prompt template, aliases; `ls -a` for dotfiles), file-type
+rendering (`.md` via `glow`, `.json` via `json_pp`, `.csv` as a table via
+`column`), and file import/export (`upload`/`download` between the OS and the
+VFS). Level 2 has three screen-apps (nano, snake, todo). Level 3 is largely
 in — real accounts, files that follow you between devices, and in-place file
 sharing with live-sync (see below).
 
@@ -306,8 +306,6 @@ add itself to a list it wasn't invited to.
 
 ### Next steps
 
-Finish Level 1: file import/export (upload/download real files) — `.md`/`.json`/
-`.csv` already render via `glow` / `json_pp` / `column`. Then Level 3:
-`publish <folder>` → a public page · `who`/`msg` multiplayer · `remind`. More
-Level 2 apps along the way (`2048`,
-`draw`).
+Level 1 is done. Next is Level 3: `publish <folder>` → a public page ·
+`who`/`msg` multiplayer · `remind`. And more Level 2 apps along the way
+(`2048`, `draw`).

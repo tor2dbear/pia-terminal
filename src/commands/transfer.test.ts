@@ -1,0 +1,141 @@
+import { describe, expect, it, vi } from "vitest";
+import { VFS, HOME } from "../vfs/vfs.js";
+import { MemoryStorageAdapter } from "../storage/localStorage.js";
+import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
+import { MemoryShareStore } from "../share/store.js";
+import { buildRegistry } from "./index.js";
+import { upload, download } from "./transfer.js";
+import type { CommandContext, LineClass } from "./registry.js";
+
+/** A headless context with injectable pickFile/saveFile/share bridges. */
+function harness(opts: Partial<Pick<CommandContext, "pickFile" | "saveFile" | "share">> = {}) {
+  const vfs = VFS.seed();
+  const adapter = new MemoryStorageAdapter();
+  const lines: { text: string; cls: LineClass }[] = [];
+  let cwd = HOME;
+  const ctx: CommandContext = {
+    vfs,
+    registry: buildRegistry(),
+    auth: new MemoryAuthAdapter(),
+    session: { user: "guest" },
+    stdin: "",
+    piped: false,
+    baseUrl: "https://pia.test/",
+    get cwd() {
+      return cwd;
+    },
+    setCwd(p: string) {
+      cwd = p;
+    },
+    print: (text = "", cls: LineClass = "normal") => lines.push({ text, cls }),
+    error: (text: string) => lines.push({ text, cls: "error" }),
+    clear: () => (lines.length = 0),
+    persist: () => adapter.save(vfs.root),
+    runApp: async () => {},
+    ...opts,
+  };
+  return { ctx, vfs, lines, text: () => lines.map((l) => l.text) };
+}
+
+describe("upload", () => {
+  it("writes the picked file into the current directory and persists", async () => {
+    const h = harness({ pickFile: async () => ({ name: "notes.txt", content: "hello" }) });
+    await upload.run([], h.ctx);
+    expect(h.vfs.readFile(`${HOME}/notes.txt`)).toBe("hello");
+    expect(h.text().at(-1)).toContain("uploaded notes.txt");
+  });
+
+  it("uploads into a given directory", async () => {
+    const h = harness({ pickFile: async () => ({ name: "f.md", content: "# hi" }) });
+    h.vfs.mkdir(`${HOME}/docs`);
+    await upload.run(["docs"], h.ctx);
+    expect(h.vfs.readFile(`${HOME}/docs/f.md`)).toBe("# hi");
+  });
+
+  it("reports a cancelled pick without writing anything", async () => {
+    const h = harness({ pickFile: async () => null });
+    await upload.run([], h.ctx);
+    expect(h.text()).toContain("upload: cancelled");
+  });
+
+  it("errors when the target is not a directory", async () => {
+    const h = harness({ pickFile: async () => ({ name: "x", content: "" }) });
+    h.vfs.writeFile(`${HOME}/file.txt`, "x");
+    await upload.run(["file.txt"], h.ctx);
+    expect(h.text().at(-1)).toContain("not a directory");
+  });
+
+  it("reports when the bridge is unavailable", async () => {
+    const h = harness(); // no pickFile
+    await upload.run([], h.ctx);
+    expect(h.text().at(-1)).toContain("not supported");
+  });
+
+  it("refuses a file the picker flagged as binary", async () => {
+    const h = harness({ pickFile: async () => ({ error: "binary" as const }) });
+    await upload.run([], h.ctx);
+    expect(h.text().at(-1)).toContain("only text files");
+  });
+
+  it("rejects an oversized file", async () => {
+    const h = harness({ pickFile: async () => ({ error: "too-large" as const }) });
+    await upload.run([], h.ctx);
+    expect(h.text().at(-1)).toContain("too large");
+  });
+
+  it("pushes an overwrite of a cloud-linked file through the share backend", async () => {
+    const store = new MemoryShareStore("me@x", MemoryShareStore.backing());
+    const id = await store.create("notes.txt", "old cloud");
+    const h = harness({
+      pickFile: async () => ({ name: "notes.txt", content: "new content" }),
+      share: store,
+    });
+    h.vfs.writeFile(`${HOME}/notes.txt`, "old cloud");
+    h.vfs.link(`${HOME}/notes.txt`, id);
+
+    await upload.run([], h.ctx);
+    expect((await store.get(id))?.content).toBe("new content"); // cloud updated
+  });
+});
+
+describe("download", () => {
+  it("saves the file's content under its basename", async () => {
+    const saveFile = vi.fn();
+    const h = harness({ saveFile });
+    h.vfs.writeFile(`${HOME}/report.txt`, "data here");
+    await download.run(["report.txt"], h.ctx);
+    expect(saveFile).toHaveBeenCalledWith("report.txt", "data here");
+    expect(h.text().at(-1)).toContain("downloading report.txt");
+  });
+
+  it("exports the current cloud copy of a linked file, not a stale cache", async () => {
+    const store = new MemoryShareStore("me@x", MemoryShareStore.backing());
+    const id = await store.create("notes.txt", "CLOUD FRESH");
+    const saveFile = vi.fn();
+    const h = harness({ saveFile, share: store });
+    h.vfs.writeFile(`${HOME}/notes.txt`, "stale cache");
+    h.vfs.link(`${HOME}/notes.txt`, id);
+
+    await download.run(["notes.txt"], h.ctx);
+    expect(saveFile).toHaveBeenCalledWith("notes.txt", "CLOUD FRESH");
+  });
+
+  it("errors on a missing file", async () => {
+    const h = harness({ saveFile: vi.fn() });
+    await download.run(["nope.txt"], h.ctx);
+    expect(h.text().at(-1)).toContain("download:");
+    expect(h.text().at(-1)).toContain("no such file");
+  });
+
+  it("requires a filename", async () => {
+    const h = harness({ saveFile: vi.fn() });
+    await download.run([], h.ctx);
+    expect(h.text().at(-1)).toContain("usage");
+  });
+
+  it("reports when the bridge is unavailable", async () => {
+    const h = harness(); // no saveFile
+    await download.run(["x"], h.ctx);
+    expect(h.text().at(-1)).toContain("not supported");
+  });
+});

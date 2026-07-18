@@ -5,6 +5,7 @@ import {
   type CommandContext,
   type CommandRegistry,
   type LineClass,
+  type PickResult,
   type Session,
 } from "../commands/registry.js";
 import { tokenize, parsePipeline, type Pipeline } from "./parse.js";
@@ -32,6 +33,20 @@ function commonPrefix(items: string[]): string {
     while (!item.startsWith(prefix)) prefix = prefix.slice(0, -1);
   }
   return prefix;
+}
+
+/**
+ * Decode uploaded bytes to text: UTF-8, falling back to Windows-1252 for legacy
+ * files (e.g. Excel CSV exports). Returns null for binary — a NUL byte, which
+ * text never contains but images/PDFs/archives do.
+ */
+function decodeText(bytes: Uint8Array): string | null {
+  if (bytes.includes(0)) return null;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
 }
 
 /**
@@ -292,6 +307,58 @@ export class Terminal {
     this.promptTemplate = cfg.prompt || "{user}@pia:{cwd}$";
     this.aliases = new Map(Object.entries(cfg.aliases));
     applyTheme(cfg.theme ?? DEFAULT_THEME);
+  }
+
+  /**
+   * Open the OS file picker and resolve with the chosen file's text (or null if
+   * cancelled). No terminal equivalent — an accepted web divergence, used by
+   * `upload`.
+   */
+  private pickFile(): Promise<PickResult> {
+    const MAX_BYTES = 1_048_576; // 1 MB — comfortably under the localStorage quota
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      // A hint toward text files — the VFS stores text. Not a hard filter.
+      input.accept = "text/*,.md,.json,.csv,.log,.yml,.yaml,.sh,.ts,.js,.css,.html,.xml,.ini";
+      input.style.display = "none";
+      let settled = false;
+      const done = (v: PickResult): void => {
+        if (settled) return;
+        settled = true;
+        input.remove();
+        resolve(v);
+      };
+      input.addEventListener("change", () => {
+        const file = input.files?.[0];
+        if (!file) return done(null);
+        // Reject oversized files before reading them into memory or the VFS.
+        if (file.size > MAX_BYTES) return done({ error: "too-large" });
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = decodeText(new Uint8Array(reader.result as ArrayBuffer));
+          done(text === null ? { error: "binary" } : { name: file.name, content: text });
+        };
+        reader.onerror = () => done(null);
+        reader.readAsArrayBuffer(file);
+      });
+      input.addEventListener("cancel", () => done(null)); // picker dismissed
+      document.body.append(input);
+      input.click();
+    });
+  }
+
+  /** Trigger a browser download of `content` as a file named `name`. */
+  private saveFile(name: string, content: string): void {
+    const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.style.display = "none";
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   private promptText(): string {
@@ -739,6 +806,8 @@ export class Terminal {
         if (root) this.vfs.root = root;
       },
       applyConfig: () => this.loadConfig(),
+      pickFile: () => this.pickFile(),
+      saveFile: (name, content) => this.saveFile(name, content),
       share: this.share,
       runApp: capture
         ? () => {

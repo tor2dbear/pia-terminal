@@ -10,6 +10,7 @@ import { todoCommands } from "./todo.js";
 import { configCommands } from "./config.js";
 import { glowCommands } from "./glow.js";
 import { viewCommands } from "./view.js";
+import { transferCommands } from "./transfer.js";
 
 /** Build a registry with all commands registered. */
 export function buildRegistry(): CommandRegistry {
@@ -26,6 +27,7 @@ export function buildRegistry(): CommandRegistry {
     ...configCommands,
     ...glowCommands,
     ...viewCommands,
+    ...transferCommands,
   ]) {
     registry.register(cmd);
   }
