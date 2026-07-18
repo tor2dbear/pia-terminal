@@ -14,6 +14,19 @@ export interface PythonResult {
   stderr: string;
   result: string | null;
   error: string | null;
+  /** REPL only: the input was an incomplete statement, awaiting more lines. */
+  incomplete: boolean;
+  /** Files that were created or changed in the work dir during the run. */
+  files: Record<string, string>;
+}
+
+export interface RunOptions {
+  /** "repl" keeps a persistent namespace and reports incomplete input. */
+  mode?: "exec" | "repl";
+  /** Files to mount into the work dir before running (name → content). */
+  files?: Record<string, string>;
+  /** Fires once if Pyodide has to initialise first (cold start). */
+  onLoading?: () => void;
 }
 
 interface SandboxWindow {
@@ -58,19 +71,21 @@ function ensureFrame(): Promise<SandboxWindow> {
 
 /**
  * Run Python `code` in the sandbox, resolving with its captured output.
- * `onLoading` fires once if Pyodide has to initialise first (cold start).
+ * `opts.onLoading` fires once if Pyodide has to initialise first (cold start).
  */
-export function runPython(code: string, onLoading?: () => void): Promise<PythonResult> {
+export function runPython(code: string, opts: RunOptions = {}): Promise<PythonResult> {
   return ensureFrame().then(
     (sandbox) =>
       new Promise<PythonResult>((resolve) => {
         const id = ++seq;
         const onMessage = (event: MessageEvent): void => {
           if (frame && event.source !== frame.contentWindow) return;
-          const data = event.data as (PythonResult & { type?: string; id?: number }) | undefined;
+          const data = event.data as
+            | (PythonResult & { type?: string; id?: number })
+            | undefined;
           if (!data || data.id !== id) return;
           if (data.type === "loading") {
-            onLoading?.();
+            opts.onLoading?.();
             return;
           }
           if (data.type === "result") {
@@ -80,11 +95,16 @@ export function runPython(code: string, onLoading?: () => void): Promise<PythonR
               stderr: data.stderr ?? "",
               result: data.result ?? null,
               error: data.error ?? null,
+              incomplete: data.incomplete ?? false,
+              files: data.files ?? {},
             });
           }
         };
         window.addEventListener("message", onMessage);
-        sandbox.postMessage({ type: "run", id, code }, "*");
+        sandbox.postMessage(
+          { type: "run", id, code, mode: opts.mode ?? "exec", files: opts.files ?? {} },
+          "*",
+        );
       }),
   );
 }

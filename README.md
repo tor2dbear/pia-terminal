@@ -39,9 +39,10 @@ guest@pia:~/notes$ ls | sort | uniq -c
 - **Packages**: `brew install <name>` adds opt-in apps — `snake`, `2048`,
   `draw`, `cowsay`, `cal`, `bc`, `fortune`, `sl`, `cmatrix`, `tutor`, `life`,
   `tetris`, `qr`, `python` — loaded on demand. See [Packages](#packages-brew).
-- **Real Python**: `python file.py` (or `python -c "…"`) runs CPython on WASM
-  (Pyodide) inside an isolated sandbox iframe — installed with `brew install
-  python`.
+- **Real Python**: `python` (an interactive REPL), `python file.py`, or
+  `python -c "…"` runs CPython on WASM (Pyodide) inside an isolated sandbox
+  iframe. It can read the files in your working directory and its writes show up
+  in `ls`. Installed with `brew install python`.
 
 Type `help` in the terminal for the full command list.
 

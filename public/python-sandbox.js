@@ -35,14 +35,73 @@
     });
   }
 
+  var WORKDIR = "/home/pyodide";
+
   function initPyodide() {
     return loadScript(BASE + "pyodide.js").then(function () {
       // `loadPyodide` is defined by the CDN script above.
-      return self.loadPyodide({ indexURL: BASE });
+      return self.loadPyodide({ indexURL: BASE }).then(function (pyodide) {
+        // A private helper (in a throwaway namespace so it doesn't pollute the
+        // user's REPL globals) that reports whether interactive input is a
+        // complete statement, an incomplete block, or a syntax error.
+        var checkNs = pyodide.runPython("dict()");
+        pyodide.runPython(
+          "import codeop\n" +
+            "def check(s):\n" +
+            "    try:\n" +
+            "        return 'incomplete' if codeop.compile_command(s, '<repl>', 'single') is None else 'complete'\n" +
+            "    except (SyntaxError, ValueError, OverflowError):\n" +
+            "        return 'error'\n",
+          { globals: checkNs },
+        );
+        pyodide._piaCheckNs = checkNs;
+        return pyodide;
+      });
     });
   }
 
-  function run(code) {
+  /** Write the terminal's files into Pyodide's FS; return them for diffing. */
+  function syncIn(pyodide, files) {
+    var before = {};
+    if (!files) return before;
+    for (var name in files) {
+      if (!Object.prototype.hasOwnProperty.call(files, name)) continue;
+      try {
+        pyodide.FS.writeFile(WORKDIR + "/" + name, files[name]);
+        before[name] = files[name];
+      } catch (e) {
+        /* ignore unwritable names */
+      }
+    }
+    return before;
+  }
+
+  /** Read back the work dir; return only files that are new or changed (text). */
+  function syncOut(pyodide, before) {
+    var out = {};
+    var entries;
+    try {
+      entries = pyodide.FS.readdir(WORKDIR);
+    } catch (e) {
+      return out;
+    }
+    for (var i = 0; i < entries.length; i++) {
+      var name = entries[i];
+      if (name === "." || name === "..") continue;
+      var path = WORKDIR + "/" + name;
+      try {
+        var st = pyodide.FS.stat(path);
+        if (pyodide.FS.isDir(st.mode)) continue;
+        var content = pyodide.FS.readFile(path, { encoding: "utf8" });
+        if (before[name] !== content) out[name] = content;
+      } catch (e) {
+        /* binary or unreadable — skip */
+      }
+    }
+    return out;
+  }
+
+  function run(msg) {
     if (!pyodidePromise) pyodidePromise = initPyodide();
     return pyodidePromise.then(function (pyodide) {
       var stdout = "";
@@ -59,14 +118,36 @@
           stderr += s + "\n";
         },
       });
+
+      // REPL: bail out early if the input isn't a complete statement yet.
+      if (msg.mode === "repl") {
+        var status = "complete";
+        try {
+          pyodide._piaCheckNs.set("s", msg.code);
+          status = pyodide.runPython("check(s)", { globals: pyodide._piaCheckNs });
+        } catch (e) {
+          status = "complete";
+        }
+        if (status === "incomplete") {
+          return { stdout: "", stderr: "", result: null, error: null, incomplete: true, files: {} };
+        }
+      }
+
+      var before = syncIn(pyodide, msg.files);
+      // REPL runs in the persistent __main__ namespace (state carries across
+      // lines); a script (`python file.py`) gets a fresh namespace each run.
+      var globals = msg.mode === "repl" ? pyodide.globals : pyodide.runPython("dict()");
+
       return pyodide
-        .runPythonAsync(code)
+        .runPythonAsync(msg.code, { globals: globals })
         .then(function (result) {
           return {
             stdout: stdout,
             stderr: stderr,
             result: result === undefined || result === null ? null : String(result),
             error: null,
+            incomplete: false,
+            files: syncOut(pyodide, before),
           };
         })
         .catch(function (err) {
@@ -75,6 +156,8 @@
             stderr: stderr,
             result: null,
             error: err && err.message ? String(err.message) : String(err),
+            incomplete: false,
+            files: syncOut(pyodide, before),
           };
         });
     });
@@ -89,7 +172,7 @@
     };
     // Tell the terminal we're initialising, so it can show a hint on cold start.
     if (!pyodidePromise) reply({ type: "loading", id: msg.id });
-    run(msg.code).then(function (res) {
+    run(msg).then(function (res) {
       reply({
         type: "result",
         id: msg.id,
@@ -97,6 +180,8 @@
         stderr: res.stderr,
         result: res.result,
         error: res.error,
+        incomplete: res.incomplete,
+        files: res.files,
       });
     });
   });
