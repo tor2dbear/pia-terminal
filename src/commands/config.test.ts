@@ -6,6 +6,7 @@ import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
 import { THEMES } from "../pia/themes.js";
+import { loadTerminalConfig } from "../pia/terminalConfig.js";
 
 describe(".pia/config — themes, aliases, prompt", () => {
   let term: Terminal | undefined;
@@ -20,6 +21,7 @@ describe(".pia/config — themes, aliases, prompt", () => {
       registry: buildRegistry(),
       auth: new MemoryAuthAdapter(),
       session: { user: "guest" },
+      configure: () => loadTerminalConfig(vfs),
     });
     return root;
   }

@@ -5,6 +5,7 @@ import { FakeAuthAdapter } from "./auth/fakeAuth.js";
 import { buildRegistry } from "./commands/index.js";
 import { Terminal } from "./terminal/terminal.js";
 import { boot } from "./boot.js";
+import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
 import { parseShareHash } from "./share/share.js";
 import { NullShareStore } from "./share/store.js";
@@ -94,7 +95,15 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
-  const term = new Terminal(root, { vfs, adapter, registry, auth, session, share });
+  const term = new Terminal(root, {
+    vfs,
+    adapter,
+    registry,
+    auth,
+    session,
+    share,
+    configure: () => loadTerminalConfig(vfs),
+  });
   await boot(term);
 
   // Turn pending invites into memberships, then place any not-yet-placed shares
