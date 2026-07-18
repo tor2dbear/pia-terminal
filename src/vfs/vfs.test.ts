@@ -182,6 +182,23 @@ describe("VFS operations", () => {
     expect(isFile(copy!) && copy.shareId === undefined).toBe(true);
   });
 
+  it("copy refuses to overwrite a file with a directory", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp(`${HOME}/src`);
+    vfs.writeFile(`${HOME}/dest`, "keep");
+    expect(() => vfs.copy(`${HOME}/src`, `${HOME}/dest`, true)).toThrow(VfsError);
+    expect(vfs.readFile(`${HOME}/dest`)).toBe("keep"); // file untouched
+  });
+
+  it("copy refuses to overwrite a shared (cloud-linked) destination", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile(`${HOME}/a.txt`, "new");
+    vfs.writeFile(`${HOME}/shared.txt`, "old");
+    vfs.link(`${HOME}/shared.txt`, "cloud-1");
+    expect(() => vfs.copy(`${HOME}/a.txt`, `${HOME}/shared.txt`)).toThrow(VfsError);
+    expect(vfs.readFile(`${HOME}/shared.txt`)).toBe("old"); // link + content intact
+  });
+
   it("move into an existing directory keeps the name", () => {
     const vfs = VFS.seed();
     vfs.writeFile(`${HOME}/a.txt`, "data");

@@ -213,8 +213,22 @@ export class VFS {
     }
 
     const { parent: destParent, name: destName } = this.parentOf(dest);
-    if (destParent.children[destName] && isDir(destParent.children[destName])) {
-      throw new VfsError(`cannot overwrite directory with non-directory: ${dest}`);
+    const existing = destParent.children[destName];
+    if (existing) {
+      // A file and a directory can't overwrite each other (like GNU `cp`).
+      if (isDir(existing) !== isDir(node)) {
+        throw new VfsError(
+          isDir(node)
+            ? `cannot overwrite non-directory with directory: ${dest}`
+            : `cannot overwrite directory with non-directory: ${dest}`,
+        );
+      }
+      // Refuse to clobber a cloud-linked file: replacing it would detach the
+      // share, and the cloud is the source of truth for a linked file's content
+      // (a plain local overwrite would be lost on the next sync). Edit via nano.
+      if (isFile(existing) && existing.shareId !== undefined) {
+        throw new VfsError(`cannot overwrite shared file (edit it with nano): ${dest}`);
+      }
     }
     destParent.children[destName] = this.clone(node, destName);
   }
