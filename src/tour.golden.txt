@@ -153,6 +153,7 @@ guest@pia:~$ brew list
   tutor        an interactive course that teaches real terminal commands
   life         Conway's Game of Life — a cellular-automaton sandbox
   tetris       play Tetris — the falling-blocks classic
+  qr           show a QR code for text or a share link
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -198,6 +199,8 @@ guest@pia:~$ brew install life
 installed life — commands: life
 guest@pia:~$ brew install tetris
 installed tetris — commands: tetris
+guest@pia:~$ brew install qr
+installed qr — commands: qr
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -244,6 +247,7 @@ available commands:
   passwd    set or change your account password
   publish   publish a folder as a shareable link (its files land in the opener's ~/incoming)
   pwd       print the current directory path
+  qr        show a QR code for text or a URL
   rm        remove files or directories (-r for directories)
   share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
   shared    list and open files shared with you (co-edited)
@@ -267,8 +271,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-68  echo "# system"
-69  whoami
-70  date -u
-71  help
-72  history | tail -5
+69  echo "# system"
+70  whoami
+71  date -u
+72  help
+73  history | tail -5

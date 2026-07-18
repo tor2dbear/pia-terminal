@@ -141,6 +141,7 @@ const TOUR: string[] = [
   "brew install tutor",
   "brew install life",
   "brew install tetris",
+  "brew install qr",
 
   'echo "# system"',
   "whoami",
