@@ -73,6 +73,12 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["cmatrix"],
     load: () => import("./cmatrix/index.js").then((m) => m.pkg),
   },
+  tutor: {
+    name: "tutor",
+    description: "an interactive course that teaches real terminal commands",
+    commands: ["tutor"],
+    load: () => import("./tutor/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */

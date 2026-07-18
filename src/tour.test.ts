@@ -138,6 +138,7 @@ const TOUR: string[] = [
   // Screen-app packages: install-only here (they take over the screen when run).
   "brew install sl",
   "brew install cmatrix",
+  "brew install tutor",
 
   'echo "# system"',
   "whoami",

@@ -564,3 +564,35 @@ body {
   text-shadow: 0 0 6px var(--accent);
   font-size: clamp(9px, 2.2vw, 15px);
 }
+
+/* ---- tutor (brew package) --------------------------------------------------- */
+.tutor {
+  padding: 1rem 1.25rem;
+  max-width: 68ch;
+  width: 100%;
+}
+.tutor-title {
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.tutor-body {
+  color: var(--fg);
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+.tutor-feedback {
+  min-height: 1.4em;
+  margin-bottom: 0.75rem;
+}
+.tutor-feedback.ok {
+  color: var(--accent);
+}
+.tutor-feedback.hint {
+  color: var(--dim);
+}
+.tutor-prompt {
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
