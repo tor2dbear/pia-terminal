@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/fetch-pyodide.mjs",
     "build": "tsc && vite build",
     "build:engine": "tsc -p tsconfig.engine.json && node scripts/build-engine.mjs",
     "preview": "vite preview",

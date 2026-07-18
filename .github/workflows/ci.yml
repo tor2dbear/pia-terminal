@@ -19,7 +19,14 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # Cache the self-hosted Pyodide runtime so the build's prebuild fetch is a
+      # no-op on a warm cache (keyed on the fetch script, so a version bump busts
+      # it). Keeps the build fast and resilient to a transient CDN hiccup.
+      - uses: actions/cache@v4
+        with:
+          path: public/pyodide
+          key: pyodide-${{ hashFiles('scripts/fetch-pyodide.mjs') }}
       # Cloud config comes from the committed .env.production (public client
       # keys; RLS protects the data) — no env passthrough, matching the build
-      # the host runs.
+      # the host runs. `prebuild` fetches Pyodide (or reuses the cache) first.
       - run: npm run build

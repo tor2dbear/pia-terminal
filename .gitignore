@@ -14,3 +14,6 @@ src/**/*.js
 
 # local working files
 scratchpad/
+
+# Self-hosted Pyodide runtime (fetched at build by scripts/fetch-pyodide.mjs)
+public/pyodide/

@@ -137,7 +137,9 @@ curated — not arbitrary third-party code from the internet.
 on two pieces that live in the core — a sandbox page (`/python-sandbox.html`) and
 `frame-src 'self'` in the main CSP — both cheap and inert until you run `python`.
 The Pyodide runtime loads lazily inside that isolated iframe, which carries its
-own relaxed CSP so the main app's stays strict.
+own relaxed CSP so the main app's stays strict. Pyodide is **self-hosted** (no
+CDN): `scripts/fetch-pyodide.mjs` runs at build (`prebuild`) and vendors the
+runtime into `dist/pyodide/`, so Python runs entirely from PIA's own origin.
 
 ---
 
