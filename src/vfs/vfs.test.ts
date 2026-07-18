@@ -135,6 +135,81 @@ describe("VFS operations", () => {
     expect(vfs.readFile(`${HOME}/b.txt`)).toBe("data");
   });
 
+  it("copy duplicates a file independently of the original", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile(`${HOME}/a.txt`, "data");
+    vfs.copy(`${HOME}/a.txt`, `${HOME}/b.txt`);
+    expect(vfs.readFile(`${HOME}/a.txt`)).toBe("data"); // original stays
+    expect(vfs.readFile(`${HOME}/b.txt`)).toBe("data");
+    vfs.writeFile(`${HOME}/b.txt`, "changed");
+    expect(vfs.readFile(`${HOME}/a.txt`)).toBe("data"); // not a shared reference
+  });
+
+  it("copy into an existing directory keeps the name", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile(`${HOME}/a.txt`, "data");
+    vfs.mkdir(`${HOME}/dir`);
+    vfs.copy(`${HOME}/a.txt`, `${HOME}/dir`);
+    expect(vfs.readFile(`${HOME}/dir/a.txt`)).toBe("data");
+    expect(vfs.readFile(`${HOME}/a.txt`)).toBe("data");
+  });
+
+  it("copy needs -r for a directory and deep-clones the tree", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp(`${HOME}/src/sub`);
+    vfs.writeFile(`${HOME}/src/x.txt`, "1");
+    vfs.writeFile(`${HOME}/src/sub/y.txt`, "2");
+    expect(() => vfs.copy(`${HOME}/src`, `${HOME}/dst`)).toThrow(VfsError);
+    vfs.copy(`${HOME}/src`, `${HOME}/dst`, true);
+    expect(vfs.readFile(`${HOME}/dst/x.txt`)).toBe("1");
+    expect(vfs.readFile(`${HOME}/dst/sub/y.txt`)).toBe("2");
+    vfs.writeFile(`${HOME}/dst/x.txt`, "changed"); // mutate the copy
+    expect(vfs.readFile(`${HOME}/src/x.txt`)).toBe("1"); // original untouched
+  });
+
+  it("copy refuses to nest a directory inside itself", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp(`${HOME}/d`);
+    expect(() => vfs.copy(`${HOME}/d`, `${HOME}/d/inner`, true)).toThrow(VfsError);
+  });
+
+  it("a copied file drops the cloud share link", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile(`${HOME}/a.txt`, "data");
+    vfs.link(`${HOME}/a.txt`, "cloud-9");
+    vfs.copy(`${HOME}/a.txt`, `${HOME}/b.txt`);
+    const copy = vfs.getNode(`${HOME}/b.txt`);
+    expect(isFile(copy!) && copy.shareId === undefined).toBe(true);
+  });
+
+  it("copy refuses to overwrite a file with a directory", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp(`${HOME}/src`);
+    vfs.writeFile(`${HOME}/dest`, "keep");
+    expect(() => vfs.copy(`${HOME}/src`, `${HOME}/dest`, true)).toThrow(VfsError);
+    expect(vfs.readFile(`${HOME}/dest`)).toBe("keep"); // file untouched
+  });
+
+  it("copy refuses to overwrite a shared (cloud-linked) destination", () => {
+    const vfs = VFS.seed();
+    vfs.writeFile(`${HOME}/a.txt`, "new");
+    vfs.writeFile(`${HOME}/shared.txt`, "old");
+    vfs.link(`${HOME}/shared.txt`, "cloud-1");
+    expect(() => vfs.copy(`${HOME}/a.txt`, `${HOME}/shared.txt`)).toThrow(VfsError);
+    expect(vfs.readFile(`${HOME}/shared.txt`)).toBe("old"); // link + content intact
+  });
+
+  it("copy -r merges into an existing directory, keeping its files", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp(`${HOME}/src`);
+    vfs.writeFile(`${HOME}/src/new.txt`, "1");
+    vfs.mkdirp(`${HOME}/dst/src`);
+    vfs.writeFile(`${HOME}/dst/src/keep.txt`, "old");
+    vfs.copy(`${HOME}/src`, `${HOME}/dst`, true); // dst exists → copy into dst/src
+    expect(vfs.readFile(`${HOME}/dst/src/keep.txt`)).toBe("old"); // preserved by merge
+    expect(vfs.readFile(`${HOME}/dst/src/new.txt`)).toBe("1"); // added
+  });
+
   it("move into an existing directory keeps the name", () => {
     const vfs = VFS.seed();
     vfs.writeFile(`${HOME}/a.txt`, "data");

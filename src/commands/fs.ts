@@ -234,4 +234,35 @@ export const mv: Command = {
   },
 };
 
-export const fsCommands: Command[] = [pwd, ls, cd, mkdir, touch, cat, rm, mv, tree];
+export const cp: Command = {
+  name: "cp",
+  help: "copy a file or directory",
+  usage: "cp [-r] <source...> <dest>",
+  async run(args, ctx) {
+    const recursive = args.some(
+      (a) => a.startsWith("-") && !a.startsWith("--") && a.includes("r"),
+    );
+    const rest = args.filter((a) => !a.startsWith("-"));
+    if (rest.length < 2) return ctx.error("cp: specify source and destination");
+
+    const destArg = rest[rest.length - 1];
+    const sources = rest.slice(0, -1);
+    const destAbs = ctx.vfs.resolve(ctx.cwd, destArg);
+    const destNode = ctx.vfs.getNode(destAbs);
+    const destIsDir = destNode !== null && isDir(destNode);
+    // A trailing slash asserts the target is a directory (like real `cp`), and
+    // several sources can only land in a directory.
+    if ((destArg.endsWith("/") || sources.length > 1) && !destIsDir) {
+      return ctx.error(`cp: target '${destArg}' is not a directory`);
+    }
+
+    let changed = false;
+    for (const src of sources) {
+      const from = ctx.vfs.resolve(ctx.cwd, src);
+      if (guard(ctx, () => ctx.vfs.copy(from, destAbs, recursive))) changed = true;
+    }
+    if (changed) await ctx.persist();
+  },
+};
+
+export const fsCommands: Command[] = [pwd, ls, cd, mkdir, touch, cat, rm, mv, cp, tree];
