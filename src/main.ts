@@ -11,6 +11,7 @@ import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
+import { registerInstalled } from "./packages/catalog.js";
 import { NullShareStore } from "./share/store.js";
 import { materializeShared } from "./share/materialize.js";
 import type { StorageAdapter } from "./storage/adapter.js";
@@ -109,6 +110,9 @@ async function main(): Promise<void> {
     // bridges); this adds the PIA-specific fields.
     extendContext: piaExtendContext(auth, share),
   });
+  // Re-register any brew-installed packages (vfs.home is set now) so they
+  // survive a reload — before boot, so they're ready when the prompt appears.
+  await registerInstalled(vfs, vfs.home, registry);
   await boot(term);
 
   // Turn pending invites into memberships, then place any not-yet-placed shares

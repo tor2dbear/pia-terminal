@@ -138,6 +138,24 @@ guest@pia:~$ at -l
  1  Sat Jul 18 12:05 UTC 2026  echo remember
 guest@pia:~$ at -r 1
 removed: echo remember
+guest@pia:~$ echo "# packages (brew)"
+# packages (brew)
+guest@pia:~$ brew list
+  cowsay       an ASCII cow says (or thinks) what you type
+install with `brew install <name>`
+guest@pia:~$ brew install cowsay
+installed cowsay — commands: cowsay, cowthink
+guest@pia:~$ cowsay hello from a package
+ ______________________
+< hello from a package >
+ ----------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+guest@pia:~$ brew uninstall cowsay
+uninstalled cowsay
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -149,6 +167,7 @@ available commands:
 
   alias     make a shortcut (alias ll ls -la), or list aliases
   at        schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
+  brew      install optional command packages (brew list | install <name> | uninstall <name>)
   cat       print the contents of a file (or piped input)
   cd        change the current directory
   clear     clear the screen
@@ -199,8 +218,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-51  echo "# system"
-52  whoami
-53  date -u
-54  help
-55  history | tail -5
+56  echo "# system"
+57  whoami
+58  date -u
+59  help
+60  history | tail -5

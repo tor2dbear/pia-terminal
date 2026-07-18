@@ -20,7 +20,8 @@ import { piaExtendContext } from "./pia/context.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { boot } from "./boot.js";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
+// A few ms so a `brew install`'s dynamic import settles before we read output.
+const flush = () => new Promise((r) => setTimeout(r, 5));
 /** A fixed instant so `date -u` is deterministic regardless of the CI clock. */
 const FIXED = new Date("2026-07-18T12:00:00Z");
 
@@ -116,6 +117,12 @@ const TOUR: string[] = [
   "at now+5m echo remember",
   "at -l",
   "at -r 1",
+
+  'echo "# packages (brew)"',
+  "brew list",
+  "brew install cowsay",
+  "cowsay hello from a package",
+  "brew uninstall cowsay",
 
   'echo "# system"',
   "whoami",
