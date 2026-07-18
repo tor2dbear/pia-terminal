@@ -223,6 +223,20 @@ describe("system commands", () => {
     expect(h.text()).toEqual(["hi there"]);
   });
 
+  it("date prints a formatted timestamp", async () => {
+    const h = harness();
+    await h.run("date");
+    expect(h.text().at(-1) ?? "").toMatch(
+      /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d \d\d:\d\d:\d\d \S+ \d{4}$/,
+    );
+  });
+
+  it("date -u reports UTC", async () => {
+    const h = harness();
+    await h.run("date -u");
+    expect(h.text().at(-1) ?? "").toMatch(/ \d\d:\d\d:\d\d UTC \d{4}$/);
+  });
+
   it("unknown flags are ignored by rm but files still removed", async () => {
     const h = harness();
     await h.run("mkdir d");
