@@ -1,6 +1,6 @@
 ---
 title: history — lista och återanvänd tidigare kommandon
-status: inbox
+status: done
 tags: [shell, terminal]
 updated: 2026-07-17
 ---
@@ -28,4 +28,16 @@ men går inte att lista eller återanvända från kommandoraden.
 - Persistera history mellan sessioner (mot dotfilen), eller hålla in-session? Väg
   mot cloud-sync-frågorna.
 
-_Ligger i `inbox`. Listnings-delen är liten; `!`-expansion är en egen sak._
+## Levererat
+Listnings-halvan (som planerat — `!`-expansion skjuts upp).
+- **Söm:** två nya optionella hooks på `CommandContext` — `history()` (kopia av
+  terminalens history) och `clearHistory()` — i samma anda som
+  `applyConfig`/`reloadFs`. Terminalen kopplar in dem i `context()`.
+- **Kommando:** `history` i `system.ts` listar numrerat (bredd-justerat);
+  `history -c` rensar. Komponerar i pipes (`history | grep git`).
+
+Täckt av 2 kommandotester (numrerad listning, `-c` via hook) + 2 end-to-end
+(listar körda kommandon, `-c` tömmer). 317 tester gröna; typecheck + build gröna.
+
+_`!!`/`!$`/`!n`-expansion (en kärn-expansions-pass, som globbing) och persistens
+mot `~/.pia/` kvar som egna uppföljningar._

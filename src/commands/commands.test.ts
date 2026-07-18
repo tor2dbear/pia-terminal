@@ -237,6 +237,23 @@ describe("system commands", () => {
     expect(h.text().at(-1) ?? "").toMatch(/ \d\d:\d\d:\d\d UTC \d{4}$/);
   });
 
+  it("history lists numbered entries", async () => {
+    const h = harness();
+    h.ctx.history = () => ["ls", "cd proj", "history"];
+    await h.run("history");
+    expect(h.text()).toEqual(["1  ls", "2  cd proj", "3  history"]);
+  });
+
+  it("history -c clears via the hook", async () => {
+    const h = harness();
+    let cleared = false;
+    h.ctx.clearHistory = () => {
+      cleared = true;
+    };
+    await h.run("history -c");
+    expect(cleared).toBe(true);
+  });
+
   it("unknown flags are ignored by rm but files still removed", async () => {
     const h = harness();
     await h.run("mkdir d");

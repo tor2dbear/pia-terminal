@@ -108,4 +108,29 @@ export const date: Command = {
   },
 };
 
-export const systemCommands: Command[] = [help, whoami, echo, clear, neofetch, date];
+export const history: Command = {
+  name: "history",
+  help: "show the commands you've run this session",
+  usage: "history [-c]",
+  run(args, ctx) {
+    if (args.includes("-c")) {
+      ctx.clearHistory?.();
+      return;
+    }
+    const entries = ctx.history?.() ?? [];
+    const width = String(entries.length).length;
+    entries.forEach((cmd, i) => {
+      ctx.print(`${String(i + 1).padStart(width)}  ${cmd}`);
+    });
+  },
+};
+
+export const systemCommands: Command[] = [
+  help,
+  whoami,
+  echo,
+  clear,
+  neofetch,
+  date,
+  history,
+];

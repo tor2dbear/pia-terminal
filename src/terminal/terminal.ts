@@ -847,6 +847,11 @@ export class Terminal {
       pickFile: () => this.pickFile(),
       saveFile: (name, content) => this.saveFile(name, content),
       share: this.share,
+      history: () => [...this.history],
+      clearHistory: () => {
+        this.history.length = 0;
+        this.historyIndex = 0;
+      },
       runApp: capture
         ? () => {
             fail("cannot run a full-screen app in a pipeline");
