@@ -151,6 +151,8 @@ guest@pia:~$ brew list
   sl           a steam locomotive chuffs across the screen (mistype ls…)
   cmatrix      Matrix-style falling digital rain
   tutor        an interactive course that teaches real terminal commands
+  life         Conway's Game of Life — a cellular-automaton sandbox
+  tetris       play Tetris — the falling-blocks classic
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -192,6 +194,10 @@ guest@pia:~$ brew install cmatrix
 installed cmatrix — commands: cmatrix
 guest@pia:~$ brew install tutor
 installed tutor — commands: tutor
+guest@pia:~$ brew install life
+installed life — commands: life
+guest@pia:~$ brew install tetris
+installed tetris — commands: tetris
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -227,6 +233,7 @@ available commands:
   invite    invite someone to PIA by email (sends them a sign-in link)
   json_pp   pretty-print and colourise a JSON file
   less      page through a file or piped input
+  life      Conway's Game of Life (space pause, s step, r reseed, ^X exit)
   login     log in (a username locally; email + password with a backend)
   logout    log out and return to guest
   ls        list the contents of a directory
@@ -244,6 +251,7 @@ available commands:
   sort      sort lines of text
   source    re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
   tail      print the last lines of a file (or piped input)
+  tetris    play Tetris (arrows move/rotate, space hard-drop, ^X exit)
   theme     switch colour theme (theme <name>, or list them)
   todo      manage checklists (in ~/todo/); share them to collaborate
   touch     create an empty file (leaving an existing one untouched)
@@ -259,8 +267,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-66  echo "# system"
-67  whoami
-68  date -u
-69  help
-70  history | tail -5
+68  echo "# system"
+69  whoami
+70  date -u
+71  help
+72  history | tail -5

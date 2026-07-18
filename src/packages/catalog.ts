@@ -79,6 +79,18 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["tutor"],
     load: () => import("./tutor/index.js").then((m) => m.pkg),
   },
+  life: {
+    name: "life",
+    description: "Conway's Game of Life — a cellular-automaton sandbox",
+    commands: ["life"],
+    load: () => import("./life/index.js").then((m) => m.pkg),
+  },
+  tetris: {
+    name: "tetris",
+    description: "play Tetris — the falling-blocks classic",
+    commands: ["tetris"],
+    load: () => import("./tetris/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */
