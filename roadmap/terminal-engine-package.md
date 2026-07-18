@@ -1,6 +1,6 @@
 ---
 title: Lyft ut terminal-motorn som fristående paket
-status: now
+status: done
 tags: [terminal, packaging]
 updated: 2026-07-18
 ---
@@ -93,7 +93,27 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    testerna). → Äventyret skickar nu **bara** `registry` + `configure` — inga
    `vfs`/`adapter`/`auth`-stubbar — och dess kommandon är `Command<CoreCommandContext>`,
    dvs typen säger exakt vad skalet beror på. Bundlen krympte (äventyres-chunk 3,4→3,0 kB).
-7. **Kvar (polish, ej brådskande):**
-   - Paketera `engine/` som npm.
+7. **Paketera `engine/` som npm** — **klart**. `npm run build:engine`
+   (`tsc -p tsconfig.engine.json` + `scripts/build-engine.mjs`) bygger
+   `src/engine/index.ts` med transitiva beroenden till `dist-engine/` (JS +
+   `.d.ts`, ingen source-map som pekar på icke-shippade källor) och skriver en
+   egen `package.json` (`pia-terminal-engine`, `type: module`, `exports`,
+   `sideEffects: false`) + engelsk README. **Verifierat på riktigt:** `npm pack`
+   ger en giltig tarball (24 filer, ~28 kB); installerad från tarball i ett
+   färskt konsument-projekt importeras paketet via sitt namn och kör ett
+   registrerat kommando, `VFS.seed`, `tokenize` och `parseSequence`. App-bygget
+   är orört (separat tsconfig; `dist-engine/` är gitignore:at).
 
-_Status `now`. Litet, säkert steg i taget; varje steg håller alla tester gröna._
+## Kvar (release-beslut, inte kod)
+- **Licens**: `package.json` säger `UNLICENSED` som platshållare — välj licens
+  (motorn är tänkt att öppen-källas) innan första publiceringen. `npm publish`
+  körs från `dist-engine/` och är en manuell release-handling (kräver npm-konto).
+- **Valfri renhet**: motorns `Command`/`Terminal` defaultar fortfarande till PIA:s
+  `CommandContext`, så typytan (och en död, tree-shakebar `share/store.js`) drar
+  med PIA-typer i paketet. Att byta default till `CoreCommandContext` och flytta
+  ut `CommandContext` skulle ge en helt ren motorgräns — mekaniskt men rör ~7
+  PIA-kommandofiler; sparat som eget beslut.
+
+_Status `done`. Motorn är utlyft, generisk, öppningsbar som egen sida, och
+paketerbar/verifierad som npm — grunden ("två saker på samma motor") är på plats.
+Faktisk publicering + licensval är en manuell release-handling._

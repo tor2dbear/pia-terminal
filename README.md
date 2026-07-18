@@ -294,3 +294,24 @@ add itself to a list it wasn't invited to.
 Level 1 is done. Next is Level 3: `publish <folder>` → a public page ·
 `who`/`msg` multiplayer · `remind`. And more Level 2 apps along the way
 (`2048`, `draw`).
+---
+
+## The engine as a package
+
+PIA's terminal core is extractable. `src/engine/index.ts` is a dependency-free
+public API — command registry, pipe/sequence parsing, globbing, the screen-app
+host, the `Terminal` DOM renderer, the VFS, and the storage/auth adapter seams —
+and `src/examples/adventure/` is a second, unrelated shell (a text adventure)
+built on it alone, opened at `/adventure/` and sharing the same `terminal-*.js`
+chunk as PIA in the build.
+
+`Command`, `CommandRegistry` and `Terminal` are generic over the command
+context: PIA extends `CoreCommandContext` with its own fields (auth, share,
+baseUrl) via `TerminalOptions.extendContext` — a leaner shell runs on the core
+alone and omits the filesystem, storage, auth and session entirely (the engine
+defaults them).
+
+`npm run build:engine` builds the standalone package into `dist-engine/` (JS +
+`.d.ts` + its own `package.json`), publishable with `cd dist-engine && npm
+publish`. Pick a licence first — see the roadmap puck. The app build
+(`npm run build`) is untouched by this.

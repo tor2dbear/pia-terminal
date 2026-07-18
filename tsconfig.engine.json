@@ -1,0 +1,19 @@
+{
+  // Build config for the standalone engine package (see scripts/build-engine.mjs).
+  // Emits JS + type declarations for src/engine/index.ts and everything it
+  // imports, into dist-engine/, preserving the src/ layout (entry:
+  // dist-engine/engine/index.js). The app build (tsc && vite build) is untouched.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    // No source/declaration maps: they'd reference src/ files the package
+    // doesn't ship, so they would only 404. Ship JS + .d.ts.
+    "outDir": "dist-engine",
+    "rootDir": "src",
+    // Drop the app's vite ambient types — the engine graph uses none.
+    "types": []
+  },
+  // Only the public entry; tsc pulls in its transitive imports automatically.
+  "include": ["src/engine/index.ts"]
+}
