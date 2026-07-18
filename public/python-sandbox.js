@@ -16,13 +16,11 @@
 (function () {
   "use strict";
 
-  var PYODIDE_VERSION = "0.26.2";
-  // Where Pyodide loads from. Defaults to the jsdelivr CDN (allowed by this
-  // page's CSP); a host can self-host it and point `window.PIA_PYODIDE_BASE` at
-  // a same-origin path instead (see roadmap/python-wasm.md).
-  var BASE =
-    window.PIA_PYODIDE_BASE ||
-    "https://cdn.jsdelivr.net/pyodide/v" + PYODIDE_VERSION + "/full/";
+  // Where Pyodide loads from. Self-hosted at the app's own origin (fetched into
+  // /pyodide/ at build by scripts/fetch-pyodide.mjs), so there's no third-party
+  // CDN at runtime and this page's CSP can stay locked to 'self'. Overridable
+  // via `window.PIA_PYODIDE_BASE` (used by the verification harness).
+  var BASE = window.PIA_PYODIDE_BASE || new URL("pyodide/", location.href).href;
   var pyodidePromise = null;
 
   function loadScript(src) {

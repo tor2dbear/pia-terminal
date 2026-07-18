@@ -50,13 +50,14 @@ function securityHeaders(mode: string): Plugin {
   const metaCsp = base.join("; ");
   const headerCsp = [...base, "frame-ancestors 'none'"].join("; ");
 
-  // The isolated Python sandbox needs wasm-eval and the Pyodide CDN. This
-  // relaxation is scoped to that one page (a separate browsing context reached
-  // only via an iframe), so it never applies to the main app.
+  // The isolated Python sandbox needs wasm-eval to run Pyodide, but everything
+  // is same-origin ('self') — Pyodide is self-hosted under /pyodide/, no CDN.
+  // This relaxation is scoped to that one page (a separate browsing context
+  // reached only via an iframe), so it never applies to the main app.
   const sandboxCsp = [
     "default-src 'none'",
-    "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net",
-    "connect-src 'self' https://cdn.jsdelivr.net",
+    "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
+    "connect-src 'self'",
     "worker-src 'self' blob:",
     "child-src blob:",
     "style-src 'unsafe-inline'",

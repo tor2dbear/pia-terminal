@@ -1,41 +1,40 @@
 ---
 title: python — kör riktig kod i sandbox (Pyodide/WASM)
-status: now
+status: done
 tags: [apps, wasm]
 updated: 2026-07-18
 ---
 
-## Levererat (PoC, 2026-07-18)
+## Levererat (2026-07-18)
 `brew install python`, sedan `python fil.py` / `python -c "kod"` kör **riktig
-CPython 3.12** i webbläsaren via Pyodide/WASM.
+CPython 3.12** i webbläsaren via Pyodide/WASM — **helt self-contained, ingen CDN**.
 
 - **Isolerad sandbox-iframe:** `public/python-sandbox.html` + `.js` kör Pyodide
-  i en egen browsing-context med en *lösare* CSP (`wasm-unsafe-eval` m.m.).
-  Huvudappens strikta CSP rörs inte — den fick bara `frame-src 'self'` (och en
-  per-path-regel i `_headers` + `<meta>` för sandbox-sidan, med
-  `X-Frame-Options: SAMEORIGIN`).
+  i en egen browsing-context med en *lösare* CSP (`wasm-unsafe-eval`) men allt
+  same-origin (`'self'`). Huvudappens strikta CSP rörs inte — den fick bara
+  `frame-src 'self'` (plus en per-path-regel i `_headers` + `<meta>` för
+  sandbox-sidan, med `X-Frame-Options: SAMEORIGIN`).
+- **Självhostad Pyodide:** `scripts/fetch-pyodide.mjs` (körs som `prebuild`)
+  hämtar ~14 MB kärnfiler till `public/pyodide/` (gitignored) → vite kopierar
+  till `dist/pyodide/`. Idempotent (hoppar över om filer finns → varm CI-cache
+  gratis), retrys, och failar bygget hårt om den inte kan hämta. CI cachar
+  `public/pyodide` (nyckel = hash av fetch-skriptet). **Inget nytt
+  runtime-beroende** i appen; ingen tredjeparts-`connect-src`/`script-src`.
 - **postMessage-brygga:** `src/packages/python/bridge.ts` skapar en dold,
   återanvänd iframe (Pyodide laddas lazy en gång) och skickar kod / tar emot
   `{stdout, stderr, result, error}`. `index.ts` läser filer ur VFS:en, kör, och
   skriver ut rader + fel; ett bart uttryck skrivs ut REPL-likt.
-- **Verifierat end-to-end** i riktig Chromium (Playwright): `print`,
-  flerradsutskrift, listkomprehension-repr (`[0, 1, 4, 9]`), och en riktig
-  Python-traceback för fel — allt korrekt. (Container-egress blockerar
-  Chromium→jsdelivr, så verifieringen kördes mot en **självhostad** Pyodide på
-  localhost; se hooken nedan.)
-- CI-säkra tester: `parsePythonArgs` (enhet) + `brew install python` i touren.
-  Pyodide/WASM körs inte i vitest — för tungt/nätverksberoende för CI.
+- **Verifierat end-to-end** i riktig Chromium (Playwright) mot det byggda
+  `dist/` **med all extern nätverkstrafik blockerad**: Python körde ändå
+  (`python 3.12.1`, `6! = 720`, flerradsutskrift, listkomprehension-repr,
+  riktig traceback för fel) med **noll externa requests** — bevisar att inget
+  CDN behövs. CI-säkra tester: `parsePythonArgs` (enhet) + `brew install python`
+  i touren. Pyodide/WASM körs inte i vitest — för tungt för CI.
 
-## Kvar (hardening efter PoC)
-- **Självhosta Pyodide** för full self-containment. Sandboxen laddar idag från
-  jsdelivr-CDN (som sandbox-CSP:n tillåter) — funkar för riktiga användare, men
-  är ett tredjeparts-runtime-anrop. Hooken finns redan: sätt
-  `window.PIA_PYODIDE_BASE = "/pyodide/"` och lägg ~14 MB kärnfiler (pyodide.js,
-  .asm.js, .asm.wasm, python_stdlib.zip, pyodide-lock.json) under `dist/pyodide/`
-  (build-fetch eller vendoring). Då kan `connect-src`/`script-src` i sandbox-CSP:n
-  dra bort CDN:n helt.
+## Kvar (valfri polish)
 - REPL (`python` utan arg), VFS-skrivningar tillbaka från Python, micropip/paket.
 - Reproducerbart e2e-skript (Playwright) som valfri `test:python` utanför CI.
+- Version-bump av Pyodide sker i `scripts/fetch-pyodide.mjs` (bustar CI-cachen).
 
 
 ## Mål
