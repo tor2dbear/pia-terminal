@@ -509,6 +509,98 @@ describe("text/search commands", () => {
     expect(h.lines.at(-1)?.cls).toBe("error");
   });
 
+  it("sort orders lines lexically; -r reverses", async () => {
+    const h = harness();
+    h.ctx.stdin = "banana\napple\ncherry";
+    await h.run("sort");
+    expect(h.text()).toEqual(["apple", "banana", "cherry"]);
+    const h2 = harness();
+    h2.ctx.stdin = "banana\napple\ncherry";
+    await h2.run("sort -r");
+    expect(h2.text()).toEqual(["cherry", "banana", "apple"]);
+  });
+
+  it("sort -n compares numerically", async () => {
+    const h = harness();
+    h.ctx.stdin = "10\n2\n1";
+    await h.run("sort -n");
+    expect(h.text()).toEqual(["1", "2", "10"]);
+  });
+
+  it("sort -u drops duplicates", async () => {
+    const h = harness();
+    h.ctx.stdin = "b\na\na\nb";
+    await h.run("sort -u");
+    expect(h.text()).toEqual(["a", "b"]);
+  });
+
+  it("sort -nu de-dupes by the numeric key, not raw text", async () => {
+    const h = harness();
+    h.ctx.stdin = "2 b\n2 a\n1 x";
+    await h.run("sort -nu");
+    expect(h.text()).toEqual(["1 x", "2 b"]); // the two "2 ..." lines are one run
+  });
+
+  it("uniq collapses only adjacent duplicates", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\na\nb\na";
+    await h.run("uniq");
+    expect(h.text()).toEqual(["a", "b", "a"]);
+  });
+
+  it("uniq -c prefixes a run count; -d shows only duplicates", async () => {
+    const h = harness();
+    h.ctx.stdin = "a\na\nb";
+    await h.run("uniq -c");
+    expect(h.text()).toEqual(["   2 a", "   1 b"]);
+    const h2 = harness();
+    h2.ctx.stdin = "a\na\nb";
+    await h2.run("uniq -d");
+    expect(h2.text()).toEqual(["a"]);
+  });
+
+  it("cut -f selects fields, always in input order", async () => {
+    const h = harness();
+    h.ctx.stdin = "a,b,c";
+    await h.run("cut -d, -f3,1");
+    expect(h.text()).toEqual(["a,c"]);
+  });
+
+  it("cut -f supports open-ended ranges", async () => {
+    const h = harness();
+    h.ctx.stdin = "a,b,c,d";
+    await h.run("cut -d, -f2-");
+    expect(h.text()).toEqual(["b,c,d"]);
+  });
+
+  it("cut -c selects characters", async () => {
+    const h = harness();
+    h.ctx.stdin = "abcdef";
+    await h.run("cut -c1-3");
+    expect(h.text()).toEqual(["abc"]);
+  });
+
+  it("cut passes a line through when it lacks the delimiter", async () => {
+    const h = harness();
+    h.ctx.stdin = "nodelimiter";
+    await h.run("cut -d, -f1");
+    expect(h.text()).toEqual(["nodelimiter"]);
+  });
+
+  it("cut errors without -f or -c", async () => {
+    const h = harness();
+    h.ctx.stdin = "a,b";
+    await h.run("cut");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
+  it("cut rejects -f and -c together", async () => {
+    const h = harness();
+    h.ctx.stdin = "a,b";
+    await h.run("cut -f2 -c1");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
   it("find lists a tree recursively", async () => {
     const h = harness();
     h.vfs.mkdirp(`${HOME}/proj/src`);
