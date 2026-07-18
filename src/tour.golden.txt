@@ -127,6 +127,17 @@ guest@pia:~$ glow site/index.md
 MY SITE
 ───────
 welcome, visitor
+guest@pia:~$ echo "# scheduling"
+# scheduling
+guest@pia:~$ crontab -l
+no crontab — add jobs with `crontab -e`
+guest@pia:~$ at now+5m echo remember
+scheduled for Sat Jul 18 12:05 UTC 2026
+  echo remember
+guest@pia:~$ at -l
+ 1  Sat Jul 18 12:05 UTC 2026  echo remember
+guest@pia:~$ at -r 1
+removed: echo remember
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -137,11 +148,13 @@ guest@pia:~$ help
 available commands:
 
   alias     make a shortcut (alias ll ls -la), or list aliases
+  at        schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
   cat       print the contents of a file (or piped input)
   cd        change the current directory
   clear     clear the screen
   column    format delimited text into a table (column -t [-s sep])
   cp        copy a file or directory
+  crontab   recurring scheduled jobs (crontab -e edit, -l list, -r remove)
   cut       extract selected fields or characters from each line
   date      print the current date and time
   download  download a file from the VFS to your computer
@@ -186,8 +199,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-46  echo "# system"
-47  whoami
-48  date -u
-49  help
-50  history | tail -5
+51  echo "# system"
+52  whoami
+53  date -u
+54  help
+55  history | tail -5

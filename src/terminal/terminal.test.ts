@@ -309,9 +309,9 @@ describe("inline autosuggestion (ghost text)", () => {
 
   it("shows a +N chip and cycles matches with Tab", () => {
     const root = mount();
-    type(root, "c"); // cat, cd, clear, column, cp, cut
+    type(root, "c"); // cat, cd, clear, column, cp, crontab, cut
     expect(ghost(root)).toBe("at");
-    expect(root.querySelector(".term-more")?.textContent).toContain("+5");
+    expect(root.querySelector(".term-more")?.textContent).toContain("+6");
     press(root, "Tab");
     expect(ghost(root)).toBe("d"); // cd
     press(root, "Tab");

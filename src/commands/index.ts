@@ -7,6 +7,7 @@ import { textCommands } from "./text.js";
 import { gameCommands } from "./games.js";
 import { shareCommands } from "./share.js";
 import { publishCommands } from "./publish.js";
+import { schedulingCommands } from "./cron.js";
 import { todoCommands } from "./todo.js";
 import { configCommands } from "./config.js";
 import { glowCommands } from "./glow.js";
@@ -26,6 +27,7 @@ export function buildRegistry(): CommandRegistry {
     ...gameCommands,
     ...shareCommands,
     ...publishCommands,
+    ...schedulingCommands,
     ...todoCommands,
     ...configCommands,
     ...glowCommands,
