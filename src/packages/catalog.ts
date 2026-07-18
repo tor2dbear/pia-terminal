@@ -12,6 +12,9 @@ import type { Package } from "./types.js";
 export interface CatalogEntry {
   name: string;
   description: string;
+  /** The command names this package provides — declared here so we can
+   * unregister them without importing the package's code. */
+  commands: string[];
   load: () => Promise<Package>;
 }
 
@@ -19,6 +22,7 @@ export const CATALOG: Record<string, CatalogEntry> = {
   cowsay: {
     name: "cowsay",
     description: "an ASCII cow says (or thinks) what you type",
+    commands: ["cowsay", "cowthink"],
     load: () => import("./cowsay/index.js").then((m) => m.pkg),
   },
 };
@@ -60,4 +64,22 @@ export async function registerInstalled(
   for (const name of installedPackages(vfs, home)) {
     if (CATALOG[name]) await registerPackage(name, registry);
   }
+}
+
+/**
+ * Make the live registry match the packages installed in `home` — used when the
+ * active account/filesystem changes (login/logout). Drops every catalog
+ * package's commands (by their declared names, no import needed), then registers
+ * the ones this home has installed. So the previous account's packages don't
+ * linger and the new account's become available without a reload.
+ */
+export async function reconcilePackages(
+  vfs: VFS,
+  home: string,
+  registry: CommandRegistry<CoreCommandContext>,
+): Promise<void> {
+  for (const entry of Object.values(CATALOG)) {
+    for (const name of entry.commands) registry.unregister(name);
+  }
+  await registerInstalled(vfs, home, registry);
 }

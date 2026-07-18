@@ -9,8 +9,7 @@ import { piaExtendContext } from "../pia/context.js";
 import { loadTerminalConfig } from "../pia/terminalConfig.js";
 import { registerInstalled } from "../packages/catalog.js";
 
-// Dynamic imports resolve on microtasks; give them a couple of macrotasks.
-const settle = () => new Promise((r) => setTimeout(r, 10));
+const tick = () => new Promise((r) => setTimeout(r, 1));
 let term: Terminal | undefined;
 let root: HTMLElement;
 let vfs: VFS;
@@ -36,7 +35,12 @@ async function run(line: string): Promise<void> {
   field.value = line;
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-  await settle();
+  // Wait for the command to finish (async commands like `brew install` do a
+  // dynamic import) rather than a fixed delay — the input line un-collapses.
+  const inputline = root.querySelector(".term-inputline") as HTMLElement;
+  for (let i = 0; i < 2000 && inputline.classList.contains("collapsed"); i++) {
+    await tick();
+  }
 }
 
 afterEach(() => {
@@ -83,6 +87,23 @@ describe("brew", () => {
     mount();
     await run("brew install nope");
     expect(root.querySelector(".term-line.error")?.textContent).toContain("unknown package");
+  });
+
+  it("reconciles packages when switching accounts", async () => {
+    mount();
+    await run("brew install cowsay");
+    await run("cowsay hi");
+    expect(textOf()).toContain("< hi >");
+
+    // A different account has no packages — cowsay must stop working…
+    await run("login alice");
+    await run("cowsay hi");
+    expect(textOf()).toContain("unknown command: cowsay");
+
+    // …and come back when we return to the account that installed it.
+    await run("logout");
+    await run("cowsay back");
+    expect(textOf()).toContain("< back >");
   });
 
   it("re-registers installed packages at boot (survives a reload)", async () => {
