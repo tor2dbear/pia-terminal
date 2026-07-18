@@ -7,7 +7,7 @@ import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "./index.js";
 import { piaExtendContext } from "../pia/context.js";
 import { parsePublishHash } from "../share/publish.js";
-import { renderPublishedSite } from "../pia/publishView.js";
+import { bootPublishedSession } from "../pia/publishSession.js";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 let term: Terminal | undefined;
@@ -76,32 +76,43 @@ describe("publish command", () => {
   });
 });
 
-describe("published-site view", () => {
-  it("renders a heading, a section per page, and a TOC for multiple pages", () => {
-    const site = {
-      title: "notes",
-      pages: [
-        { name: "index.md", content: "# Home\n\nHi." },
-        { name: "about.md", content: "## About" },
-      ],
-    };
-    const el = renderPublishedSite(site);
-    expect(el.querySelector(".pub-head h1")?.textContent).toBe("notes");
-    expect(el.querySelectorAll(".pub-section")).toHaveLength(2);
-    expect(el.querySelector(".pub-toc")).not.toBeNull();
-    expect(el.querySelector(".pub-body h1")?.textContent).toBe("Home");
-    // filename shown via textContent (section heading), body is rendered markdown
-    expect([...el.querySelectorAll(".pub-filename")].map((n) => n.textContent)).toEqual([
-      "index.md",
-      "about.md",
-    ]);
+describe("published-folder session (opening a #p= link)", () => {
+  const site = {
+    title: "my-notes",
+    pages: [
+      { name: "index.md", content: "# Home\n\nWelcome to my notes." },
+      { name: "todo.md", content: "- ship it" },
+    ],
+  };
+
+  it("opens a terminal, banners the folder, and auto-lists the files", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = await bootPublishedSession(root, site);
+    const text = [...root.querySelectorAll(".term-line")].map((n) => n.textContent).join("\n");
+    expect(text).toContain("published folder: my-notes");
+    expect(text).toContain("ls"); // the echoed auto-command
+    expect(text).toContain("index.md");
+    expect(text).toContain("todo.md");
+    // A real prompt is present — it's a terminal, not a static page.
+    expect(root.querySelector(".term-prompt")).not.toBeNull();
   });
 
-  it("omits the TOC for a single page", () => {
-    const el = renderPublishedSite({
-      title: "one",
-      pages: [{ name: "solo.md", content: "hi" }],
-    });
-    expect(el.querySelector(".pub-toc")).toBeNull();
+  it("lets the viewer read a published file with cat", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = await bootPublishedSession(root, site);
+    await term.exec("cat index.md");
+    const text = [...root.querySelectorAll(".term-line")].map((n) => n.textContent).join("\n");
+    expect(text).toContain("Welcome to my notes.");
+  });
+
+  it("mounts only the published files — no default welcome file", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = await bootPublishedSession(root, site);
+    await term.exec("ls");
+    const text = [...root.querySelectorAll(".term-line")].map((n) => n.textContent).join("\n");
+    expect(text).not.toContain("welcome.txt");
   });
 });
