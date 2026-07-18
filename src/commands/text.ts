@@ -357,18 +357,21 @@ export const sort: Command = {
     const flags = flagsOf(args);
     const files = args.filter((a) => a === "-" || !a.startsWith("-"));
     const numeric = flags.has("n");
-    const lines = allLines(ctx, files);
-    lines.sort((a, b) => {
+    const compare = (a: string, b: string): number => {
       if (numeric) {
         const na = parseFloat(a);
         const nb = parseFloat(b);
         return (Number.isNaN(na) ? 0 : na) - (Number.isNaN(nb) ? 0 : nb);
       }
       return a < b ? -1 : a > b ? 1 : 0;
-    });
+    };
+    const lines = allLines(ctx, files);
+    lines.sort(compare);
     if (flags.has("r")) lines.reverse();
+    // -u keeps only the first line of each run that compares equal by the active
+    // key, so `sort -nu` de-dupes numerically rather than by raw text.
     const out = flags.has("u")
-      ? lines.filter((l, i) => i === 0 || l !== lines[i - 1])
+      ? lines.filter((l, i) => i === 0 || compare(l, lines[i - 1]) !== 0)
       : lines;
     for (const line of out) ctx.print(line);
   },
@@ -453,6 +456,9 @@ export const cut: Command = {
       else if (a === "-c") charSpec = args[++i] ?? "";
       else if (a.startsWith("-c") && a.length > 2) charSpec = a.slice(2);
       else if (a === "-" || !a.startsWith("-")) files.push(a);
+    }
+    if (fieldSpec !== null && charSpec !== null) {
+      return ctx.error("cut: only one list type (-f or -c) may be specified");
     }
     if (fieldSpec === null && charSpec === null) {
       return ctx.error("cut: specify a list with -f (fields) or -c (characters)");

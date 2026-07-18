@@ -534,6 +534,13 @@ describe("text/search commands", () => {
     expect(h.text()).toEqual(["a", "b"]);
   });
 
+  it("sort -nu de-dupes by the numeric key, not raw text", async () => {
+    const h = harness();
+    h.ctx.stdin = "2 b\n2 a\n1 x";
+    await h.run("sort -nu");
+    expect(h.text()).toEqual(["1 x", "2 b"]); // the two "2 ..." lines are one run
+  });
+
   it("uniq collapses only adjacent duplicates", async () => {
     const h = harness();
     h.ctx.stdin = "a\na\nb\na";
@@ -584,6 +591,13 @@ describe("text/search commands", () => {
     const h = harness();
     h.ctx.stdin = "a,b";
     await h.run("cut");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
+  it("cut rejects -f and -c together", async () => {
+    const h = harness();
+    h.ctx.stdin = "a,b";
+    await h.run("cut -f2 -c1");
     expect(h.lines.at(-1)?.cls).toBe("error");
   });
 
