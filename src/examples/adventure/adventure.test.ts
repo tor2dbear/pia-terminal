@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { mountAdventure } from "./adventure.js";
-import type { Terminal } from "../../engine/index.js";
+import type { Terminal, CoreCommandContext } from "../../engine/index.js";
 
-let term: Terminal | undefined;
+let term: Terminal<CoreCommandContext> | undefined;
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 function start(): HTMLElement {

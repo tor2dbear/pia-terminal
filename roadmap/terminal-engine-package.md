@@ -83,9 +83,17 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    ~23 kB) som **båda** sidorna använder — inte en kopia per app. Sidan renderar i
    riktig webbläsare under PIA:s strikta CSP utan runtime-/CSP-fel (där Python-spiken
    föll). Så motorn syns nu, inte bara testas.
-6. **Kvar (polish, ej brådskande):**
-   - Full genericisering (`Command<Ctx>`/`Terminal<Ctx>`) så en app slipper skicka
-     oanvänd `vfs`/`auth`/`adapter` — idag passerar äventyret stubs.
+6. **Full genericisering** — **klart**. `Command<Ctx>`, `CommandRegistry<Ctx>` och
+   `Terminal<Ctx>` är nu generiska över kontexten (default: PIA:s `CommandContext`,
+   så PIA är orört). De motor-/webb-generiska fälten (`session`, `pickFile`,
+   `saveFile`, `reloadFs`, `applyConfig`) flyttade in i `CoreCommandContext`; kvar i
+   `CommandContext` är bara PIA-specifika `auth`/`baseUrl`/`share`. Motorn defaultar
+   `vfs`/`adapter`/`session`, och en app lägger till egna fält via en ny
+   `extendContext`-krok (PIA:s glue i `pia/context.ts`, delad av `main.ts` och
+   testerna). → Äventyret skickar nu **bara** `registry` + `configure` — inga
+   `vfs`/`adapter`/`auth`-stubbar — och dess kommandon är `Command<CoreCommandContext>`,
+   dvs typen säger exakt vad skalet beror på. Bundlen krympte (äventyres-chunk 3,4→3,0 kB).
+7. **Kvar (polish, ej brådskande):**
    - Paketera `engine/` som npm.
 
 _Status `now`. Litet, säkert steg i taget; varje steg håller alla tester gröna._

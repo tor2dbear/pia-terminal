@@ -5,6 +5,7 @@ import { VFS } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "../commands/index.js";
+import { piaExtendContext } from "../pia/context.js";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -17,8 +18,8 @@ function mount(): HTMLElement {
     vfs: VFS.seed(),
     adapter: new MemoryStorageAdapter(),
     registry: buildRegistry(),
-    auth: new MemoryAuthAdapter(),
     session: { user: "guest" },
+    extendContext: piaExtendContext(new MemoryAuthAdapter()),
   });
   return root;
 }

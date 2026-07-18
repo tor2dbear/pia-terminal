@@ -7,6 +7,7 @@ import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "../commands/index.js";
 import { MemoryShareStore } from "../share/store.js";
+import { piaExtendContext } from "../pia/context.js";
 
 const enter = () => new KeyboardEvent("keydown", { key: "Enter" });
 
@@ -87,9 +88,8 @@ describe("todo (through the terminal)", () => {
       vfs: VFS.seed(),
       adapter: new MemoryStorageAdapter(),
       registry: buildRegistry(),
-      auth,
       session: { user: "guest" },
-      share,
+      extendContext: piaExtendContext(auth, share),
     });
     return root;
   }
