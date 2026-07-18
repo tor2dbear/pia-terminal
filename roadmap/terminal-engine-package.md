@@ -71,10 +71,21 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    `src/engine/index.ts` re-exporterar den återanvändbara ytan (command-modell,
    parser, globbing, screen-app-interface, `Terminal`, VFS, adapter-*interfaces*)
    bakom en dörr; ett smoke-test importerar *bara* genom den.
-4. **Genericisera + bevisa:** gör `Command`/`Terminal` generiska över appens
-   context-tillägg (så en *annan* app kan lägga sina egna), och bygg en andra
-   pytteliten sak på motorn (testet på gemet). Den *stora* kvarvarande biten —
-   här bor API-design-smaken.
-5. **(Senare)** paketera som npm.
+4. **Bevisa med en andra app** — **klart** (PR #22). `src/examples/adventure/`
+   är ett litet textäventyr byggt *bara* på `engine/`:s publika API: egna
+   kommandon (`look`/`go`/`take`/`inventory`), egna minimala adapter-impl
+   (null-storage/-auth), noll av PIA:s kommandon/teman/config. Fyra tester
+   spelar igenom det genom motorns `Terminal`. Tree-shakas bort ur PIA:s bundle.
+   → **Gemet-testet passerat: motorn bär en helt annan app.**
+5. **Öppningsbar sida** — **klart**. Äventyret körs nu som en egen sida
+   (`/adventure/`) via vite multipage (`rollupOptions.input`: `main` + `adventure`).
+   Bygget bekräftar poängen: motorn blir en *delad chunk* (`assets/terminal-*.js`,
+   ~23 kB) som **båda** sidorna använder — inte en kopia per app. Sidan renderar i
+   riktig webbläsare under PIA:s strikta CSP utan runtime-/CSP-fel (där Python-spiken
+   föll). Så motorn syns nu, inte bara testas.
+6. **Kvar (polish, ej brådskande):**
+   - Full genericisering (`Command<Ctx>`/`Terminal<Ctx>`) så en app slipper skicka
+     oanvänd `vfs`/`auth`/`adapter` — idag passerar äventyret stubs.
+   - Paketera `engine/` som npm.
 
 _Status `now`. Litet, säkert steg i taget; varje steg håller alla tester gröna._
