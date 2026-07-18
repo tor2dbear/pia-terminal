@@ -86,6 +86,24 @@ describe("filesystem commands", () => {
     expect(h.text().at(-1)).toContain("proj/");
   });
 
+  it("ls lists every file argument, not just the first", async () => {
+    const h = harness();
+    h.vfs.writeFile(`${HOME}/a.md`, "");
+    h.vfs.writeFile(`${HOME}/b.md`, "");
+    await h.run("ls a.md b.md");
+    expect(h.text()).toEqual(["a.md  b.md"]);
+  });
+
+  it("ls labels each directory with a header when given several", async () => {
+    const h = harness();
+    h.vfs.mkdirp(`${HOME}/one`);
+    h.vfs.mkdirp(`${HOME}/two`);
+    h.vfs.writeFile(`${HOME}/one/x`, "");
+    h.vfs.writeFile(`${HOME}/two/y`, "");
+    await h.run("ls one two");
+    expect(h.text()).toEqual(["one:", "x", "", "two:", "y"]);
+  });
+
   it("cd changes directory and updates pwd", async () => {
     const h = harness();
     await h.run("mkdir proj");

@@ -394,4 +394,12 @@ describe("filename globbing", () => {
     expect(lines).toContain("alpha");
     expect(lines).toContain("beta");
   });
+
+  it("ls *.md lists every match, not just the first", async () => {
+    const root = mount();
+    await runLine(root, "touch a.md");
+    await runLine(root, "touch b.md");
+    await runLine(root, "ls *.md");
+    expect(out(root)).toContain("a.md  b.md");
+  });
 });
