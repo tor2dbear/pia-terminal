@@ -43,6 +43,24 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["cowsay", "cowthink"],
     load: () => import("./cowsay/index.js").then((m) => m.pkg),
   },
+  cal: {
+    name: "cal",
+    description: "display a month calendar",
+    commands: ["cal"],
+    load: () => import("./cal/index.js").then((m) => m.pkg),
+  },
+  bc: {
+    name: "bc",
+    description: "an arithmetic calculator (+ - * / % ^, parentheses)",
+    commands: ["bc"],
+    load: () => import("./bc/index.js").then((m) => m.pkg),
+  },
+  fortune: {
+    name: "fortune",
+    description: "print a random computing epigram",
+    commands: ["fortune"],
+    load: () => import("./fortune/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */
