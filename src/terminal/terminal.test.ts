@@ -442,4 +442,11 @@ describe("command chaining", () => {
     expect(lines).toContain("fine");
     expect(lines).not.toContain("skipped");
   });
+
+  it("a screen app refused inside a pipeline fails the chain", async () => {
+    const root = mount();
+    // snake can't run captured; the refusal must count as a failure so && stops
+    await runLine(root, "snake | cat && echo unreached");
+    expect(out(root)).not.toContain("unreached");
+  });
 });

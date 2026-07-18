@@ -811,6 +811,12 @@ export class Terminal {
   ): CommandContext {
     const term = this;
     const capture = opts.capture;
+    // Route stderr and internal refusals through one place so they both print
+    // and mark the pipeline failed (so `&&`/`||` can branch on it).
+    const fail = (text: string): void => {
+      if (opts.status) opts.status.failed = true;
+      this.print(text, "error");
+    };
     return {
       vfs: this.vfs,
       session: this.session,
@@ -829,12 +835,8 @@ export class Terminal {
       print: capture
         ? (text = "") => capture.push(text)
         : (text, cls) => this.print(text, cls),
-      // stderr always goes to the screen, never into the pipe; it also marks
-      // the pipeline as failed so `&&`/`||` can branch on it.
-      error: (text) => {
-        if (opts.status) opts.status.failed = true;
-        this.print(text, "error");
-      },
+      // stderr always goes to the screen, never into the pipe.
+      error: (text) => fail(text),
       clear: () => this.clear(),
       persist: () => this.adapter.save(this.vfs.root),
       reloadFs: async () => {
@@ -847,7 +849,7 @@ export class Terminal {
       share: this.share,
       runApp: capture
         ? () => {
-            this.print("cannot run a full-screen app in a pipeline", "error");
+            fail("cannot run a full-screen app in a pipeline");
             return Promise.resolve();
           }
         : (factory) => this.runApp(factory),
