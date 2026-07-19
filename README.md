@@ -37,7 +37,9 @@ guest@pia:~/notes$ ls | sort | uniq -c
 - **Scheduling**: `at` (one-off) and `crontab` (recurring) — a learning tool for
   cron syntax that fires while the tab is open. `remind <time> <text>` (logged
   in) is the *real* version: a push notification that fires server-side even
-  when the tab is closed (install PIA to your Home Screen for it on iOS).
+  when the tab is closed (install PIA to your Home Screen for it on iOS). The
+  same push channel also delivers **collaboration alerts** — e.g. when someone
+  shares a checklist with you.
 - **Packages**: `brew install <name>` adds opt-in apps — `snake`, `2048`,
   `draw`, `cowsay`, `cal`, `bc`, `fortune`, `sl`, `cmatrix`, `tutor`, `life`,
   `tetris`, `qr`, `python` — loaded on demand. See [Packages](#packages-brew).

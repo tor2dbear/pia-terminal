@@ -33,10 +33,22 @@ Den "riktiga" versionen av `at`/`crontab`: påminnelser som fyrar **även när f
 - **`remind`**: `<tid> <text>` (auto-aktiverar push), `-l` lista, `-r <n>` avboka,
   `on` aktivera. iOS-guidning ("lägg till på hemskärmen först").
 
+## Kollaborations-notiser (2026-07-18)
+Samma push-rör återanvänt: en `notifications`-kö som `send-due` tömmer på samma
+tick. En trigger på `shared_list_invites` lägger en rad när någon delar en lista
+med dig ("X shared \"lista\" with you") — levereras som push om du aktiverat
+notiser (via `remind on`; prenumerationen är per enhet och gäller alla notis-
+typer). **Verifierat end-to-end** (trigger → kö → `send-due` → levererad, även
+till en riktig enhet). Notis-texten putsades också: titel `⏰ Reminder` istället
+för det redundanta "PIA".
+
 ## Kvar
-- **On-device-test:** att notisen faktiskt landar på en iPhone-låsskärm — kräver
-  PWA:n installerad + en riktig prenumeration. Allt fram till push-endpointen är
-  bevisat; själva leveransen är ett du-på-telefonen-steg.
+- **On-device-test bekräftat** ✅ (notisen landade på iPhone-låsskärmen).
+- **"Lista uppdaterad"-notiser:** todo-appen sparar vid varje bock/tillägg, så en
+  naiv `AFTER UPDATE`-trigger blir pratig — kräver coalescing (max en per lista,
+  per medlem, per N min) först. Ej byggd.
+- Egen `notify on`/preferens-kommando istället för att aktivera via `remind on`
+  (prenumerationen är redan generell; bara ett tydlighets-val).
 - Återkommande reminders (cron-uttryck) — kolumnen finns, logiken är one-off nu.
 
 ## Vad som krävs (research)
