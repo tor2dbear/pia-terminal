@@ -310,6 +310,31 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.scrollToBottom();
   }
 
+  /**
+   * Print a line, revealing it character by character — a small "typed by the
+   * little computer" touch for the boot greeting. Instant when the user prefers
+   * reduced motion. Resolves once the whole line is shown.
+   */
+  async printTyped(text: string, cls: LineClass = "normal", cps = 55): Promise<void> {
+    const line = document.createElement("div");
+    line.className = cls === "normal" ? "term-line" : `term-line ${cls}`;
+    this.outputEl.append(line);
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    if (reduce || text === "") {
+      line.textContent = text;
+      this.scrollToBottom();
+      return;
+    }
+    const step = Math.max(8, Math.round(1000 / cps));
+    for (let i = 1; i <= text.length; i++) {
+      line.textContent = text.slice(0, i);
+      this.scrollToBottom();
+      await new Promise((r) => setTimeout(r, step));
+    }
+  }
+
   clear(): void {
     this.outputEl.replaceChildren();
   }
