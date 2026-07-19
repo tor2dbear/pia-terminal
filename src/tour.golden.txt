@@ -1,6 +1,6 @@
 pia:~$ █
 a little computer in the browser
-PIA v0.1 · Personal Integrated Applications
+PIA v<version> · Personal Integrated Applications
 memory ok · vfs mounted · adapters loaded
 
 hi. type 'help' to begin.

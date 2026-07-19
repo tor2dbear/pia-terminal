@@ -195,6 +195,14 @@ review the golden diff — that diff is the output verification. It's determinis
 Tests prefer driving real behaviour (the jsdom terminal, injected rng) over
 shallow unit tests.
 
+### Versioning
+
+`package.json` is the single source of truth for the version. It's injected at
+build time (`__PIA_VERSION__`, via `vite.config.ts`) and shown in the boot
+banner, so there's nothing to keep in sync by hand. Bump it with
+`npm version <patch|minor|major>` (which also tags the commit), and record what
+changed in [`CHANGELOG.md`](CHANGELOG.md).
+
 ---
 
 ## Deploy

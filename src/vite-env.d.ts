@@ -10,3 +10,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** The app version, injected from package.json at build time (see vite.config). */
+declare const __PIA_VERSION__: string;

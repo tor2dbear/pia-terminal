@@ -1,5 +1,11 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from "node:fs";
 import { defineConfig, loadEnv, type Plugin } from "vite";
+
+// Single source of truth for the app version: package.json. Exposed as the
+// compile-time constant __PIA_VERSION__ so the boot banner (and anywhere else)
+// always reflects it — bump with `npm version` and it follows.
+const { version: PIA_VERSION } = JSON.parse(readFileSync("./package.json", "utf8"));
 
 /**
  * Content-Security-Policy that matches PIA's real surface: everything is served
@@ -113,6 +119,9 @@ function securityHeaders(mode: string): Plugin {
 export default defineConfig(({ mode }) => ({
   base: "./",
   plugins: [securityHeaders(mode)],
+  define: {
+    __PIA_VERSION__: JSON.stringify(PIA_VERSION),
+  },
   build: {
     target: "es2020",
     outDir: "dist",
