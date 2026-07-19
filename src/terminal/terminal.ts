@@ -495,10 +495,20 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     const tokens = tokenize(text);
     const index = endsWithSpace ? tokens.length : tokens.length - 1;
     const fragment = endsWithSpace ? "" : (tokens[tokens.length - 1] ?? "");
-    const candidates =
-      index === 0
-        ? this.registry.namesStartingWith(fragment)
-        : this.completePath(fragment);
+    let candidates: string[];
+    if (index === 0) {
+      candidates = this.registry.namesStartingWith(fragment);
+    } else {
+      // Let the command complete its own arguments (e.g. brew subcommands and
+      // package names); fall back to filename completion when it doesn't.
+      const cmd = this.registry.get(tokens[0]);
+      if (cmd?.complete) {
+        const args = tokens.slice(1, index);
+        candidates = cmd.complete(args, this.vfs).filter((c) => c.startsWith(fragment));
+      } else {
+        candidates = this.completePath(fragment);
+      }
+    }
     return { fragment, candidates };
   }
 

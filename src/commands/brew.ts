@@ -69,6 +69,21 @@ export const brew: Command = {
 
     ctx.error("brew: usage — brew list · brew install <name> · brew uninstall <name>");
   },
+  complete(args, vfs) {
+    // First argument: the subcommand.
+    if (args.length === 0) return ["list", "install", "uninstall"];
+    const sub = args[0];
+    // `install <name>` completes packages that aren't installed yet…
+    if (sub === "install" || sub === "add") {
+      const installed = new Set(installedPackages(vfs, vfs.home));
+      return Object.keys(CATALOG).filter((name) => !installed.has(name));
+    }
+    // …`uninstall <name>` completes the ones that are.
+    if (sub === "uninstall" || sub === "remove" || sub === "rm") {
+      return installedPackages(vfs, vfs.home);
+    }
+    return [];
+  },
 };
 
 export const brewCommands: Command[] = [brew];
