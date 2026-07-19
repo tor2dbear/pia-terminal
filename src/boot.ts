@@ -6,13 +6,14 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function boot(term: Terminal): Promise<void> {
   // Wordmark lockup — the same p + block-cursor mark as the favicon.
   term.print("pia:~$ █", "accent");
-  term.print("a little computer in the browser", "dim");
-  await delay(180);
+  await term.printTyped("a little computer in the browser", "dim");
+  await delay(160);
   term.print("PIA v0.1 · Personal Integrated Applications", "dim");
-  await delay(180);
+  await delay(140);
   term.print("memory ok · vfs mounted · adapters loaded", "dim");
-  await delay(180);
+  await delay(220);
   term.print();
-  term.print("hi. type 'help' to begin.");
+  // The invitation, typed out — the little computer greeting you.
+  await term.printTyped("hi. type 'help' to begin.");
   term.print();
 }
