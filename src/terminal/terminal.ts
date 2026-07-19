@@ -118,6 +118,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private historyIndex = 0; // points one past the last entry when not browsing
   private suggestionIndex = 0; // which of several matches the ghost shows
   private busy = false;
+  /** Key bar shows the Ctrl tray (^A ^E …) instead of the normal keys. */
+  private ctrlTrayOpen = false;
 
   constructor(
     private readonly root: HTMLElement,
@@ -566,6 +568,57 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     }
   }
 
+  /** Edit the line and redraw, resetting the inline suggestion. */
+  private editLine(buffer: string, cursor: number): void {
+    this.buffer = buffer;
+    this.cursor = Math.max(0, Math.min(buffer.length, cursor));
+    this.suggestionIndex = 0;
+    this.renderInput();
+  }
+
+  /**
+   * The readline-style Ctrl bindings, in one place so the keydown handler and
+   * the key bar's Ctrl tray stay in sync. `key` is the lowercase letter that,
+   * with Ctrl, triggers the action; `label` is how it reads (`^A`).
+   */
+  private ctrlActions(): { key: string; label: string; run: () => void }[] {
+    return [
+      // Movement.
+      { key: "a", label: "^A", run: () => this.editLine(this.buffer, 0) },
+      { key: "e", label: "^E", run: () => this.editLine(this.buffer, this.buffer.length) },
+      // Kill (cut) text.
+      {
+        key: "w",
+        label: "^W",
+        run: () => {
+          // Delete the whitespace-delimited word before the cursor.
+          const left = this.buffer.slice(0, this.cursor);
+          const start = left.replace(/\s+$/, "").replace(/\S+$/, "").length;
+          this.editLine(this.buffer.slice(0, start) + this.buffer.slice(this.cursor), start);
+        },
+      },
+      { key: "u", label: "^U", run: () => this.editLine(this.buffer.slice(this.cursor), 0) },
+      {
+        key: "k",
+        label: "^K",
+        run: () => this.editLine(this.buffer.slice(0, this.cursor), this.cursor),
+      },
+      // Control.
+      { key: "c", label: "^C", run: () => this.cancelLine() },
+      { key: "l", label: "^L", run: () => this.clear() },
+      {
+        key: "d",
+        label: "^D",
+        // EOF on an empty line is meaningless here; otherwise delete forward.
+        run: () =>
+          this.editLine(
+            this.buffer.slice(0, this.cursor) + this.buffer.slice(this.cursor + 1),
+            this.cursor,
+          ),
+      },
+    ];
+  }
+
   /** Hide the input line while a command runs. */
   private setInputVisible(visible: boolean): void {
     // Collapse (not display:none) so the capture field — now a child of the
@@ -584,8 +637,18 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     }
     if (this.busy) return;
 
-    // Let browser shortcuts (reload, devtools, copy) through.
-    if (e.metaKey || (e.ctrlKey && e.key !== "c" && e.key !== "l")) return;
+    // Ctrl bindings are readline-style line editing; anything else with a
+    // modifier (⌘, or a Ctrl combo we don't bind) is a browser shortcut —
+    // reload, devtools, copy, close tab — so leave it alone.
+    if (e.metaKey) return;
+    if (e.ctrlKey) {
+      const action = this.ctrlActions().find((a) => a.key === e.key.toLowerCase());
+      if (action) {
+        e.preventDefault();
+        action.run();
+      }
+      return;
+    }
 
     switch (e.key) {
       case "Enter":
@@ -640,18 +703,6 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         e.preventDefault();
         this.onTab();
         return;
-    }
-
-    if (e.ctrlKey && e.key === "c") {
-      e.preventDefault();
-      this.printPromptLine(`${this.buffer}^C`, "dim");
-      this.resetLine();
-      return;
-    }
-    if (e.ctrlKey && e.key === "l") {
-      e.preventDefault();
-      this.clear();
-      return;
     }
 
     // Printable characters are left to fall into the hidden field and arrive
@@ -992,10 +1043,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       subtle: true,
       run: () => this.insertText(ch),
     });
+    if (this.ctrlTrayOpen) return this.ctrlTrayKeys();
     // Grouped (spår A): completion · navigation · insert-punctuation · control.
     // `startsGroup` draws a thin divider before each cluster. (No paste key —
     // the native long-press → Paste reaches the capture field directly, and
-    // works cross-app where the Clipboard API can't on iOS.)
+    // works cross-app where the Clipboard API can't on iOS.) The control group
+    // is a single `ctrl` key that opens the Ctrl tray (^A ^E …), so the readline
+    // bindings scale without crowding the bar.
     return [
       { label: "Tab", run: () => this.onTab() },
       { label: "↑", startsGroup: true, run: () => this.recallHistory(-1) },
@@ -1007,8 +1061,31 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       insert("~"),
       insert("/"),
       insert("-"),
-      { label: "^C", startsGroup: true, run: () => this.cancelLine() },
-      { label: "^L", run: () => this.clear() },
+      { label: "ctrl", startsGroup: true, run: () => this.toggleCtrlTray(true) },
+    ];
+  }
+
+  private toggleCtrlTray(open: boolean): void {
+    this.ctrlTrayOpen = open;
+    this.renderKeybar();
+    this.focusKbd();
+  }
+
+  /** The Ctrl tray: a back arrow, then every readline binding. Tapping one fires
+   *  it and closes the tray. */
+  private ctrlTrayKeys(): KeySpec[] {
+    const back: KeySpec = { label: "‹", run: () => this.toggleCtrlTray(false) };
+    return [
+      back,
+      ...this.ctrlActions().map((a, i) => ({
+        label: a.label,
+        startsGroup: i === 0,
+        run: () => {
+          this.ctrlTrayOpen = false;
+          a.run();
+          this.renderKeybar();
+        },
+      })),
     ];
   }
 

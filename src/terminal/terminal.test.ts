@@ -204,7 +204,7 @@ describe("on-screen key bar", () => {
       (b) => b.textContent,
     );
     expect(labels).toEqual(
-      expect.arrayContaining(["Tab", "↑", "↓", "←", "→", "|", "~", "^C", "^L"]),
+      expect.arrayContaining(["Tab", "↑", "↓", "←", "→", "|", "~", "ctrl"]),
     );
   });
 
@@ -236,14 +236,66 @@ describe("on-screen key bar", () => {
       (b) => b.textContent,
     );
     expect(inEditor).toContain("^O");
-    expect(inEditor).not.toContain("^C"); // prompt-only key is gone
+    expect(inEditor).not.toContain("ctrl"); // prompt-only key is gone
 
     press(root, "x", { ctrlKey: true });
     await flush();
     const atPrompt = [...root.querySelectorAll(".term-keybar .kb-key")].map(
       (b) => b.textContent,
     );
-    expect(atPrompt).toContain("^C");
+    expect(atPrompt).toContain("ctrl");
+  });
+
+  it("opens the Ctrl tray from the bar and fires a binding", () => {
+    const root = mount();
+    type(root, "hello world");
+    tapKey(root, "ctrl"); // open the tray
+    const tray = [...root.querySelectorAll(".term-keybar .kb-key")].map(
+      (b) => b.textContent,
+    );
+    expect(tray).toEqual(expect.arrayContaining(["^A", "^E", "^W", "^U", "^K", "^C", "^L"]));
+    tapKey(root, "^U"); // kill to start of line
+    expect(typed(root)).not.toContain("hello world");
+    // Tray closed again — the normal keys are back.
+    const back = [...root.querySelectorAll(".term-keybar .kb-key")].map(
+      (b) => b.textContent,
+    );
+    expect(back).toContain("Tab");
+    expect(back).not.toContain("^U");
+  });
+});
+
+describe("readline Ctrl bindings at the prompt", () => {
+  it("^A / ^E jump to the start / end of the line", () => {
+    const root = mount();
+    type(root, "abc");
+    press(root, "a", { ctrlKey: true }); // to start
+    type(root, "X");
+    expect(typed(root)).toContain("Xabc");
+    press(root, "e", { ctrlKey: true }); // to end
+    type(root, "Z");
+    expect(typed(root)).toContain("XabcZ");
+  });
+
+  it("^U kills to the start, ^K to the end", () => {
+    const root = mount();
+    type(root, "keep DROP");
+    // cursor at end; ^U removes everything before it
+    press(root, "u", { ctrlKey: true });
+    expect(typed(root).trim()).toBe("");
+    type(root, "one two");
+    press(root, "a", { ctrlKey: true }); // start
+    press(root, "e", { ctrlKey: true }); // end (no-op sanity)
+    press(root, "k", { ctrlKey: true }); // kill to end from end = no change
+    expect(typed(root)).toContain("one two");
+  });
+
+  it("^W deletes the previous word", () => {
+    const root = mount();
+    type(root, "alpha beta");
+    press(root, "w", { ctrlKey: true });
+    expect(typed(root)).toContain("alpha ");
+    expect(typed(root)).not.toContain("beta");
   });
 });
 
