@@ -438,6 +438,19 @@ body {
   }
 }
 
+/* Installed as a PWA (iOS/Android home-screen app). In a browser tab the
+   translucent bar sits over Safari's own chrome and reads fine, but standalone
+   there's no chrome underneath — the semi-transparent fill let terminal text
+   bleed through the home-indicator strip. Make it a solid, edge-to-edge surface
+   so the bottom reads as one clean list down to the device edge. (Needs
+   `viewport-fit=cover` in the viewport meta, or the safe-area insets are 0 and
+   the bar has no home-indicator clearance at all.) */
+@media (display-mode: standalone) {
+  .term-keybar {
+    background: var(--bg);
+  }
+}
+
 .term-keybar::-webkit-scrollbar {
   display: none;
 }
