@@ -145,6 +145,9 @@ const TOUR: string[] = [
   "brew install tetris",
   "brew install qr",
   "brew install python",
+  // Running Python needs the sandboxed iframe (a real browser), so the tour
+  // can only show the pre-sandbox path: a missing-file error is deterministic.
+  "python nope.py",
 
   'echo "# system"',
   "whoami",
