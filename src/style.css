@@ -460,14 +460,19 @@ body {
   font: inherit;
   font-size: 0.95rem;
   color: var(--fg);
-  background: rgba(124, 242, 124, 0.08);
-  border: 1px solid var(--dim);
+  /* Derive the fill/border from the live --accent so the bar re-tints with the
+     theme (amber/ice/mono), instead of a hardcoded phosphor green. */
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dim) 55%, transparent);
   border-radius: 6px;
   padding: 0.35rem 0.7rem;
   min-width: 2.4rem;
   min-height: 2.4rem;
   cursor: pointer;
   touch-action: manipulation;
+  transition:
+    background 0.1s ease,
+    border-color 0.1s ease;
 }
 
 .kb-key.subtle {
@@ -476,12 +481,25 @@ body {
 
 .kb-key:hover,
 .kb-key:focus-visible {
-  background: rgba(124, 242, 124, 0.18);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   outline: none;
 }
 
 .kb-key:active {
-  background: rgba(124, 242, 124, 0.3);
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* Spår A: a hairline that clusters the keys into meaning-groups (navigation,
+   insert, control) — grouping without extra chrome. Inset from top/bottom so it
+   reads as a divider, not a full-height rule. */
+.kb-sep {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  margin: 0.4rem 0.15rem;
+  background: color-mix(in srgb, var(--dim) 45%, transparent);
 }
 
 .ed-hint {

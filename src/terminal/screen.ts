@@ -5,6 +5,12 @@ export interface KeySpec {
   /** Visually de-emphasise (e.g. punctuation vs. actions). */
   subtle?: boolean;
   /**
+   * Start a new visual group: the key bar draws a thin divider before this key
+   * (unless it's the first), clustering related keys — navigation, insert,
+   * control — without adding chrome. Ignored on the first rendered key.
+   */
+  startsGroup?: boolean;
+  /**
    * Fire on `click` instead of the default `pointerdown`. Needed for actions
    * that require a genuine click gesture — notably Clipboard API reads on iOS,
    * which our `pointerdown`+`preventDefault` handler doesn't satisfy.
