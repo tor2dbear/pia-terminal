@@ -37,6 +37,9 @@ function securityHeaders(mode: string): Plugin {
     "style-src 'self'",
     "img-src 'self' data:",
     "font-src 'self'",
+    // The service worker (push reminders) and the PWA manifest, both same-origin.
+    "worker-src 'self'",
+    "manifest-src 'self'",
     `connect-src ${connect.join(" ")}`,
     // The python package runs Pyodide inside a same-origin sandbox iframe
     // (/python-sandbox.html), which carries its own relaxed CSP. The main app

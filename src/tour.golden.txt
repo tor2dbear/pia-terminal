@@ -138,6 +138,8 @@ guest@pia:~$ at -l
  1  Sat Jul 18 12:05 UTC 2026  echo remember
 guest@pia:~$ at -r 1
 removed: echo remember
+guest@pia:~$ remind now+1h standup
+remind: reminders need a cloud account — run `login`
 guest@pia:~$ echo "# packages (brew)"
 # packages (brew)
 guest@pia:~$ brew list
@@ -252,6 +254,7 @@ available commands:
   pwd       print the current directory path
   python    run Python via Pyodide (python, python file.py, or python -c 'code')
   qr        show a QR code for text or a URL
+  remind    schedule a push reminder (remind <time> <text>; -l list, -r <n> cancel, on enable)
   rm        remove files or directories (-r for directories)
   share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
   shared    list and open files shared with you (co-edited)
@@ -275,8 +278,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-70  echo "# system"
-71  whoami
-72  date -u
-73  help
-74  history | tail -5
+71  echo "# system"
+72  whoami
+73  date -u
+74  help
+75  history | tail -5

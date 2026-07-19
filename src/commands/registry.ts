@@ -2,6 +2,7 @@ import type { VFS } from "../vfs/vfs.js";
 import type { ScreenAppFactory } from "../terminal/screen.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
+import type { ReminderStore } from "../pia/reminders.js";
 
 export type { Session };
 
@@ -79,6 +80,8 @@ export interface CommandContext extends CoreCommandContext {
   baseUrl: string;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
+  /** Push-reminder backend (absent → reminders are off, i.e. no cloud). */
+  reminders?: ReminderStore;
 }
 
 /**
