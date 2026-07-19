@@ -13,3 +13,9 @@ interface ImportMeta {
 
 /** The app version, injected from package.json at build time (see vite.config). */
 declare const __PIA_VERSION__: string;
+
+/** Raw text imports (`import s from "./x.md?raw"`). */
+declare module "*.md?raw" {
+  const content: string;
+  export default content;
+}

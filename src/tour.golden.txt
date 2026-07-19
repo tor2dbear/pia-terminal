@@ -212,76 +212,80 @@ guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
 guest
+guest@pia:~$ version
+PIA v<version>
 guest@pia:~$ date -u
 Sat Jul 18 12:00:00 UTC 2026
 guest@pia:~$ help
 available commands:
 
-  alias     make a shortcut (alias ll ls -la), or list aliases
-  at        schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
-  bc        evaluate arithmetic expressions
-  brew      install optional command packages (brew list | install <name> | uninstall <name>)
-  cal       display a calendar for a month
-  cat       print the contents of a file (or piped input)
-  cd        change the current directory
-  clear     clear the screen
-  cmatrix   Matrix-style falling digital rain (q or ^X to quit)
-  column    format delimited text into a table (column -t [-s sep])
-  cp        copy a file or directory
-  crontab   recurring scheduled jobs (crontab -e edit, -l list, -r remove)
-  cut       extract selected fields or characters from each line
-  date      print the current date and time
-  download  download a file from the VFS to your computer
-  echo      print the arguments
-  find      list files and directories recursively
-  fortune   print a random epigram
-  glow      render a Markdown file (headings, lists, quotes) in the terminal
-  grep      print lines matching a pattern (from files or piped input)
-  head      print the first lines of a file (or piped input)
-  help      show this help, or help for one command
-  history   show the commands you've run this session
-  invite    invite someone to PIA by email (sends them a sign-in link)
-  json_pp   pretty-print and colourise a JSON file
-  less      page through a file or piped input
-  life      Conway's Game of Life (space pause, s step, r reseed, ^X exit)
-  login     log in (a username locally; email + password with a backend)
-  logout    log out and return to guest
-  ls        list the contents of a directory
-  mkdir     create a new directory
-  mv        move or rename a file or directory
-  nano      edit text files in a full-screen editor
-  neofetch  show system info with a small logo
-  passwd    set or change your account password
-  publish   publish a folder as a shareable link (its files land in the opener's ~/incoming)
-  pwd       print the current directory path
-  python    run Python via Pyodide (python, python file.py, or python -c 'code')
-  qr        show a QR code for text or a URL
-  remind    schedule a push reminder (remind <time> <text>; -l list, -r <n> cancel, on enable)
-  rm        remove files or directories (-r for directories)
-  share     share a file or folder as a read-only link, or `share <file> <email>` to co-edit
-  shared    list and open files shared with you (co-edited)
-  sl        Steam Locomotive — the train you get for mistyping ls
-  sort      sort lines of text
-  source    re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
-  tail      print the last lines of a file (or piped input)
-  tetris    play Tetris (arrows move/rotate, space hard-drop, ^X exit)
-  theme     switch colour theme (theme <name>, or list them)
-  todo      manage checklists (in ~/todo/); share them to collaborate
-  touch     create an empty file (leaving an existing one untouched)
-  tree      show the directory tree (shared files marked @)
-  tutor     an interactive terminal course — learn real shell commands
-  unalias   remove an alias (unalias ll)
-  uniq      collapse adjacent duplicate lines (needs sorted input)
-  upload    upload a file from your computer into the current directory
-  useradd   create an account and log in (add email + password with a backend)
-  usermod   rename the current user (home directory and files follow)
-  wc        count lines, words, and characters
-  whoami    show who you are logged in as
+  alias      make a shortcut (alias ll ls -la), or list aliases
+  at         schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
+  bc         evaluate arithmetic expressions
+  brew       install optional command packages (brew list | install <name> | uninstall <name>)
+  cal        display a calendar for a month
+  cat        print the contents of a file (or piped input)
+  cd         change the current directory
+  changelog  show what's changed across PIA's versions
+  clear      clear the screen
+  cmatrix    Matrix-style falling digital rain (q or ^X to quit)
+  column     format delimited text into a table (column -t [-s sep])
+  cp         copy a file or directory
+  crontab    recurring scheduled jobs (crontab -e edit, -l list, -r remove)
+  cut        extract selected fields or characters from each line
+  date       print the current date and time
+  download   download a file from the VFS to your computer
+  echo       print the arguments
+  find       list files and directories recursively
+  fortune    print a random epigram
+  glow       render a Markdown file (headings, lists, quotes) in the terminal
+  grep       print lines matching a pattern (from files or piped input)
+  head       print the first lines of a file (or piped input)
+  help       show this help, or help for one command
+  history    show the commands you've run this session
+  invite     invite someone to PIA by email (sends them a sign-in link)
+  json_pp    pretty-print and colourise a JSON file
+  less       page through a file or piped input
+  life       Conway's Game of Life (space pause, s step, r reseed, ^X exit)
+  login      log in (a username locally; email + password with a backend)
+  logout     log out and return to guest
+  ls         list the contents of a directory
+  mkdir      create a new directory
+  mv         move or rename a file or directory
+  nano       edit text files in a full-screen editor
+  neofetch   show system info with a small logo
+  passwd     set or change your account password
+  publish    publish a folder as a shareable link (its files land in the opener's ~/incoming)
+  pwd        print the current directory path
+  python     run Python via Pyodide (python, python file.py, or python -c 'code')
+  qr         show a QR code for text or a URL
+  remind     schedule a push reminder (remind <time> <text>; -l list, -r <n> cancel, on enable)
+  rm         remove files or directories (-r for directories)
+  share      share a file or folder as a read-only link, or `share <file> <email>` to co-edit
+  shared     list and open files shared with you (co-edited)
+  sl         Steam Locomotive — the train you get for mistyping ls
+  sort       sort lines of text
+  source     re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
+  tail       print the last lines of a file (or piped input)
+  tetris     play Tetris (arrows move/rotate, space hard-drop, ^X exit)
+  theme      switch colour theme (theme <name>, or list them)
+  todo       manage checklists (in ~/todo/); share them to collaborate
+  touch      create an empty file (leaving an existing one untouched)
+  tree       show the directory tree (shared files marked @)
+  tutor      an interactive terminal course — learn real shell commands
+  unalias    remove an alias (unalias ll)
+  uniq       collapse adjacent duplicate lines (needs sorted input)
+  upload     upload a file from your computer into the current directory
+  useradd    create an account and log in (add email + password with a backend)
+  usermod    rename the current user (home directory and files follow)
+  version    print the PIA version
+  wc         count lines, words, and characters
+  whoami     show who you are logged in as
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-72  echo "# system"
 73  whoami
-74  date -u
-75  help
-76  history | tail -5
+74  version
+75  date -u
+76  help
+77  history | tail -5

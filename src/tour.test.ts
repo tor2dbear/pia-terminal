@@ -63,8 +63,10 @@ function transcript(): string {
     .map((n) =>
       (n.textContent ?? "")
         .replace(/([#&][sp])=[A-Za-z0-9_-]+/g, "$1=<payload>")
-        // Redact the app version so the golden survives every `npm version` bump.
-        .replace(/PIA v\S+/, "PIA v<version>"),
+        // Redact the app version so the golden survives every `npm version`
+        // bump. Anchor on a leading digit so it only touches real version
+        // strings (`PIA v0.10.0`), not prose like "print the PIA version".
+        .replace(/PIA v\d\S*/g, "PIA v<version>"),
     )
     .join("\n");
 }
@@ -156,6 +158,7 @@ const TOUR: string[] = [
 
   'echo "# system"',
   "whoami",
+  "version",
   "date -u",
   "help",
   "history | tail -5",
