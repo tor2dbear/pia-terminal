@@ -206,6 +206,8 @@ guest@pia:~$ brew install qr
 installed qr — commands: qr
 guest@pia:~$ brew install python
 installed python — commands: python
+guest@pia:~$ python nope.py
+python: can't open file 'nope.py'
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -278,8 +280,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-71  echo "# system"
-72  whoami
-73  date -u
-74  help
-75  history | tail -5
+72  echo "# system"
+73  whoami
+74  date -u
+75  help
+76  history | tail -5
