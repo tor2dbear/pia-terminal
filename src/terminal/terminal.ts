@@ -1016,20 +1016,28 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       subtle: true,
       run: () => this.insertText(ch),
     });
+    // Grouped (spår A): completion · navigation · insert-punctuation · control ·
+    // clipboard. `startsGroup` draws a thin divider before each cluster.
     return [
       { label: "Tab", run: () => this.onTab() },
-      { label: "↑", run: () => this.recallHistory(-1) },
+      { label: "↑", startsGroup: true, run: () => this.recallHistory(-1) },
       { label: "↓", run: () => this.recallHistory(1) },
       { label: "←", run: () => this.moveCursor(-1) },
       { label: "→", run: () => this.cursorRight() },
-      { label: "paste", subtle: true, activate: "click", run: () => void this.pasteFromClipboard() },
-      insert("|"),
+      { ...insert("|"), startsGroup: true },
       insert(">"),
       insert("~"),
       insert("/"),
       insert("-"),
-      { label: "^C", run: () => this.cancelLine() },
+      { label: "^C", startsGroup: true, run: () => this.cancelLine() },
       { label: "^L", run: () => this.clear() },
+      {
+        label: "paste",
+        startsGroup: true,
+        subtle: true,
+        activate: "click",
+        run: () => void this.pasteFromClipboard(),
+      },
     ];
   }
 
@@ -1054,7 +1062,15 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
     this.keybarEl.style.display = "";
+    let first = true;
     for (const key of keys) {
+      if (key.startsGroup && !first) {
+        const sep = document.createElement("span");
+        sep.className = "kb-sep";
+        sep.setAttribute("aria-hidden", "true");
+        this.keybarEl.append(sep);
+      }
+      first = false;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = key.subtle ? "kb-key subtle" : "kb-key";
