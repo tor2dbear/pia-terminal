@@ -426,6 +426,13 @@ body {
   scrollbar-width: none;
 }
 
+/* Riding above the soft keyboard: the home-indicator inset below the bar is now
+   dead space (see syncViewport), so drop it and let the keys sit flush on the
+   keyboard instead of floating above a gap. */
+.term-keybar.lifted {
+  padding-bottom: 0.3rem;
+}
+
 /* A device with a real keyboard (mouse + hover) doesn't need the on-screen key
    bar — Tab, arrows and pipe are all on the keyboard. Hide it there and reclaim
    the space the fixed bar would otherwise reserve. */
