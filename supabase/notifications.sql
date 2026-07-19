@@ -60,6 +60,29 @@ create trigger shared_list_invites_notify
   after insert on public.shared_list_invites
   for each row execute function public.notify_on_invite();
 
+-- Trigger functions fire as the table owner, so they need no direct grant —
+-- and shouldn't be callable via the REST API. (Flagged by the security linter.)
+revoke execute on function public.notify_on_invite() from public, anon, authenticated;
+
 -- Follow-up (not built): "list updated" notifications. The todo app saves on
 -- every toggle/add, so a naive AFTER UPDATE trigger would be chatty — it needs
 -- coalescing (e.g. at most one per list, per member, per N minutes) first.
+
+-- ---- housekeeping ----------------------------------------------------------
+-- Drop delivered notifications and fired one-off reminders older than 30 days.
+-- Runs entirely inside Postgres (scheduled by pg_cron, daily) — never touches
+-- recent rows, pending reminders, or push subscriptions.
+create or replace function public.prune_push_data()
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from public.notifications
+    where sent_at is not null and sent_at < now() - interval '30 days';
+  delete from public.reminders
+    where enabled = false and coalesce(last_sent, next_run) < now() - interval '30 days';
+$$;
+revoke execute on function public.prune_push_data() from public, anon, authenticated;
+
+select cron.schedule('push-cleanup', '17 3 * * *', $job$ select public.prune_push_data(); $job$);
