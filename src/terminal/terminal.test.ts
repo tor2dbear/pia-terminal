@@ -283,6 +283,18 @@ describe("inline autosuggestion (ghost text)", () => {
     expect(ghost(root)).toBe("come.txt");
   });
 
+  it("suggests a command's own arguments (brew subcommand)", () => {
+    const root = mount();
+    type(root, "brew i");
+    expect(ghost(root)).toBe("nstall");
+  });
+
+  it("suggests package names after `brew install`", () => {
+    const root = mount();
+    type(root, "brew install ca");
+    expect(ghost(root)).toBe("l"); // cal
+  });
+
   it("accepts the suggestion with the → key", () => {
     const root = mount();
     type(root, "neof");

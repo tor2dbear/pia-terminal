@@ -96,6 +96,14 @@ export interface Command<Ctx extends CoreCommandContext = CommandContext> {
   /** Alternative names that resolve to this command (e.g. `edit` → `nano`). */
   aliases?: string[];
   run(args: string[], ctx: Ctx): void | Promise<void>;
+  /**
+   * Optional argument completion. Given the argument tokens already typed (after
+   * the command name, excluding the fragment being completed) and the VFS,
+   * return candidate tokens for this position — e.g. `brew` offers its
+   * subcommands, then package names. The terminal filters the candidates by the
+   * fragment. Commands without this fall back to filename completion.
+   */
+  complete?(args: string[], vfs: VFS): string[];
 }
 
 /**
