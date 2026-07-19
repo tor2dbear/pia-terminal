@@ -48,6 +48,10 @@ guest@pia:~/notes$ ls | sort | uniq -c
   iframe. It can read the files in your working directory and its writes show up
   in `ls`. Installed with `brew install python`.
 
+- **Installable & offline**: PIA is a PWA — add it to your Home Screen, and a
+  service worker caches the app shell so it loads instantly and keeps working
+  without a network (guest data already lives locally).
+
 Type `help` in the terminal for the full command list.
 
 ---
