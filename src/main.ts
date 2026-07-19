@@ -13,10 +13,12 @@ import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
 import { registerInstalled } from "./packages/catalog.js";
 import { NullShareStore } from "./share/store.js";
+import { NullReminderStore, pushSupported, ensureServiceWorker } from "./pia/reminders.js";
 import { materializeShared } from "./share/materialize.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
 import type { ShareStore } from "./share/store.js";
+import type { ReminderStore } from "./pia/reminders.js";
 
 /**
  * Choose the storage + auth adapters. With Supabase configured, guests stay on
@@ -28,12 +30,14 @@ async function makeAdapters(): Promise<{
   adapter: StorageAdapter;
   auth: AuthAdapter;
   share: ShareStore;
+  reminders: ReminderStore;
 }> {
   if (!cloudConfig) {
     return {
       adapter: new LocalStorageAdapter(),
       auth: new FakeAuthAdapter(),
       share: new NullShareStore(),
+      reminders: new NullReminderStore(),
     };
   }
   const [
@@ -42,12 +46,14 @@ async function makeAdapters(): Promise<{
     { SupabaseStorageAdapter },
     { HybridStorageAdapter },
     { SupabaseShareStore },
+    { SupabaseReminderStore },
   ] = await Promise.all([
     import("./supabase/client.js"),
     import("./supabase/auth.js"),
     import("./supabase/storage.js"),
     import("./supabase/hybrid.js"),
     import("./supabase/share.js"),
+    import("./supabase/reminders.js"),
   ]);
   const client = await createSupabase(cloudConfig);
   return {
@@ -58,6 +64,7 @@ async function makeAdapters(): Promise<{
       client,
     ),
     share: new SupabaseShareStore(client),
+    reminders: new SupabaseReminderStore(client),
   };
 }
 
@@ -81,7 +88,11 @@ async function main(): Promise<void> {
   if (!root) throw new Error("missing #screen element");
 
   migrateLegacyKeys();
-  const { adapter, auth, share } = await makeAdapters();
+  const { adapter, auth, share, reminders } = await makeAdapters();
+
+  // Register the service worker so PIA is installable (a PWA) and can receive
+  // push. Best-effort and non-blocking — it never gates boot.
+  if (pushSupported()) void ensureServiceWorker().catch(() => {});
   const saved = await adapter.load();
   let vfs: VFS;
   if (saved) {
@@ -108,7 +119,7 @@ async function main(): Promise<void> {
     // PIA's half of the command context — the auth backend, share store and app
     // URL for share links. The engine supplies the core (fs, io, config, file
     // bridges); this adds the PIA-specific fields.
-    extendContext: piaExtendContext(auth, share),
+    extendContext: piaExtendContext(auth, share, undefined, reminders),
   });
   // Re-register any brew-installed packages (vfs.home is set now) so they
   // survive a reload — before boot, so they're ready when the prompt appears.

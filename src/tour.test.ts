@@ -122,6 +122,8 @@ const TOUR: string[] = [
   "at now+5m echo remember",
   "at -l",
   "at -r 1",
+  // Push reminders need a cloud account; as a guest it declines gracefully.
+  "remind now+1h standup",
 
   'echo "# packages (brew)"',
   "brew list",

@@ -1,6 +1,7 @@
 import type { CommandContext, CoreCommandContext } from "../commands/registry.js";
 import type { AuthAdapter } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
+import type { ReminderStore } from "./reminders.js";
 
 /**
  * PIA's half of the command seam, in one place. Given the app's auth backend and
@@ -16,6 +17,7 @@ export function piaExtendContext(
   auth: AuthAdapter,
   share?: ShareStore,
   baseUrl: string = `${location.origin}${location.pathname}`,
+  reminders?: ReminderStore,
 ): (core: CoreCommandContext) => CommandContext {
-  return (core) => ({ ...core, auth, baseUrl, share });
+  return (core) => ({ ...core, auth, baseUrl, share, reminders });
 }
