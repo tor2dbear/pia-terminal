@@ -235,6 +235,11 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     this.root.style.height = overlap > 0 ? `${vv.height}px` : "";
     this.keybarEl.style.transform = overlap > 0 ? `translateY(-${overlap}px)` : "";
+    // Lifted above the keyboard, the home-indicator inset below the bar is dead
+    // space (the keyboard, not the indicator, is now underneath) — drop it so the
+    // keys sit flush on the keyboard. Matters in the installed PWA, where the
+    // inset stays put with the keyboard up; a browser tab collapses it anyway.
+    this.keybarEl.classList.toggle("lifted", overlap > 0);
   };
 
   // ---- swipe gestures -------------------------------------------------------
