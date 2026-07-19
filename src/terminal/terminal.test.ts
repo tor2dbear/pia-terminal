@@ -80,21 +80,6 @@ describe("Terminal (driven via keyboard)", () => {
     expect(line?.contains(display)).toBe(true);
   });
 
-  it("pastes clipboard text into the input line via the paste key", async () => {
-    const root = mount();
-    Object.defineProperty(navigator, "clipboard", {
-      value: { readText: async () => "milk eggs" },
-      configurable: true,
-    });
-    const paste = [
-      ...root.querySelectorAll<HTMLButtonElement>(".term-keybar .kb-key"),
-    ].find((b) => b.textContent === "paste");
-    expect(paste).toBeTruthy();
-    paste!.click(); // paste fires on a real click (Clipboard API activation)
-    await flush();
-    expect(typed(root)).toContain("milk eggs");
-  });
-
   it("echoes a typed command and prints its output", async () => {
     const root = mount();
     await runLine(root, "echo hej");

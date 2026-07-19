@@ -224,35 +224,6 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.focusKbd();
   };
 
-  /** Insert the clipboard's text at the cursor (or into the active app). */
-  private pasteFromClipboard = async (): Promise<void> => {
-    if (!navigator.clipboard?.readText) {
-      this.print("paste: this browser blocks clipboard reads", "error");
-      return;
-    }
-    let text: string;
-    try {
-      text = await navigator.clipboard.readText();
-    } catch (err) {
-      const denied = err instanceof DOMException && err.name === "NotAllowedError";
-      this.print(
-        denied
-          ? "paste: iOS won't let a web page read another app's clipboard (a limit of this custom input, not your clipboard). Same-origin copy/paste works."
-          : `paste: ${err instanceof Error ? err.message : "blocked"}`,
-        "error",
-      );
-      return;
-    }
-    if (!text) return;
-    if (this.activeApp) {
-      this.activeApp.onText(text);
-      this.renderKeybar();
-    } else if (!this.busy) {
-      this.insertText(text);
-    }
-    this.focusKbd();
-  };
-
   /**
    * Ride the key bar above the on-screen keyboard and shrink the app to the
    * space above it. iOS Safari ignores `interactive-widget`, so we track the
@@ -1016,8 +987,10 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       subtle: true,
       run: () => this.insertText(ch),
     });
-    // Grouped (spår A): completion · navigation · insert-punctuation · control ·
-    // clipboard. `startsGroup` draws a thin divider before each cluster.
+    // Grouped (spår A): completion · navigation · insert-punctuation · control.
+    // `startsGroup` draws a thin divider before each cluster. (No paste key —
+    // the native long-press → Paste reaches the capture field directly, and
+    // works cross-app where the Clipboard API can't on iOS.)
     return [
       { label: "Tab", run: () => this.onTab() },
       { label: "↑", startsGroup: true, run: () => this.recallHistory(-1) },
@@ -1031,13 +1004,6 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       insert("-"),
       { label: "^C", startsGroup: true, run: () => this.cancelLine() },
       { label: "^L", run: () => this.clear() },
-      {
-        label: "paste",
-        startsGroup: true,
-        subtle: true,
-        activate: "click",
-        run: () => void this.pasteFromClipboard(),
-      },
     ];
   }
 
