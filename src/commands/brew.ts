@@ -21,8 +21,11 @@ async function setInstalled(ctx: CommandContext, names: string[]): Promise<void>
  */
 export const brew: Command = {
   name: "brew",
+  // `apt` is a familiar alias for anyone coming from Debian/Ubuntu; the
+  // subcommand grammar (list/install/uninstall) is the same either way.
+  aliases: ["apt"],
   help: "install optional command packages (brew list | install <name> | uninstall <name>)",
-  usage: "brew list · brew install <name> · brew uninstall <name>",
+  usage: "brew list · brew install <name> · brew uninstall <name>   (alias: apt)",
   async run(args, ctx) {
     const sub = args[0] ?? "list";
     const home = ctx.vfs.home;
