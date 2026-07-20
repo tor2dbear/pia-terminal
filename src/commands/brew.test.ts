@@ -83,6 +83,16 @@ describe("brew", () => {
     expect(textOf()).toContain("unknown command: cowsay");
   });
 
+  it("works under its `apt` alias", async () => {
+    mount();
+    await run("apt install cowsay");
+    expect(textOf()).toContain("installed cowsay");
+    await run("cowsay via apt");
+    expect(textOf()).toContain("< via apt >");
+    await run("apt uninstall cowsay");
+    expect(textOf()).toContain("uninstalled cowsay");
+  });
+
   it("rejects an unknown package", async () => {
     mount();
     await run("brew install nope");
