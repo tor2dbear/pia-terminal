@@ -133,14 +133,22 @@ export async function registerPackage(
 }
 
 /** At boot: register every package the user has installed, so they survive a
- * reload. Unknown names (e.g. a removed package) are skipped quietly. */
+ * reload. Unknown names (e.g. a removed package) are skipped quietly, and a
+ * package whose chunk fails to load (offline / transient) is skipped too rather
+ * than aborting startup — one bad import must never take the whole terminal down
+ * (it also runs before boot, which gates input until it returns). */
 export async function registerInstalled(
   vfs: VFS,
   home: string,
   registry: CommandRegistry<CoreCommandContext>,
 ): Promise<void> {
   for (const name of installedPackages(vfs, home)) {
-    if (CATALOG[name]) await registerPackage(name, registry);
+    if (!CATALOG[name]) continue;
+    try {
+      await registerPackage(name, registry);
+    } catch (err) {
+      console.warn(`pia: could not load package '${name}'`, err);
+    }
   }
 }
 
