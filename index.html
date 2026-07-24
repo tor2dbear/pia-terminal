@@ -54,16 +54,8 @@
       PIA is a standalone web terminal — a filesystem, a text editor and shared
       checklists, all in your browser. It needs JavaScript to run.
     </noscript>
+    <!-- Cloudflare Web Analytics loads from src/analytics.ts, gated to the
+         production host so dev/preview traffic doesn't pollute the property. -->
     <script type="module" src="/src/main.ts"></script>
-    <!-- Cloudflare Web Analytics — privacy-friendly, cookieless. Cloudflare's
-         canonical `defer` (classic) form, NOT type="module": the beacon reads
-         its token from document.currentScript, which is null in a module, so a
-         module tag would load but silently record nothing. The beacon host and
-         its RUM endpoint are allow-listed in the CSP (see vite.config.ts). -->
-    <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": "6f7e6b4189374ec6a89af10beb78e9f9"}'
-    ></script>
   </body>
 </html>
