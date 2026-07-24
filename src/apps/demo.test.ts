@@ -29,6 +29,19 @@ describe("demo reel content", () => {
   it("is a loop: every scene ends by clearing the screen", () => {
     expect(REEL.at(-1)).toEqual({ kind: "clear" });
   });
+
+  it("brew-installs an optional package before demonstrating its command", () => {
+    // Commands that only exist after `brew install <pkg>` must be preceded by
+    // that install in the reel, so a viewer who retypes the session succeeds.
+    const optional: Record<string, string> = { python: "python", cowsay: "cowsay" };
+    const cmds = REEL.filter((s) => s.kind === "cmd") as { text: string }[];
+    for (const [command, pkg] of Object.entries(optional)) {
+      const useAt = cmds.findIndex((s) => s.text.split(/\s+/)[0] === command);
+      const installAt = cmds.findIndex((s) => s.text === `brew install ${pkg}`);
+      expect(installAt, `${pkg} should be installed in the reel`).toBeGreaterThanOrEqual(0);
+      expect(installAt, `brew install ${pkg} should come before \`${command}\``).toBeLessThan(useAt);
+    }
+  });
 });
 
 describe("DemoReel playback", () => {

@@ -14,6 +14,11 @@ import type { ScreenApp, KeySpec } from "../terminal/screen.js";
  * faithful to the real commands: the neofetch scene is captured from the real
  * `neofetch`, and the rest mirrors each command's actual formatting.
  *
+ * The reel is one coherent session — every command really works, in order,
+ * from a fresh home — so a viewer who retypes it gets the same result: the
+ * files `publish` counts are the ones the session just created, and optional
+ * packages (`python`, `cowsay`) are `brew install`ed before use.
+ *
  * Interactive take-overs (`nano`, `todo`, the games) aren't in the reel — they
  * own the screen themselves and are best recorded live; the reel tells the
  * story that scrollback can show.
@@ -72,43 +77,24 @@ function cowsay(text: string): OutLine[] {
 
 const clear: Step = { kind: "clear" };
 
-/** The reel: what a first-time visitor should see PIA do, in ~40 seconds. */
+/**
+ * The reel: what a first-time visitor should see PIA do, in ~45 seconds. It's a
+ * single coherent session — every command really works, in order, from a fresh
+ * home — so a viewer who retypes it gets the same result. Optional packages are
+ * `brew install`ed before use (which showcases the package manager), and the
+ * files `publish` counts are the ones the session actually created.
+ */
 export const REEL: Step[] = [
   // 1 — identity.
   { kind: "cmd", text: "neofetch", out: capture(neofetch.run, []) },
   clear,
 
-  // 2 — a real filesystem you can shape.
+  // 2 — a real filesystem, and Markdown you write then render.
   { kind: "cmd", text: "ls", out: [{ text: "welcome.txt" }] },
   { kind: "cmd", text: "mkdir notes && cd notes" },
-  { kind: "cmd", text: 'echo "a little computer in the browser" > pia.txt' },
-  {
-    kind: "cmd",
-    text: "cd ~ && tree",
-    out: [
-      { text: "guest/" },
-      { text: "├─ notes/" },
-      { text: "│  └─ pia.txt" },
-      { text: "└─ welcome.txt" },
-    ],
-  },
-  clear,
-
-  // 3 — Markdown, raw then rendered.
-  {
-    kind: "cmd",
-    text: "cat notes.md",
-    out: [
-      { text: "# PIA" },
-      { text: "a little computer in the browser." },
-      { text: "" },
-      { text: "- files, folders, a real editor" },
-      { text: "- shared checklists" },
-      { text: "- even real Python" },
-      { text: "" },
-      { text: "> named after Pia — a backronym, like Lisa." },
-    ],
-  },
+  { kind: "cmd", text: 'echo "# PIA" > notes.md' },
+  { kind: "cmd", text: 'echo "a little computer in the browser." >> notes.md' },
+  { kind: "cmd", text: 'echo "- files, folders, and real Python" >> notes.md' },
   {
     kind: "cmd",
     text: "glow notes.md",
@@ -116,28 +102,29 @@ export const REEL: Step[] = [
       { text: "PIA", cls: "accent" },
       { text: "───", cls: "dim" },
       { text: "a little computer in the browser." },
-      { text: "" },
-      { text: "• files, folders, a real editor" },
-      { text: "• shared checklists" },
-      { text: "• even real Python" },
-      { text: "" },
-      { text: "│ named after Pia — a backronym, like Lisa.", cls: "dim" },
+      { text: "• files, folders, and real Python" },
     ],
   },
   clear,
 
-  // 4 — sharing is a link, not a server.
+  // 3 — sharing is a link, not a server. `notes/` holds exactly one file.
+  { kind: "cmd", text: "cd ~" },
   {
     kind: "cmd",
     text: "publish notes",
     out: [
       { text: "https://pia.tor2dbear.com/#p=eyJ2IjoxLCJ…", cls: "accent" },
-      { text: "(2 files — open the link to receive them)", cls: "dim" },
+      { text: "(1 file — open the link to receive them)", cls: "dim" },
     ],
   },
   clear,
 
-  // 5 — the climax: real CPython in the browser.
+  // 4 — the climax: install and run real CPython in the browser.
+  {
+    kind: "cmd",
+    text: "brew install python",
+    out: [{ text: "installed python — commands: python", cls: "accent" }],
+  },
   {
     kind: "cmd",
     text: "python",
@@ -148,7 +135,12 @@ export const REEL: Step[] = [
   { kind: "cmd", text: "exit()", prompt: PY },
   clear,
 
-  // 6 — a wink, and back to the top.
+  // 5 — a wink, and back to the top.
+  {
+    kind: "cmd",
+    text: "brew install cowsay",
+    out: [{ text: "installed cowsay — commands: cowsay, cowthink", cls: "accent" }],
+  },
   {
     kind: "cmd",
     text: 'cowsay "a little computer in the browser"',
