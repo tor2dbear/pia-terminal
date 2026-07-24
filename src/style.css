@@ -29,6 +29,21 @@
   box-sizing: border-box;
 }
 
+/* Visually hidden but still read by crawlers and screen readers — for the
+   semantic <h1> the terminal UI would otherwise lack. Inline styles can't do
+   this under the strict CSP (style-src 'self'), so it lives here. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html,
 body {
   margin: 0;

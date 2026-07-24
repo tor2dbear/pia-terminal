@@ -1,11 +1,14 @@
 <!doctype html>
-<html lang="sv">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="canonical" href="https://pia.tor2dbear.com/" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
+    <!-- Google Search Console site ownership verification. -->
+    <meta name="google-site-verification" content="wMCNgsUBAPHbMalaRc1dAqYdn_hFAL_4uWOijx8E4E8" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -40,10 +43,21 @@
       content="A standalone web terminal — files, a text editor and shared checklists."
     />
     <meta name="twitter:image" content="https://pia.tor2dbear.com/og.png" />
-    <title>PIA</title>
+    <title>PIA — a little computer in the browser</title>
   </head>
   <body>
+    <!-- A real heading for crawlers and screen readers (the terminal UI has no
+         headings of its own); visually hidden so it doesn't disturb the layout. -->
+    <h1 class="sr-only">PIA — a little computer in the browser</h1>
+    <!-- Before #screen (which is height:100%), so the no-JS fallback lands in
+         the first viewport instead of being pushed below the fold. -->
+    <noscript>
+      PIA is a standalone web terminal — a filesystem, a text editor and shared
+      checklists, all in your browser. It needs JavaScript to run.
+    </noscript>
     <div id="screen"></div>
+    <!-- Cloudflare Web Analytics loads from src/analytics.ts, gated to the
+         production host so dev/preview traffic doesn't pollute the property. -->
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

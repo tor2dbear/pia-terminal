@@ -15,6 +15,7 @@ import { registerInstalled } from "./packages/catalog.js";
 import { NullShareStore } from "./share/store.js";
 import { NullReminderStore, pushSupported, ensureServiceWorker } from "./pia/reminders.js";
 import { materializeShared } from "./share/materialize.js";
+import { loadAnalytics } from "./analytics.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
 import type { ShareStore } from "./share/store.js";
@@ -84,6 +85,10 @@ function migrateLegacyKeys(): void {
 }
 
 async function main(): Promise<void> {
+  // Cloudflare Web Analytics — production host only, so dev and preview don't
+  // pollute the property (see analytics.ts). Fire-and-forget, never gates boot.
+  loadAnalytics();
+
   const root = document.getElementById("screen");
   if (!root) throw new Error("missing #screen element");
 
