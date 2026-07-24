@@ -78,17 +78,36 @@ describe("DemoReel playback", () => {
     throw new Error("never reached a clear step");
   });
 
-  it("renders into a mounted container and exits on a key", () => {
-    let exited = false;
-    const reel = new DemoReel(() => {
-      exited = true;
-    });
+  it("renders into a mounted container", () => {
+    const reel = new DemoReel(() => {});
     const host = document.createElement("div");
     reel.mount(host);
     drive(reel, 30);
     expect(host.querySelector(".demo-screen")?.querySelectorAll(".term-line").length).toBeGreaterThan(0);
+  });
 
-    reel.onKey(new KeyboardEvent("keydown", { key: "q" }));
-    expect(exited).toBe(true);
+  it("exits on any key — including Enter, an arrow, or printable text", () => {
+    for (const press of [
+      (r: DemoReel) => r.onKey(new KeyboardEvent("keydown", { key: "q" })),
+      (r: DemoReel) => r.onKey(new KeyboardEvent("keydown", { key: "Enter" })),
+      (r: DemoReel) => r.onKey(new KeyboardEvent("keydown", { key: "ArrowDown" })),
+      (r: DemoReel) => r.onText("a"),
+    ]) {
+      let exited = false;
+      const reel = new DemoReel(() => {
+        exited = true;
+      });
+      press(reel);
+      expect(exited).toBe(true);
+    }
+  });
+
+  it("ignores a lone modifier press so a chord can be reached", () => {
+    let exited = false;
+    const reel = new DemoReel(() => {
+      exited = true;
+    });
+    reel.onKey(new KeyboardEvent("keydown", { key: "Shift" }));
+    expect(exited).toBe(false);
   });
 });

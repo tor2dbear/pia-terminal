@@ -184,6 +184,9 @@ export class DemoReel implements ScreenApp {
     // Reuse the terminal's own output styling so the reel is indistinguishable
     // from a live session (and re-tints with the active theme).
     this.screenEl = document.createElement("div");
+    // `.demo-screen` bounds and scrolls this surface within `.term-app` — the
+    // live terminal leans on the `#screen` root to scroll, which this app
+    // doesn't own, so it must be its own scroll container (see style.css).
     this.screenEl.className = "term-output demo-screen";
     container.append(this.screenEl);
     this.stopped = false;
@@ -199,14 +202,16 @@ export class DemoReel implements ScreenApp {
   }
 
   onKey(e: KeyboardEvent): void {
-    if (e.key === "Escape" || e.key === "q" || (e.ctrlKey && (e.key === "x" || e.key === "c"))) {
-      e.preventDefault();
-      this.quit();
-    }
+    // Any key exits, as advertised — but ignore a lone modifier press, so
+    // reaching for a chord (Shift+…, Ctrl+…) doesn't count as "a key".
+    if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
+    e.preventDefault();
+    this.quit();
   }
 
-  onText(text: string): void {
-    if (text.includes("q")) this.quit();
+  onText(_text: string): void {
+    // Any printable key exits too.
+    this.quit();
   }
 
   /** Model snapshot for tests — no DOM needed. */
