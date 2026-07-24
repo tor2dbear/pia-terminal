@@ -7,8 +7,9 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function boot(term: Terminal): Promise<void> {
   // Hold the live prompt back until the sequence finishes, so it appears last —
   // like a real machine booting (messages, then a prompt), not sitting under a
-  // banner that types in above it.
-  term.setPromptVisible(false);
+  // banner that types in above it. This also ignores input during boot, so a
+  // command can't be submitted before the prompt is even shown.
+  term.setBooting(true);
   try {
     // Wordmark lockup — the same p + block-cursor mark as the favicon.
     term.print("pia:~$ █", "accent");
@@ -23,6 +24,6 @@ export async function boot(term: Terminal): Promise<void> {
     await term.printTyped("hi. type 'help' to begin.");
     term.print();
   } finally {
-    term.setPromptVisible(true);
+    term.setBooting(false);
   }
 }

@@ -22,6 +22,20 @@ describe("segmentUrls", () => {
       { url: false, text: "." },
     ]);
   });
+
+  it("keeps a balanced closing paren that's part of the URL", () => {
+    expect(segmentUrls("https://en.wikipedia.org/wiki/Function_(mathematics)")).toEqual([
+      { url: true, text: "https://en.wikipedia.org/wiki/Function_(mathematics)" },
+    ]);
+  });
+
+  it("gives back an unmatched closing paren that wraps the URL", () => {
+    expect(segmentUrls("see (https://x.com)")).toEqual([
+      { url: false, text: "see (" },
+      { url: true, text: "https://x.com" },
+      { url: false, text: ")" },
+    ]);
+  });
 });
 
 describe("fillLinkified", () => {

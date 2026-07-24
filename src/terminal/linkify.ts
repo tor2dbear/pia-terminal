@@ -6,6 +6,37 @@
  * the strict CSP.
  */
 
+const OPENER: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+
+/**
+ * Trim punctuation that trails a URL but isn't part of it. Sentence marks and
+ * quotes always go; a closing bracket goes only when it's *unmatched* within the
+ * URL — so `…/Function_(mathematics)` keeps its `)`, but a URL wrapped in `(…)`
+ * gives the `)` back to the text.
+ */
+function trimUrlEnd(url: string): string {
+  let end = url.length;
+  while (end > 0) {
+    const ch = url[end - 1];
+    if (".,;:!?\"'".includes(ch)) {
+      end--;
+      continue;
+    }
+    const open = OPENER[ch];
+    if (open) {
+      const slice = url.slice(0, end);
+      const closes = slice.split(ch).length - 1;
+      const opens = slice.split(open).length - 1;
+      if (closes > opens) {
+        end--;
+        continue;
+      }
+    }
+    break;
+  }
+  return url.slice(0, end);
+}
+
 /** Split text into plain / URL segments, keeping trailing punctuation out of URLs. */
 export function segmentUrls(text: string): { url: boolean; text: string }[] {
   // Cheap guard: no scheme, no work — and the URL-free line renders identically.
@@ -14,8 +45,7 @@ export function segmentUrls(text: string): { url: boolean; text: string }[] {
   for (const part of text.split(/(https?:\/\/[^\s]+)/g)) {
     if (part === "") continue;
     if (/^https?:\/\//.test(part)) {
-      // Don't swallow sentence punctuation that trails a URL.
-      const url = part.replace(/[.,;:!?)\]}'"]+$/, "");
+      const url = trimUrlEnd(part);
       segs.push({ url: true, text: url });
       if (url.length < part.length) segs.push({ url: false, text: part.slice(url.length) });
     } else {

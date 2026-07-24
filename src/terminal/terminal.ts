@@ -119,6 +119,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private historyIndex = 0; // points one past the last entry when not browsing
   private suggestionIndex = 0; // which of several matches the ghost shows
   private busy = false;
+  /** True during the boot sequence — the terminal ignores input until it ends. */
+  private booting = false;
   /** Key bar shows the Ctrl tray (^A ^E …) instead of the normal keys. */
   private ctrlTrayOpen = false;
 
@@ -627,9 +629,14 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.inputEl.classList.toggle("collapsed", !visible);
   }
 
-  /** Show/hide the prompt line — used to hold it back until boot finishes. */
-  setPromptVisible(visible: boolean): void {
-    this.setInputVisible(visible);
+  /**
+   * Enter/leave the boot sequence: hide the prompt *and* ignore input until it
+   * finishes, so a command can't be submitted into a half-booted terminal (which
+   * would leave a command running as boot un-hides the prompt over it).
+   */
+  setBooting(booting: boolean): void {
+    this.booting = booting;
+    this.setInputVisible(!booting);
   }
 
   // ---- keyboard -------------------------------------------------------------
@@ -641,7 +648,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       this.renderKeybar(); // the app's keys may have changed (e.g. mode switch)
       return;
     }
-    if (this.busy) return;
+    if (this.busy || this.booting) return;
 
     // Ctrl bindings are readline-style line editing; anything else with a
     // modifier (⌘, or a Ctrl combo we don't bind) is a browser shortcut —
@@ -731,7 +738,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       this.renderKeybar();
       return;
     }
-    if (this.busy) return;
+    if (this.busy || this.booting) return;
     this.insertText(text);
   };
 
@@ -824,7 +831,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
    * tests. No-op while another command is running.
    */
   async exec(line: string): Promise<void> {
-    if (this.busy) return;
+    if (this.busy || this.booting) return;
     this.buffer = line;
     this.cursor = line.length;
     await this.submit();
@@ -836,7 +843,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
    * Skips (to retry next tick) while a command or full-screen app is active.
    */
   async fireScheduled(line: string): Promise<void> {
-    if (this.busy || this.activeApp) return;
+    if (this.busy || this.activeApp || this.booting) return;
     const savedBuffer = this.buffer;
     const savedCursor = this.cursor;
     this.print("⏰ scheduled:", "dim");
