@@ -159,6 +159,7 @@ const TOUR: string[] = [
   'echo "# system"',
   "whoami",
   "version",
+  "about",
   "date -u",
   "help",
   "history | tail -5",

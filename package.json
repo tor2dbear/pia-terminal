@@ -2,6 +2,12 @@
   "name": "pia",
   "version": "0.10.0",
   "description": "PIA — Personal Integrated Applications. A standalone web terminal.",
+  "homepage": "https://pia.tor2dbear.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tor2dbear/pia-terminal.git"
+  },
+  "author": "tor2dbear",
   "type": "module",
   "scripts": {
     "dev": "vite",

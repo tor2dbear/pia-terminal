@@ -17,6 +17,7 @@ import { pagerCommands } from "./pager.js";
 import { remindCommands } from "./remind.js";
 import { metaCommands } from "./changelog.js";
 import { demoCommands } from "./demo.js";
+import { aboutCommands } from "./about.js";
 
 /** Build a registry with all commands registered. */
 export function buildRegistry(): CommandRegistry {
@@ -40,6 +41,7 @@ export function buildRegistry(): CommandRegistry {
     ...remindCommands,
     ...metaCommands,
     ...demoCommands,
+    ...aboutCommands,
   ]) {
     registry.register(cmd);
   }

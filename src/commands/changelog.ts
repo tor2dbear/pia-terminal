@@ -4,8 +4,7 @@ import type { Command } from "./registry.js";
 // own history (self-referential, on-brand). Rendered through the same Markdown
 // renderer `glow` uses.
 import CHANGELOG from "../../CHANGELOG.md?raw";
-
-const VERSION = typeof __PIA_VERSION__ !== "undefined" ? __PIA_VERSION__ : "dev";
+import { VERSION } from "../meta.js";
 
 const version: Command = {
   name: "version",

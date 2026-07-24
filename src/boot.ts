@@ -1,22 +1,29 @@
 import type { Terminal } from "./terminal/terminal.js";
+import { VERSION } from "./meta.js";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** App version from package.json (injected by vite); "dev" if not built. */
-const VERSION = typeof __PIA_VERSION__ !== "undefined" ? __PIA_VERSION__ : "dev";
-
 /** Print a short boot sequence, then hand the terminal to the user. */
 export async function boot(term: Terminal): Promise<void> {
-  // Wordmark lockup — the same p + block-cursor mark as the favicon.
-  term.print("pia:~$ █", "accent");
-  await term.printTyped("a little computer in the browser", "dim");
-  await delay(160);
-  term.print(`PIA v${VERSION} · Personal Integrated Applications`, "dim");
-  await delay(140);
-  term.print("memory ok · vfs mounted · adapters loaded", "dim");
-  await delay(220);
-  term.print();
-  // The invitation, typed out — the little computer greeting you.
-  await term.printTyped("hi. type 'help' to begin.");
-  term.print();
+  // Hold the live prompt back until the sequence finishes, so it appears last —
+  // like a real machine booting (messages, then a prompt), not sitting under a
+  // banner that types in above it. This also ignores input during boot, so a
+  // command can't be submitted before the prompt is even shown.
+  term.setBooting(true);
+  try {
+    // Wordmark lockup — the same p + block-cursor mark as the favicon.
+    term.print("pia:~$ █", "accent");
+    await term.printTyped("a little computer in the browser", "dim");
+    await delay(160);
+    term.print(`PIA v${VERSION} · Personal Integrated Applications`, "dim");
+    await delay(140);
+    term.print("memory ok · vfs mounted · adapters loaded", "dim");
+    await delay(220);
+    term.print();
+    // The invitation, typed out — the little computer greeting you.
+    await term.printTyped("hi. type 'help' to begin.");
+    term.print();
+  } finally {
+    term.setBooting(false);
+  }
 }
