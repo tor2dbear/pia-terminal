@@ -42,7 +42,9 @@ export function segmentUrls(text: string): { url: boolean; text: string }[] {
   // Cheap guard: no scheme, no work — and the URL-free line renders identically.
   if (!text.includes("http")) return [{ url: false, text }];
   const segs: { url: boolean; text: string }[] = [];
-  for (const part of text.split(/(https?:\/\/[^\s]+)/g)) {
+  // Stop a URL at whitespace and at `<`/`>`, so a Markdown autolink like
+  // `<https://x/docs>` keeps its angle brackets as surrounding text.
+  for (const part of text.split(/(https?:\/\/[^\s<>]+)/g)) {
     if (part === "") continue;
     if (/^https?:\/\//.test(part)) {
       const url = trimUrlEnd(part);

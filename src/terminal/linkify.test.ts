@@ -36,6 +36,14 @@ describe("segmentUrls", () => {
       { url: false, text: ")" },
     ]);
   });
+
+  it("keeps the angle brackets of a Markdown autolink out of the URL", () => {
+    expect(segmentUrls("<https://example.com/docs>")).toEqual([
+      { url: false, text: "<" },
+      { url: true, text: "https://example.com/docs" },
+      { url: false, text: ">" },
+    ]);
+  });
 });
 
 describe("fillLinkified", () => {
