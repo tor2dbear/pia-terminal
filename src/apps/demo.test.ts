@@ -30,6 +30,20 @@ describe("demo reel content", () => {
     expect(REEL.at(-1)).toEqual({ kind: "clear" });
   });
 
+  it("shows ~/notes in the prompt while working inside notes/", () => {
+    const cmds = REEL.filter((s) => s.kind === "cmd") as { text: string; prompt?: string }[];
+    const promptOf = (startsWith: string) => cmds.find((s) => s.text.startsWith(startsWith))?.prompt;
+
+    // Entered at home, before `cd notes` runs.
+    expect(promptOf("mkdir notes")).toBeUndefined(); // defaults to guest@pia:~$
+    // Entered inside notes/, after the cd.
+    expect(promptOf("echo")).toBe("guest@pia:~/notes$");
+    expect(promptOf("glow")).toBe("guest@pia:~/notes$");
+    expect(promptOf("cd ~")).toBe("guest@pia:~/notes$");
+    // Back home for publish.
+    expect(promptOf("publish")).toBeUndefined();
+  });
+
   it("brew-installs an optional package before demonstrating its command", () => {
     // Commands that only exist after `brew install <pkg>` must be preceded by
     // that install in the reel, so a viewer who retypes the session succeeds.

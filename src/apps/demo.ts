@@ -33,6 +33,7 @@ type Step =
   | { kind: "clear" };
 
 const PROMPT = "guest@pia:~$";
+const IN_NOTES = "guest@pia:~/notes$"; // prompt while cwd is ~/notes
 const PY = ">>>";
 
 /** Pacing, in milliseconds. Tuned to feel like a brisk, confident operator. */
@@ -90,13 +91,16 @@ export const REEL: Step[] = [
   clear,
 
   // 2 — a real filesystem, and Markdown you write then render.
+  // The prompt tracks the working directory, just like the real shell: the
+  // lines run inside `notes/` show `~/notes`, and it returns home with `cd ~`.
   { kind: "cmd", text: "ls", out: [{ text: "welcome.txt" }] },
   { kind: "cmd", text: "mkdir notes && cd notes" },
-  { kind: "cmd", text: 'echo "# PIA" > notes.md' },
-  { kind: "cmd", text: 'echo "a little computer in the browser." >> notes.md' },
-  { kind: "cmd", text: 'echo "- files, folders, and real Python" >> notes.md' },
+  { kind: "cmd", prompt: IN_NOTES, text: 'echo "# PIA" > notes.md' },
+  { kind: "cmd", prompt: IN_NOTES, text: 'echo "a little computer in the browser." >> notes.md' },
+  { kind: "cmd", prompt: IN_NOTES, text: 'echo "- files, folders, and real Python" >> notes.md' },
   {
     kind: "cmd",
+    prompt: IN_NOTES,
     text: "glow notes.md",
     out: [
       { text: "PIA", cls: "accent" },
@@ -108,7 +112,7 @@ export const REEL: Step[] = [
   clear,
 
   // 3 — sharing is a link, not a server. `notes/` holds exactly one file.
-  { kind: "cmd", text: "cd ~" },
+  { kind: "cmd", prompt: IN_NOTES, text: "cd ~" },
   {
     kind: "cmd",
     text: "publish notes",
