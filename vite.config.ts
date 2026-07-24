@@ -11,7 +11,9 @@ const PIA_REPO_URL: string = (PKG.repository?.url ?? "")
   .replace(/^git\+/, "")
   .replace(/\.git$/, "");
 const PIA_HOMEPAGE: string = PKG.homepage ?? "";
-const PIA_NPM_URL: string = PKG.name ? `https://www.npmjs.com/package/${PKG.name}` : "";
+// The published package is the reusable engine (see scripts/build-engine.mjs),
+// not this app workspace's name — that isn't on npm.
+const PIA_NPM_URL = "https://www.npmjs.com/package/pia-terminal-engine";
 
 /**
  * Content-Security-Policy that matches PIA's real surface: everything is served

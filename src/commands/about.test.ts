@@ -15,7 +15,7 @@ describe("about", () => {
     // The real package.json version is injected in the test build.
     expect(out).toMatch(/PIA v\d/);
     expect(out).toContain("https://github.com/tor2dbear/pia-terminal");
-    expect(out).toContain("https://www.npmjs.com/package/pia");
+    expect(out).toContain("https://www.npmjs.com/package/pia-terminal-engine");
     expect(out).toContain("https://pia.tor2dbear.com");
   });
 

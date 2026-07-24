@@ -126,6 +126,10 @@ async function main(): Promise<void> {
     // bridges); this adds the PIA-specific fields.
     extendContext: piaExtendContext(auth, share, undefined, reminders),
   });
+  // Gate input from the moment the terminal exists: registering installed
+  // packages below does async work (dynamic imports), and boot should own the
+  // prompt that whole time — not only once it starts printing.
+  term.setBooting(true);
   // Re-register any brew-installed packages (vfs.home is set now) so they
   // survive a reload — before boot, so they're ready when the prompt appears.
   await registerInstalled(vfs, vfs.home, registry);

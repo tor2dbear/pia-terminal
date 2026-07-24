@@ -220,7 +220,7 @@ Personal Integrated Applications
 
 home     https://pia.tor2dbear.com
 source   https://github.com/tor2dbear/pia-terminal
-npm      https://www.npmjs.com/package/pia
+npm      https://www.npmjs.com/package/pia-terminal-engine
 guest@pia:~$ date -u
 Sat Jul 18 12:00:00 UTC 2026
 guest@pia:~$ help

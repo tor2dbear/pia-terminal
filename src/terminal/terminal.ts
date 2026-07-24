@@ -637,6 +637,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   setBooting(booting: boolean): void {
     this.booting = booting;
     this.setInputVisible(!booting);
+    this.renderKeybar(); // hide the on-screen key bar while booting (its taps bypass the input gate)
   }
 
   // ---- keyboard -------------------------------------------------------------
@@ -1116,6 +1117,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
   /** Redraw the key bar for the current context (active app, else the prompt). */
   private renderKeybar(): void {
+    // While booting the prompt is gated, so its key bar must be too — the bar's
+    // buttons call insertText/onTab/ctrl actions directly, bypassing the gate.
+    if (this.booting) {
+      this.keybarEl.replaceChildren();
+      this.keybarEl.style.display = "none";
+      return;
+    }
     const keys = this.activeApp ? this.activeApp.keys?.() : this.promptKeys();
     this.keybarEl.replaceChildren();
     if (!keys || keys.length === 0) {
