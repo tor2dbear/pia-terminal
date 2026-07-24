@@ -23,6 +23,8 @@ export interface PiaConfig {
   aliases: Record<string, string>;
   /** Per-token colour overrides (hex), layered on top of the chosen theme. */
   colors: Partial<Record<ColorKey, string>>;
+  /** CRT/retro overlay on (scanlines + phosphor glow). Off unless set. */
+  crt?: boolean;
   /** Font-family override (an installed font, by name). */
   font?: string;
   /** Font size in px. */
@@ -36,6 +38,8 @@ export const DEFAULT_CONFIG = [
   "",
   "# theme: phosphor · amber · ice · mono   (or use `theme <name>`)",
   "theme = phosphor",
+  "",
+  "# crt = on   # retro cathode-ray overlay: scanlines + phosphor glow (`crt on`)",
   "",
   "# custom colours — override the theme, any of: bg fg dim accent error",
   "# color.accent = #ff8800",
@@ -94,6 +98,7 @@ export function parseConfig(text: string): PiaConfig {
       const value = rawValue.trim();
       if (key === "theme") cfg.theme = value;
       else if (key === "prompt") cfg.prompt = value;
+      else if (key === "crt") cfg.crt = value === "on" || value === "true";
       else if (key === "font") {
         if (FONT_RE.test(value)) cfg.font = value;
       } else if (key === "font-size") {
@@ -105,8 +110,12 @@ export function parseConfig(text: string): PiaConfig {
   return cfg;
 }
 
-/** Replace the `key = …` line (theme/prompt), or append it if absent. */
-export function setConfigValue(text: string, key: "theme" | "prompt", value: string): string {
+/** Replace the `key = …` line (theme/prompt/crt), or append it if absent. */
+export function setConfigValue(
+  text: string,
+  key: "theme" | "prompt" | "crt",
+  value: string,
+): string {
   const re = new RegExp(`^\\s*${key}\\s*=.*$`);
   return upsert(text, (l) => re.test(l), `${key} = ${value}`);
 }

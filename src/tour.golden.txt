@@ -83,6 +83,10 @@ guest@pia:~$ theme
 switch with `theme <name>`
 guest@pia:~$ theme amber
 theme set to amber
+guest@pia:~$ crt on
+CRT mode on — phosphor glow engaged
+guest@pia:~$ crt off
+CRT mode off
 guest@pia:~$ alias ll ls -la
 aliased ll → ls -la
 guest@pia:~$ alias
@@ -95,6 +99,8 @@ guest@pia:~$ cat ~/.pia/config
 
 # theme: phosphor · amber · ice · mono   (or use `theme <name>`)
 theme = amber
+
+# crt = on   # retro cathode-ray overlay: scanlines + phosphor glow (`crt on`)
 
 # custom colours — override the theme, any of: bg fg dim accent error
 # color.accent = #ff8800
@@ -111,6 +117,7 @@ prompt = {user}@pia:{cwd}$
 
 # shortcuts — `alias <name> = <expansion>`   (or use `alias ll ls -la`)
 alias ll = ls -la
+crt = off
 
 guest@pia:~$ echo "# share & publish"
 # share & publish
@@ -242,6 +249,7 @@ available commands:
   column     format delimited text into a table (column -t [-s sep])
   cp         copy a file or directory
   crontab    recurring scheduled jobs (crontab -e edit, -l list, -r remove)
+  crt        toggle the CRT/retro overlay — scanlines + phosphor glow
   cut        extract selected fields or characters from each line
   date       print the current date and time
   demo       play a looping, self-running tour of PIA (any key to exit)
@@ -295,8 +303,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-74  version
-75  about
-76  date -u
-77  help
-78  history | tail -5
+76  version
+77  about
+78  date -u
+79  help
+80  history | tail -5

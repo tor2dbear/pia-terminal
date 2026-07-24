@@ -840,3 +840,47 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ---- CRT / retro overlay (`crt on`) ------------------------------------- */
+/* A restrained cathode-ray look layered over any theme: a soft phosphor bloom
+   on the text, fine scanlines, and a tube vignette. It's a decorative overlay
+   plus a text-shadow — no new colours, no JS, CSP-safe (a plain root class).
+   Off by default: the scanlines + glow are a lot for some eyes. Pairs beautifully
+   with `theme amber` (classic amber monochrome) or the green phosphor default. */
+
+.crt #screen {
+  /* Phosphor bloom — each glyph glows in its own colour (fg/accent/dim/error). */
+  text-shadow:
+    0 0 1px currentColor,
+    0 0 4px color-mix(in srgb, currentColor 70%, transparent);
+}
+
+/* Scanlines + tube vignette, painted over everything but never eating a tap. */
+.crt #screen::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.18) 0,
+      rgba(0, 0, 0, 0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+}
+
+/* A slow, gentle brightness breathe gives the tube some life — small and slow,
+   so it never flashes; skipped entirely for reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .crt #screen::after {
+    animation: crt-breathe 4s ease-in-out infinite;
+  }
+}
+@keyframes crt-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.965; }
+}

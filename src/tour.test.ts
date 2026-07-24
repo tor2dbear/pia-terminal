@@ -111,6 +111,8 @@ const TOUR: string[] = [
   'echo "# config, theme, prompt"',
   "theme",
   "theme amber",
+  "crt on",
+  "crt off",
   "alias ll ls -la",
   "alias",
   "source ~/.pia/config",
