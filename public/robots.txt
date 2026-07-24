@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pia.tor2dbear.com/sitemap.xml
