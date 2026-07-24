@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="sv">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="canonical" href="https://pia.tor2dbear.com/" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
@@ -42,10 +43,17 @@
       content="A standalone web terminal — files, a text editor and shared checklists."
     />
     <meta name="twitter:image" content="https://pia.tor2dbear.com/og.png" />
-    <title>PIA</title>
+    <title>PIA — a little computer in the browser</title>
   </head>
   <body>
+    <!-- A real heading for crawlers and screen readers (the terminal UI has no
+         headings of its own); visually hidden so it doesn't disturb the layout. -->
+    <h1 class="sr-only">PIA — a little computer in the browser</h1>
     <div id="screen"></div>
+    <noscript>
+      PIA is a standalone web terminal — a filesystem, a text editor and shared
+      checklists, all in your browser. It needs JavaScript to run.
+    </noscript>
     <script type="module" src="/src/main.ts"></script>
     <!-- Cloudflare Web Analytics — privacy-friendly, cookieless. Cloudflare's
          canonical `defer` (classic) form, NOT type="module": the beacon reads
