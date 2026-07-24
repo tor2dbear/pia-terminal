@@ -907,12 +907,15 @@ body {
   50% { opacity: 0.965; }
 }
 
-/* Keep the on-screen key bar part of the same tube: an accent phosphor edge-glow
-   under CRT, so the keys glow with the screen instead of reading as flat chips
-   with the scanline/mask texture merely laid over them. */
+/* Keep the on-screen key bar part of the same tube: the keys glow with the
+   screen instead of reading as flat chips with the scanline/mask over them —
+   accent labels with a phosphor bloom, a bright accent edge, and an outer halo. */
 .crt .kb-key {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 75%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  text-shadow: 0 0 6px currentColor;
   box-shadow:
-    0 0 6px color-mix(in srgb, var(--accent) 22%, transparent),
-    inset 0 0 8px color-mix(in srgb, var(--accent) 10%, transparent);
+    0 0 11px color-mix(in srgb, var(--accent) 42%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--accent) 16%, transparent);
 }
