@@ -849,28 +849,50 @@ body {
    with `theme amber` (classic amber monochrome) or the green phosphor default. */
 
 .crt #screen {
-  /* Phosphor bloom — each glyph glows in its own colour (fg/accent/dim/error). */
+  /* Phosphor bloom + halation — each glyph glows in its own colour with a tight
+     core and a wider soft halo, the way a real tube blooms. */
   text-shadow:
     0 0 1px currentColor,
-    0 0 4px color-mix(in srgb, currentColor 70%, transparent);
+    0 0 4px color-mix(in srgb, currentColor 65%, transparent),
+    0 0 12px color-mix(in srgb, currentColor 28%, transparent);
 }
 
-/* Scanlines + tube vignette, painted over everything but never eating a tap. */
+/* Aperture-grille phosphor mask — faint vertical RGB triads (Trinitron/PVM
+   style, the CRT-royale signature). Low-alpha so glyphs stay crisp. */
+.crt #screen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.05) 0,
+    rgba(0, 255, 0, 0.05) 1px,
+    rgba(0, 0, 255, 0.05) 2px,
+    rgba(0, 0, 0, 0) 3px
+  );
+}
+
+/* Scanlines + tube vignette/edge falloff, painted over everything but never
+   eating a tap. The rounded corners + inset shadow hint at the curved glass. */
 .crt #screen::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 9999;
   pointer-events: none;
+  border-radius: 8px;
   background:
-    radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%),
+    radial-gradient(ellipse at center, transparent 52%, rgba(0, 0, 0, 0.55) 100%),
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.18) 0,
-      rgba(0, 0, 0, 0.18) 1px,
+      rgba(0, 0, 0, 0.2) 0,
+      rgba(0, 0, 0, 0.2) 1px,
       transparent 1px,
       transparent 3px
     );
+  box-shadow: inset 0 0 7vw 1.5vw rgba(0, 0, 0, 0.5);
 }
 
 /* A slow, gentle brightness breathe gives the tube some life — small and slow,
