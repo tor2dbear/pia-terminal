@@ -49,11 +49,13 @@
     <!-- A real heading for crawlers and screen readers (the terminal UI has no
          headings of its own); visually hidden so it doesn't disturb the layout. -->
     <h1 class="sr-only">PIA — a little computer in the browser</h1>
-    <div id="screen"></div>
+    <!-- Before #screen (which is height:100%), so the no-JS fallback lands in
+         the first viewport instead of being pushed below the fold. -->
     <noscript>
       PIA is a standalone web terminal — a filesystem, a text editor and shared
       checklists, all in your browser. It needs JavaScript to run.
     </noscript>
+    <div id="screen"></div>
     <!-- Cloudflare Web Analytics loads from src/analytics.ts, gated to the
          production host so dev/preview traffic doesn't pollute the property. -->
     <script type="module" src="/src/main.ts"></script>
