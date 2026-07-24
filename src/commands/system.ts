@@ -1,4 +1,4 @@
-import { VERSION, REPO_URL, NPM_URL } from "../meta.js";
+import { VERSION } from "../meta.js";
 import type { Command } from "./registry.js";
 
 export const help: Command = {
@@ -61,8 +61,6 @@ export const neofetch: Command = {
       "shell   pia-sh",
       "kernel  VFS + command registry",
       "theme   green phosphor",
-      ...(REPO_URL ? [`repo    ${REPO_URL}`] : []),
-      ...(NPM_URL ? [`npm     ${NPM_URL}`] : []),
     ];
     const logo = [
       "  ┌──────┐",

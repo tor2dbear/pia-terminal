@@ -16,6 +16,8 @@ export const about: Command = {
     if (HOMEPAGE) ctx.print(`home     ${HOMEPAGE}`, "dim");
     if (REPO_URL) ctx.print(`source   ${REPO_URL}`, "dim");
     if (NPM_URL) ctx.print(`npm      ${NPM_URL}`, "dim");
+    ctx.print();
+    ctx.print("run `changelog` to see what's new.", "dim");
   },
 };
 
