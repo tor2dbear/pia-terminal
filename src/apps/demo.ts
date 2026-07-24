@@ -381,9 +381,13 @@ export class DemoReel implements ScreenApp {
         step.kind === "nano"
           ? nanoFrames(step.file, step.lines, this.instant)
           : replFrames(step.banner, step.entries, this.instant);
-      this.frameIdx = 0;
       this.phase = "frames";
-      return TIMING.open;
+      // Render the first frame now, so the take-over shows real app chrome from
+      // the opening beat instead of an empty stage flashing for TIMING.open.
+      const first = this.frames[0];
+      this.frameIdx = 1;
+      if (this.stageEl && first) first.render(this.stageEl);
+      return first ? first.delay : 0;
     }
     // cmd
     this.beginCmdLine(step.prompt ?? PROMPT);
