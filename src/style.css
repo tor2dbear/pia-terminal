@@ -90,6 +90,16 @@ body {
   user-select: text;
 }
 
+/* The `demo` reel renders inside `.term-app`, which the live terminal's own
+   `#screen` scroller doesn't reach — so this surface bounds itself and scrolls,
+   keeping a tall scene readable on a short viewport. `min-height: 0` lets a flex
+   child actually shrink to enable the scroll. */
+.demo-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .term-line {
   white-space: pre-wrap;
   word-break: break-word;

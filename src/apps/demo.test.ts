@@ -1,0 +1,140 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from "vitest";
+import { DemoReel, REEL } from "./demo.js";
+import { neofetch } from "../commands/system.js";
+import type { CommandContext, LineClass } from "../commands/registry.js";
+
+/** Drive the reel one tick at a time (no timers), collecting the delays. */
+function drive(reel: DemoReel, ticks: number): void {
+  for (let i = 0; i < ticks; i++) reel.tick();
+}
+
+describe("demo reel content", () => {
+  it("opens with a real neofetch, captured from the command itself", () => {
+    const first = REEL[0];
+    expect(first.kind === "cmd" && first.text).toBe("neofetch");
+
+    // Re-run the real neofetch and compare — the scene must not drift.
+    const lines: { text: string; cls?: string }[] = [];
+    const ctx = {
+      session: { user: "guest" },
+      print: (text = "", cls: LineClass = "normal") =>
+        lines.push(cls === "normal" ? { text } : { text, cls }),
+    } as unknown as CommandContext;
+    neofetch.run([], ctx);
+
+    expect(first.kind === "cmd" && first.out).toEqual(lines);
+  });
+
+  it("is a loop: every scene ends by clearing the screen", () => {
+    expect(REEL.at(-1)).toEqual({ kind: "clear" });
+  });
+
+  it("shows ~/notes in the prompt while working inside notes/", () => {
+    const cmds = REEL.filter((s) => s.kind === "cmd") as { text: string; prompt?: string }[];
+    const promptOf = (startsWith: string) => cmds.find((s) => s.text.startsWith(startsWith))?.prompt;
+
+    // Entered at home, before `cd notes` runs.
+    expect(promptOf("mkdir notes")).toBeUndefined(); // defaults to guest@pia:~$
+    // Entered inside notes/, after the cd.
+    expect(promptOf("echo")).toBe("guest@pia:~/notes$");
+    expect(promptOf("glow")).toBe("guest@pia:~/notes$");
+    expect(promptOf("cd ~")).toBe("guest@pia:~/notes$");
+    // Back home for publish.
+    expect(promptOf("publish")).toBeUndefined();
+  });
+
+  it("brew-installs an optional package before demonstrating its command", () => {
+    // Commands that only exist after `brew install <pkg>` must be preceded by
+    // that install in the reel, so a viewer who retypes the session succeeds.
+    const optional: Record<string, string> = { python: "python", cowsay: "cowsay" };
+    const cmds = REEL.filter((s) => s.kind === "cmd") as { text: string }[];
+    for (const [command, pkg] of Object.entries(optional)) {
+      const useAt = cmds.findIndex((s) => s.text.split(/\s+/)[0] === command);
+      const installAt = cmds.findIndex((s) => s.text === `brew install ${pkg}`);
+      expect(installAt, `${pkg} should be installed in the reel`).toBeGreaterThanOrEqual(0);
+      expect(installAt, `brew install ${pkg} should come before \`${command}\``).toBeLessThan(useAt);
+    }
+  });
+});
+
+describe("DemoReel playback", () => {
+  it("types a command character by character before running it", () => {
+    const reel = new DemoReel(() => {});
+    reel.tick(); // start → begins the first command line, phase: typing
+    expect(reel.snapshot().phase).toBe("typing");
+
+    const cmd = REEL[0];
+    const len = cmd.kind === "cmd" ? cmd.text.length : 0;
+    // One typing tick per character; it should take exactly `len` of them to
+    // reveal the whole command and move on to running it.
+    let typed = 0;
+    while (reel.snapshot().phase === "typing") {
+      reel.tick();
+      typed++;
+    }
+    expect(typed).toBe(len);
+    expect(reel.snapshot().phase).toBe("run");
+  });
+
+  it("cycles back to the first scene after the last, forever", () => {
+    const reel = new DemoReel(() => {});
+    // Plenty of ticks to run the whole reel more than once.
+    let sawLastStep = false;
+    for (let i = 0; i < 4000; i++) {
+      if (reel.snapshot().stepIdx === REEL.length - 1) sawLastStep = true;
+      reel.tick();
+    }
+    expect(sawLastStep).toBe(true);
+    // Never runs off the end of the reel.
+    expect(reel.snapshot().stepIdx).toBeLessThan(REEL.length);
+  });
+
+  it("clears the logical scrollback at each scene break", () => {
+    const reel = new DemoReel(() => {});
+    // Advance until the first `clear` step is reached and consumed.
+    for (let i = 0; i < 400; i++) {
+      reel.tick();
+      const { stepIdx } = reel.snapshot();
+      if (REEL[stepIdx].kind === "clear") {
+        reel.tick(); // process the clear
+        expect(reel.snapshot().lines).toBe(0);
+        return;
+      }
+    }
+    throw new Error("never reached a clear step");
+  });
+
+  it("renders into a mounted container", () => {
+    const reel = new DemoReel(() => {});
+    const host = document.createElement("div");
+    reel.mount(host);
+    drive(reel, 30);
+    expect(host.querySelector(".demo-screen")?.querySelectorAll(".term-line").length).toBeGreaterThan(0);
+  });
+
+  it("exits on any key — including Enter, an arrow, or printable text", () => {
+    for (const press of [
+      (r: DemoReel) => r.onKey(new KeyboardEvent("keydown", { key: "q" })),
+      (r: DemoReel) => r.onKey(new KeyboardEvent("keydown", { key: "Enter" })),
+      (r: DemoReel) => r.onKey(new KeyboardEvent("keydown", { key: "ArrowDown" })),
+      (r: DemoReel) => r.onText("a"),
+    ]) {
+      let exited = false;
+      const reel = new DemoReel(() => {
+        exited = true;
+      });
+      press(reel);
+      expect(exited).toBe(true);
+    }
+  });
+
+  it("ignores a lone modifier press so a chord can be reached", () => {
+    let exited = false;
+    const reel = new DemoReel(() => {
+      exited = true;
+    });
+    reel.onKey(new KeyboardEvent("keydown", { key: "Shift" }));
+    expect(exited).toBe(false);
+  });
+});
