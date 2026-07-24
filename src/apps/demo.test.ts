@@ -37,11 +37,21 @@ describe("demo reel content", () => {
     // Entered at home, before `cd notes` runs.
     expect(promptOf("mkdir notes")).toBeUndefined(); // defaults to guest@pia:~$
     // Entered inside notes/, after the cd.
-    expect(promptOf("echo")).toBe("guest@pia:~/notes$");
+    expect(promptOf("nano")).toBe("guest@pia:~/notes$");
     expect(promptOf("glow")).toBe("guest@pia:~/notes$");
     expect(promptOf("cd ~")).toBe("guest@pia:~/notes$");
     // Back home for publish.
     expect(promptOf("publish")).toBeUndefined();
+  });
+
+  it("writes the same note in nano that glow then renders", () => {
+    const nano = REEL.find((s) => s.kind === "nano");
+    expect(nano?.kind === "nano" && nano.file).toBe("notes.md");
+    // The heading typed into nano is what glow shows (upper-cased, per glow).
+    const heading = nano?.kind === "nano" ? nano.lines[0] : "";
+    expect(heading).toBe("# PIA");
+    const glow = REEL.find((s) => s.kind === "cmd" && s.text === "glow notes.md");
+    expect(glow?.kind === "cmd" && glow.out?.[0]).toEqual({ text: "PIA", cls: "accent" });
   });
 
   it("brew-installs an optional package before demonstrating its command", () => {
@@ -111,6 +121,34 @@ describe("DemoReel playback", () => {
     reel.mount(host);
     drive(reel, 30);
     expect(host.querySelector(".demo-screen")?.querySelectorAll(".term-line").length).toBeGreaterThan(0);
+  });
+
+  it("plays nano and the Python REPL as real full-screen scenes, then returns", () => {
+    const reel = new DemoReel(() => {});
+    const host = document.createElement("div");
+    reel.mount(host);
+
+    let sawNote = false; // the note typed into the editor body
+    let sawSaved = false; // the ^O save message
+    let sawResult = false; // a Python result in the REPL log
+    let stageAfterExit = true; // the stage must be gone once we're back in scrollback
+
+    for (let i = 0; i < 3000; i++) {
+      reel.tick();
+      const ed = host.querySelector(".ed-body");
+      if (ed?.textContent?.includes("# PIA")) sawNote = true;
+      if (host.querySelector(".ed-msg")?.textContent?.includes("saved notes.md")) sawSaved = true;
+      if (host.querySelector(".pyrepl-out")?.textContent?.includes("5050")) sawResult = true;
+      // When scrollback is visible again, no stage should remain.
+      if (reel.snapshot().phase !== "frames" && host.querySelector(".demo-stage")) {
+        stageAfterExit = false;
+      }
+    }
+
+    expect(sawNote).toBe(true);
+    expect(sawSaved).toBe(true);
+    expect(sawResult).toBe(true);
+    expect(stageAfterExit).toBe(true);
   });
 
   it("exits on any key — including Enter, an arrow, or printable text", () => {

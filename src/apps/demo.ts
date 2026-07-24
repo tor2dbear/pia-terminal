@@ -10,40 +10,46 @@ import type { ScreenApp, KeySpec } from "../terminal/screen.js";
  *
  * The reel is *scripted*, not live: deterministic timing, no Pyodide load, no
  * filesystem side effects — so a recording is identical every take and stitches
- * into a seamless loop (the last frame equals the first). The output is kept
- * faithful to the real commands: the neofetch scene is captured from the real
- * `neofetch`, and the rest mirrors each command's actual formatting.
+ * into a seamless loop (the last frame equals the first). It stays faithful to
+ * the real thing: the neofetch scene is captured from the real command, and the
+ * full-screen scenes reuse the actual editor (`ed-*`) and Python REPL
+ * (`pyrepl-*`) chrome, so a viewer can't tell them from a live session.
  *
- * The reel is one coherent session — every command really works, in order,
- * from a fresh home — so a viewer who retypes it gets the same result: the
- * files `publish` counts are the ones the session just created, and optional
+ * It's one coherent session — every command really works, in order, from a
+ * fresh home — so a viewer who retypes it gets the same result: the file
+ * `publish` counts is the one the session just wrote in `nano`, and optional
  * packages (`python`, `cowsay`) are `brew install`ed before use.
- *
- * Interactive take-overs (`nano`, `todo`, the games) aren't in the reel — they
- * own the screen themselves and are best recorded live; the reel tells the
- * story that scrollback can show.
  */
 
-/** A line of scripted output. `cls` omitted means normal (foreground). */
+/** A line of scripted scrollback output. `cls` omitted means normal. */
 type OutLine = { text: string; cls?: Exclude<LineClass, "normal"> };
 
-/** One reel step: a typed command with its output, or a scene break. */
+/** One `>>>` interaction in the Python REPL scene. */
+type ReplEntry = { input: string; out?: string[] };
+
+/** One reel step. `cmd` types a shell line; `nano`/`repl` are full-screen apps. */
 type Step =
   | { kind: "cmd"; text: string; prompt?: string; out?: OutLine[] }
-  | { kind: "clear" };
+  | { kind: "clear" }
+  | { kind: "nano"; file: string; lines: string[] }
+  | { kind: "repl"; banner: string; entries: ReplEntry[] };
+
+/** A single rendered moment of a full-screen scene, and how long to hold it. */
+type Frame = { render: (stage: HTMLElement) => void; delay: number };
 
 const PROMPT = "guest@pia:~$";
 const IN_NOTES = "guest@pia:~/notes$"; // prompt while cwd is ~/notes
-const PY = ">>>";
 
 /** Pacing, in milliseconds. Tuned to feel like a brisk, confident operator. */
 const TIMING = {
-  type: 45, // per character while typing a command (~22 cps)
-  think: 320, // after a command is fully typed, before it "runs"
+  type: 45, // per character while typing (~22 cps)
+  think: 320, // after a line is fully typed, before it "runs"
   line: 55, // between successive output lines
-  read: 1500, // after a command's output, before the next command
+  read: 1400, // after output, before the next command
   clearPause: 550, // hold an empty screen at a scene break
   loop: 850, // extra beat before the reel restarts
+  open: 480, // beat as a full-screen app takes over
+  hold: 1150, // hold a finished app state (e.g. "saved") before leaving
 } as const;
 
 /** Run a pure-print command into a buffer, so its scene stays truthful. */
@@ -76,28 +82,113 @@ function cowsay(text: string): OutLine[] {
   ].map((t) => ({ text: t }));
 }
 
+// ---- full-screen scene rendering (reuses the real apps' chrome) ------------
+
+function el(tag: string, className: string, text?: string): HTMLElement {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/** Draw the nano editor exactly as the real editor does: title / body / status. */
+function renderEditor(
+  stage: HTMLElement,
+  file: string,
+  bodyLines: string[],
+  dirty: boolean,
+  msg: string,
+): void {
+  const title = el("div", "ed-title", `  PIA editor · ${file}${dirty ? " *" : ""}`);
+  const body = el("div", "ed-body");
+  bodyLines.forEach((text, i) => {
+    // A zero-width space keeps a blank line from collapsing.
+    const line = el("div", "ed-line", text === "" ? "​" : text);
+    if (i === bodyLines.length - 1) line.append(el("span", "term-cursor", " "));
+    body.append(line);
+  });
+  const status = el("div", "ed-status");
+  status.append(el("span", "ed-hint", "^O save · ^X exit"), el("span", "ed-msg", msg), el("span", "ed-pos", ""));
+  stage.replaceChildren(title, body, status);
+}
+
+/** Frames that type `lines` into a fresh nano buffer, then `^O` save it. */
+function nanoFrames(file: string, lines: string[], instant: boolean): Frame[] {
+  const frames: Frame[] = [];
+  const push = (bodyLines: string[], dirty: boolean, msg: string, delay: number) =>
+    frames.push({ render: (s) => renderEditor(s, file, bodyLines, dirty, msg), delay });
+
+  if (instant) {
+    push(lines, false, `saved ${file}`, TIMING.hold);
+    return frames;
+  }
+  push([""], false, "", TIMING.open); // open empty
+  const acc: string[] = [];
+  for (const full of lines) {
+    acc.push("");
+    for (let ci = 1; ci <= full.length; ci++) {
+      acc[acc.length - 1] = full.slice(0, ci);
+      push([...acc], true, "", TIMING.type);
+    }
+  }
+  push([...lines], true, "", TIMING.read); // sit on the finished buffer
+  push([...lines], false, `saved ${file}`, TIMING.hold); // ^O
+  return frames;
+}
+
+/** Draw the Python REPL exactly as the real one does: an <pre> log + a prompt. */
+function renderRepl(stage: HTMLElement, outLines: string[], promptLine: string): void {
+  const wrap = el("div", "pyrepl");
+  const out = el("pre", "pyrepl-out", outLines.join("\n"));
+  const prompt = el("div", "pyrepl-prompt", promptLine);
+  wrap.append(out, prompt);
+  stage.replaceChildren(wrap);
+}
+
+/** Frames that run each entry at the `>>>` prompt, then type `exit()`. */
+function replFrames(banner: string, entries: ReplEntry[], instant: boolean): Frame[] {
+  const frames: Frame[] = [];
+  const out = [banner];
+  const push = (promptLine: string, delay: number) => {
+    const snapshot = [...out];
+    frames.push({ render: (s) => renderRepl(s, snapshot, promptLine), delay });
+  };
+
+  if (instant) {
+    for (const e of entries) out.push(`>>> ${e.input}`, ...(e.out ?? []));
+    push(">>> exit()█", TIMING.hold);
+    return frames;
+  }
+  push(">>> █", TIMING.open);
+  for (const e of entries) {
+    for (let ci = 1; ci <= e.input.length; ci++) push(`>>> ${e.input.slice(0, ci)}█`, TIMING.type);
+    out.push(`>>> ${e.input}`, ...(e.out ?? [])); // "enter"
+    push(">>> █", TIMING.read);
+  }
+  const exitCmd = "exit()";
+  for (let ci = 1; ci <= exitCmd.length; ci++) push(`>>> ${exitCmd.slice(0, ci)}█`, TIMING.type);
+  push(`>>> ${exitCmd}█`, TIMING.hold);
+  return frames;
+}
+
 const clear: Step = { kind: "clear" };
 
-/**
- * The reel: what a first-time visitor should see PIA do, in ~45 seconds. It's a
- * single coherent session — every command really works, in order, from a fresh
- * home — so a viewer who retypes it gets the same result. Optional packages are
- * `brew install`ed before use (which showcases the package manager), and the
- * files `publish` counts are the ones the session actually created.
- */
+/** The reel: what a first-time visitor should see PIA do, in ~50 seconds. */
 export const REEL: Step[] = [
   // 1 — identity.
   { kind: "cmd", text: "neofetch", out: capture(neofetch.run, []) },
   clear,
 
-  // 2 — a real filesystem, and Markdown you write then render.
-  // The prompt tracks the working directory, just like the real shell: the
-  // lines run inside `notes/` show `~/notes`, and it returns home with `cd ~`.
+  // 2 — a real filesystem, and Markdown written in the editor then rendered.
+  // The prompt tracks the working directory, like the real shell.
   { kind: "cmd", text: "ls", out: [{ text: "welcome.txt" }] },
   { kind: "cmd", text: "mkdir notes && cd notes" },
-  { kind: "cmd", prompt: IN_NOTES, text: 'echo "# PIA" > notes.md' },
-  { kind: "cmd", prompt: IN_NOTES, text: 'echo "a little computer in the browser." >> notes.md' },
-  { kind: "cmd", prompt: IN_NOTES, text: 'echo "- files, folders, and real Python" >> notes.md' },
+  { kind: "cmd", prompt: IN_NOTES, text: "nano notes.md" },
+  {
+    kind: "nano",
+    file: "notes.md",
+    lines: ["# PIA", "a little computer in the browser.", "- files, folders, and real Python"],
+  },
   {
     kind: "cmd",
     prompt: IN_NOTES,
@@ -123,20 +214,21 @@ export const REEL: Step[] = [
   },
   clear,
 
-  // 4 — the climax: install and run real CPython in the browser.
+  // 4 — the climax: install and run real CPython, in its own REPL.
   {
     kind: "cmd",
     text: "brew install python",
     out: [{ text: "installed python — commands: python", cls: "accent" }],
   },
+  { kind: "cmd", text: "python" },
   {
-    kind: "cmd",
-    text: "python",
-    out: [{ text: "Python (Pyodide) — type exit() or press ^X to quit.", cls: "dim" }],
+    kind: "repl",
+    banner: "Python (Pyodide) — type exit() or press ^X to quit.",
+    entries: [
+      { input: "2 ** 64", out: ["18446744073709551616"] },
+      { input: "sum(range(1, 101))", out: ["5050"] },
+    ],
   },
-  { kind: "cmd", text: "2 ** 64", prompt: PY, out: [{ text: "18446744073709551616" }] },
-  { kind: "cmd", text: "sum(range(1, 101))", prompt: PY, out: [{ text: "5050" }] },
-  { kind: "cmd", text: "exit()", prompt: PY },
   clear,
 
   // 5 — a wink, and back to the top.
@@ -153,7 +245,7 @@ export const REEL: Step[] = [
   clear,
 ];
 
-type Phase = "start" | "typing" | "run" | "output" | "read" | "next";
+type Phase = "start" | "typing" | "run" | "output" | "frames" | "read" | "next";
 
 export class DemoReel implements ScreenApp {
   private stepIdx = 0;
@@ -162,7 +254,12 @@ export class DemoReel implements ScreenApp {
   private outIdx = 0;
   private lineCount = 0; // logical scrollback size, for tests
 
+  private frames: Frame[] = [];
+  private frameIdx = 0;
+
+  private container?: HTMLElement;
   private screenEl?: HTMLDivElement;
+  private stageEl?: HTMLDivElement;
   private typedEl?: Text;
   private cursorEl?: HTMLSpanElement;
 
@@ -179,6 +276,7 @@ export class DemoReel implements ScreenApp {
   mount(container: HTMLElement): void {
     // Reuse the terminal's own output styling so the reel is indistinguishable
     // from a live session (and re-tints with the active theme).
+    this.container = container;
     this.screenEl = document.createElement("div");
     // `.demo-screen` bounds and scrolls this surface within `.term-app` — the
     // live terminal leans on the `#screen` root to scroll, which this app
@@ -227,22 +325,7 @@ export class DemoReel implements ScreenApp {
   tick(): number {
     const step = REEL[this.stepIdx];
 
-    if (this.phase === "start") {
-      if (step.kind === "clear") {
-        this.clearScreen();
-        this.phase = "next";
-        return TIMING.clearPause;
-      }
-      this.beginCmdLine(step.prompt ?? PROMPT);
-      this.charIdx = 0;
-      if (this.instant) {
-        this.renderTyped(step.text);
-        this.phase = "run";
-        return TIMING.think;
-      }
-      this.phase = "typing";
-      return TIMING.type;
-    }
+    if (this.phase === "start") return this.beginStep(step);
 
     if (this.phase === "typing" && step.kind === "cmd") {
       this.charIdx++;
@@ -271,8 +354,47 @@ export class DemoReel implements ScreenApp {
       return this.outIdx >= out.length ? TIMING.read : TIMING.line;
     }
 
+    if (this.phase === "frames") {
+      if (this.frameIdx >= this.frames.length) {
+        this.exitStage();
+        this.phase = "read";
+        return TIMING.clearPause;
+      }
+      const frame = this.frames[this.frameIdx++];
+      if (this.stageEl) frame.render(this.stageEl);
+      return frame.delay;
+    }
+
     // "read" or "next": move to the next step (looping at the end).
     return this.advanceStep();
+  }
+
+  private beginStep(step: Step): number {
+    if (step.kind === "clear") {
+      this.clearScreen();
+      this.phase = "next";
+      return TIMING.clearPause;
+    }
+    if (step.kind === "nano" || step.kind === "repl") {
+      this.enterStage();
+      this.frames =
+        step.kind === "nano"
+          ? nanoFrames(step.file, step.lines, this.instant)
+          : replFrames(step.banner, step.entries, this.instant);
+      this.frameIdx = 0;
+      this.phase = "frames";
+      return TIMING.open;
+    }
+    // cmd
+    this.beginCmdLine(step.prompt ?? PROMPT);
+    this.charIdx = 0;
+    if (this.instant) {
+      this.renderTyped(step.text);
+      this.phase = "run";
+      return TIMING.think;
+    }
+    this.phase = "typing";
+    return TIMING.type;
   }
 
   private advanceStep(): number {
@@ -316,7 +438,6 @@ export class DemoReel implements ScreenApp {
     if (!this.screenEl) return;
     const line = document.createElement("div");
     line.className = out.cls ? `term-line ${out.cls}` : "term-line";
-    // A zero-width space keeps a blank line from collapsing to nothing.
     line.textContent = out.text === "" ? "​" : out.text;
     this.screenEl.append(line);
     this.scroll();
@@ -327,6 +448,25 @@ export class DemoReel implements ScreenApp {
     this.removeCursor();
     this.typedEl = undefined;
     this.screenEl?.replaceChildren();
+  }
+
+  /** A full-screen app takes over: hide the scrollback, mount a fresh stage. */
+  private enterStage(): void {
+    if (!this.container || !this.screenEl) return;
+    this.screenEl.style.display = "none";
+    this.stageEl = document.createElement("div");
+    this.stageEl.className = "demo-stage";
+    this.container.append(this.stageEl);
+  }
+
+  /** The app exits: drop the stage, restore the scrollback underneath it. */
+  private exitStage(): void {
+    this.stageEl?.remove();
+    this.stageEl = undefined;
+    if (this.screenEl) {
+      this.screenEl.style.display = "";
+      this.scroll();
+    }
   }
 
   private scroll(): void {
