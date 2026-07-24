@@ -2,10 +2,16 @@
 import { readFileSync } from "node:fs";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
-// Single source of truth for the app version: package.json. Exposed as the
-// compile-time constant __PIA_VERSION__ so the boot banner (and anywhere else)
-// always reflects it — bump with `npm version` and it follows.
-const { version: PIA_VERSION } = JSON.parse(readFileSync("./package.json", "utf8"));
+// Single source of truth for app metadata: package.json. Exposed as compile-time
+// constants so the boot banner, `neofetch`, `about`, … always reflect it — bump
+// the version with `npm version`, edit the URLs there, and everything follows.
+const PKG = JSON.parse(readFileSync("./package.json", "utf8"));
+const PIA_VERSION: string = PKG.version;
+const PIA_REPO_URL: string = (PKG.repository?.url ?? "")
+  .replace(/^git\+/, "")
+  .replace(/\.git$/, "");
+const PIA_HOMEPAGE: string = PKG.homepage ?? "";
+const PIA_NPM_URL: string = PKG.name ? `https://www.npmjs.com/package/${PKG.name}` : "";
 
 /**
  * Content-Security-Policy that matches PIA's real surface: everything is served
@@ -125,6 +131,9 @@ export default defineConfig(({ mode }) => ({
   plugins: [securityHeaders(mode)],
   define: {
     __PIA_VERSION__: JSON.stringify(PIA_VERSION),
+    __PIA_REPO_URL__: JSON.stringify(PIA_REPO_URL),
+    __PIA_HOMEPAGE__: JSON.stringify(PIA_HOMEPAGE),
+    __PIA_NPM_URL__: JSON.stringify(PIA_NPM_URL),
   },
   build: {
     target: "es2020",

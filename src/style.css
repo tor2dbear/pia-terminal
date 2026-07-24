@@ -132,6 +132,14 @@ body {
   color: var(--error);
 }
 
+/* Clickable links in output (e.g. `about`, `neofetch`) — accent + underline so
+   they read as tappable, and they win over a dim line's colour. */
+.term-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* The active input line: a positioning context for the display + field overlay. */
 .term-inputline {
   position: relative;

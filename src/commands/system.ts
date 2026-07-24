@@ -1,3 +1,4 @@
+import { VERSION, REPO_URL, NPM_URL } from "../meta.js";
 import type { Command } from "./registry.js";
 
 export const help: Command = {
@@ -55,11 +56,13 @@ export const neofetch: Command = {
     const info = [
       `${ctx.session.user}@pia`,
       "─────────────",
-      "os      PIA v0.1",
+      `os      PIA v${VERSION}`,
       "name    Personal Integrated Applications",
       "shell   pia-sh",
       "kernel  VFS + command registry",
       "theme   green phosphor",
+      ...(REPO_URL ? [`repo    ${REPO_URL}`] : []),
+      ...(NPM_URL ? [`npm     ${NPM_URL}`] : []),
     ];
     const logo = [
       "  ┌──────┐",

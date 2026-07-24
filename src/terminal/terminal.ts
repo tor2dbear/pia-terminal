@@ -10,6 +10,7 @@ import {
 } from "../commands/registry.js";
 import { tokenize, parseSequence, type Pipeline } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
+import { fillLinkified } from "./linkify.js";
 import { parsePromptSegments } from "./prompt.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 
@@ -279,11 +280,11 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
   // ---- output ---------------------------------------------------------------
 
-  /** Append a line of output. */
+  /** Append a line of output (linkifying any http(s) URLs into clickable links). */
   print(text = "", cls: LineClass = "normal"): void {
     const line = document.createElement("div");
     line.className = cls === "normal" ? "term-line" : `term-line ${cls}`;
-    line.textContent = text;
+    fillLinkified(line, text);
     this.outputEl.append(line);
     this.scrollToBottom();
   }
@@ -624,6 +625,11 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     // Collapse (not display:none) so the capture field — now a child of the
     // input line — stays in the DOM and focusable while a command or app runs.
     this.inputEl.classList.toggle("collapsed", !visible);
+  }
+
+  /** Show/hide the prompt line — used to hold it back until boot finishes. */
+  setPromptVisible(visible: boolean): void {
+    this.setInputVisible(visible);
   }
 
   // ---- keyboard -------------------------------------------------------------

@@ -214,11 +214,19 @@ guest@pia:~$ whoami
 guest
 guest@pia:~$ version
 PIA v<version>
+guest@pia:~$ about
+PIA v<version> — a little computer in the browser
+Personal Integrated Applications
+
+home     https://pia.tor2dbear.com
+source   https://github.com/tor2dbear/pia-terminal
+npm      https://www.npmjs.com/package/pia
 guest@pia:~$ date -u
 Sat Jul 18 12:00:00 UTC 2026
 guest@pia:~$ help
 available commands:
 
+  about      about PIA — version, source, and links
   alias      make a shortcut (alias ll ls -la), or list aliases
   at         schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
   bc         evaluate arithmetic expressions
@@ -285,8 +293,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-73  whoami
 74  version
-75  date -u
-76  help
-77  history | tail -5
+75  about
+76  date -u
+77  help
+78  history | tail -5
