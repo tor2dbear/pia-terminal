@@ -840,3 +840,82 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ---- CRT / retro overlay (`crt on`) ------------------------------------- */
+/* A restrained cathode-ray look layered over any theme: a soft phosphor bloom
+   on the text, fine scanlines, and a tube vignette. It's a decorative overlay
+   plus a text-shadow — no new colours, no JS, CSP-safe (a plain root class).
+   Off by default: the scanlines + glow are a lot for some eyes. Pairs beautifully
+   with `theme amber` (classic amber monochrome) or the green phosphor default. */
+
+.crt #screen {
+  /* Phosphor bloom + halation — each glyph glows in its own colour with a tight
+     core and a wider soft halo, the way a real tube blooms. */
+  text-shadow:
+    0 0 1px currentColor,
+    0 0 4px color-mix(in srgb, currentColor 65%, transparent),
+    0 0 12px color-mix(in srgb, currentColor 28%, transparent);
+}
+
+/* Aperture-grille phosphor mask — faint vertical RGB triads (Trinitron/PVM
+   style, the CRT-royale signature). Low-alpha so glyphs stay crisp. */
+.crt #screen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.05) 0,
+    rgba(0, 255, 0, 0.05) 1px,
+    rgba(0, 0, 255, 0.05) 2px,
+    rgba(0, 0, 0, 0) 3px
+  );
+}
+
+/* Scanlines + tube vignette/edge falloff, painted over everything but never
+   eating a tap. The rounded corners + inset shadow hint at the curved glass. */
+.crt #screen::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  border-radius: 8px;
+  background:
+    radial-gradient(ellipse at center, transparent 52%, rgba(0, 0, 0, 0.55) 100%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.2) 0,
+      rgba(0, 0, 0, 0.2) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  box-shadow: inset 0 0 7vw 1.5vw rgba(0, 0, 0, 0.5);
+}
+
+/* A slow, gentle brightness breathe gives the tube some life — small and slow,
+   so it never flashes; skipped entirely for reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .crt #screen::after {
+    animation: crt-breathe 4s ease-in-out infinite;
+  }
+}
+@keyframes crt-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.965; }
+}
+
+/* Keep the on-screen key bar part of the same tube: the keys glow with the
+   screen instead of reading as flat chips with the scanline/mask over them —
+   accent labels with a phosphor bloom, a bright accent edge, and an outer halo. */
+.crt .kb-key {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 75%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  text-shadow: 0 0 6px currentColor;
+  box-shadow:
+    0 0 11px color-mix(in srgb, var(--accent) 42%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--accent) 16%, transparent);
+}

@@ -52,6 +52,29 @@ export const theme: Command = {
   },
 };
 
+export const crt: Command = {
+  name: "crt",
+  help: "toggle the CRT/retro overlay — scanlines + phosphor glow",
+  usage: "crt [on|off]",
+  run(args, ctx) {
+    const current = parseConfig(readRc(ctx)).crt === true;
+    if (args.length === 0) {
+      ctx.print(`CRT mode is ${current ? "on" : "off"}`, current ? "accent" : "dim");
+      ctx.print("toggle with `crt on` / `crt off`", "dim");
+      return;
+    }
+    const arg = args[0].toLowerCase();
+    if (arg !== "on" && arg !== "off" && arg !== "toggle") {
+      ctx.error("crt: usage — crt on | off");
+      return;
+    }
+    const on = arg === "toggle" ? !current : arg === "on";
+    return writeRc(ctx, setConfigValue(readRc(ctx), "crt", on ? "on" : "off")).then(() =>
+      ctx.print(on ? "CRT mode on — phosphor glow engaged" : "CRT mode off", on ? "accent" : "dim"),
+    );
+  },
+};
+
 export const alias: Command = {
   name: "alias",
   help: "make a shortcut (alias ll ls -la), or list aliases",
@@ -133,4 +156,4 @@ export const source: Command = {
   },
 };
 
-export const configCommands: Command[] = [theme, alias, unalias, source];
+export const configCommands: Command[] = [theme, crt, alias, unalias, source];

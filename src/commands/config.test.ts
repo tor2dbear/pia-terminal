@@ -161,6 +161,18 @@ describe(".pia/config — themes, aliases, prompt", () => {
     expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#abcdef");
   });
 
+  it("`crt on` / `crt off` toggles the retro overlay class and persists it", async () => {
+    const root = mount();
+    await runLine(root, "crt on");
+    expect(document.documentElement.classList.contains("crt")).toBe(true);
+    expect(root.textContent).toContain("CRT mode on");
+    // Persisted to the dotfile, so it survives a reload (re-applied on mount).
+    expect(root.textContent).not.toContain("crt: usage");
+
+    await runLine(root, "crt off");
+    expect(document.documentElement.classList.contains("crt")).toBe(false);
+  });
+
   it("`source` refuses anything but the config file", async () => {
     const root = mount();
     await runLine(root, "source ~/notes.txt");
