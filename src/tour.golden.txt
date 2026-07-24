@@ -234,6 +234,7 @@ available commands:
   crontab    recurring scheduled jobs (crontab -e edit, -l list, -r remove)
   cut        extract selected fields or characters from each line
   date       print the current date and time
+  demo       play a looping, self-running tour of PIA (any key to exit)
   download   download a file from the VFS to your computer
   echo       print the arguments
   find       list files and directories recursively
