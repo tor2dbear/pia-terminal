@@ -24,7 +24,11 @@ const { version: PIA_VERSION } = JSON.parse(readFileSync("./package.json", "utf8
  */
 function securityHeaders(mode: string): Plugin {
   const env = loadEnv(mode, process.cwd(), "");
-  const connect = ["'self'"];
+  // Cloudflare Web Analytics: the beacon (loaded from static.cloudflareinsights.com)
+  // reports page views to cloudflareinsights.com. Both must be allow-listed, or
+  // the strict CSP blocks the script and its RUM POST — leaving analytics empty.
+  const connect = ["'self'", "https://cloudflareinsights.com"];
+  const script = ["'self'", "https://static.cloudflareinsights.com"];
   const supabase = env.VITE_SUPABASE_URL?.trim();
   if (supabase) {
     try {
@@ -39,7 +43,7 @@ function securityHeaders(mode: string): Plugin {
   // header-only and would be ignored there with a console warning).
   const base = [
     "default-src 'self'",
-    "script-src 'self'",
+    `script-src ${script.join(" ")}`,
     "style-src 'self'",
     "img-src 'self' data:",
     "font-src 'self'",
