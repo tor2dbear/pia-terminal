@@ -22,12 +22,17 @@ const INTERVAL_MS = 300; // gap between packets (real ping waits ~1s; keep it sn
 // must not freeze the prompt for long. `self` and `cloud` reply in ms when up.
 const TIMEOUT_MS = 2000;
 
-/** A single timed probe: resolves to the round-trip in ms, or null on failure. */
-export type Probe = (url: string) => Promise<number | null>;
+/** A single timed probe: resolves to the round-trip in ms, or null on failure.
+ * `signal` (Ctrl-C) aborts the in-flight request early. */
+export type Probe = (url: string, signal?: AbortSignal) => Promise<number | null>;
 
 /** The real probe: a cache-busted `HEAD`, timed with `performance.now()`. */
-export const httpProbe: Probe = async (url) => {
+export const httpProbe: Probe = async (url, signal) => {
+  // The request aborts on either the per-probe timeout or the user's Ctrl-C.
   const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const started = performance.now();
   try {
@@ -40,18 +45,25 @@ export const httpProbe: Probe = async (url) => {
     return null;
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
   }
 };
 
 /** Injectable dependencies, so the loop is testable without a real network. */
 export interface PingDeps {
   probe: Probe;
-  sleep: (ms: number) => Promise<void>;
+  sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 const realDeps: PingDeps = {
   probe: httpProbe,
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  // A Ctrl-C during the gap between packets returns immediately, too.
+  sleep: (ms, signal) =>
+    new Promise((resolve) => {
+      if (signal?.aborted) return resolve();
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+    }),
 };
 
 interface Target {
@@ -152,10 +164,15 @@ export async function runPing(
   const host = hostOf(target.url);
   ctx.print(`PING ${target.label} (${host}) — HTTP HEAD, no ICMP in the browser`);
 
+  const signal = ctx.signal;
   const times: number[] = [];
+  let sent = 0; // packets actually attempted (< count if Ctrl-C interrupts)
   for (let seq = 0; seq < count; seq++) {
-    if (seq > 0) await deps.sleep(INTERVAL_MS);
-    const rtt = await deps.probe(cacheBust(target.url, seq));
+    if (signal?.aborted) break;
+    if (seq > 0) await deps.sleep(INTERVAL_MS, signal);
+    if (signal?.aborted) break;
+    sent++;
+    const rtt = await deps.probe(cacheBust(target.url, seq), signal);
     if (rtt === null) {
       ctx.print(`no reply from ${host}: seq=${seq} (timeout)`, "dim");
     } else {
@@ -164,10 +181,12 @@ export async function runPing(
     }
   }
 
+  if (sent === 0) return; // interrupted before the first packet — nothing to sum up
+
   ctx.print();
   ctx.print(`--- ${host} ping statistics ---`);
-  const loss = Math.round(((count - times.length) / count) * 100);
-  const summary = `${count} transmitted, ${times.length} received, ${loss}% loss`;
+  const loss = Math.round(((sent - times.length) / sent) * 100);
+  const summary = `${sent} transmitted, ${times.length} received, ${loss}% loss`;
   if (times.length === 0) {
     // Every packet was lost: report through `error` so the pipeline exits
     // non-zero, like real ping — `ping cloud || echo offline` then branches.

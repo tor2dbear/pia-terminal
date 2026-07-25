@@ -33,6 +33,13 @@ export interface CoreCommandContext {
   stdin: string;
   /** True when this command's output is captured (piped or redirected). */
   piped: boolean;
+  /**
+   * Fires when the user interrupts a running command (Ctrl-C / the ^C key).
+   * Long-running, cooperative commands (e.g. `ping`) should watch it and stop
+   * early; anything synchronous can ignore it. Absent for one-off invocations
+   * with no interrupt channel (some tests).
+   */
+  signal?: AbortSignal;
   /** Current working directory, absolute. */
   cwd: string;
   /** Change the working directory (validated by the caller of the command). */
