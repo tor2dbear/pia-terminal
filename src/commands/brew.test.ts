@@ -77,7 +77,8 @@ describe("brew", () => {
     await run("brew install cowsay");
     await run("brew uninstall cowsay");
     expect(textOf()).toContain("uninstalled cowsay");
-    expect(vfs.readFile("/home/guest/.pia/packages")).toBe("");
+    // The seed preinstalls man + tutor, so the list isn't empty — just cowsay-free.
+    expect(vfs.readFile("/home/guest/.pia/packages")).not.toContain("cowsay");
 
     await run("cowsay moo");
     expect(textOf()).toContain("unknown command: cowsay");

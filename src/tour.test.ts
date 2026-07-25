@@ -16,6 +16,7 @@ import { VFS } from "./vfs/vfs.js";
 import { MemoryStorageAdapter } from "./storage/localStorage.js";
 import { MemoryAuthAdapter } from "./auth/fakeAuth.js";
 import { buildRegistry } from "./commands/index.js";
+import { commandPackage, registerInstalled } from "./packages/catalog.js";
 import { piaExtendContext } from "./pia/context.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { boot } from "./boot.js";
@@ -26,20 +27,28 @@ const FIXED = new Date("2026-07-18T12:00:00Z");
 
 let term: Terminal | undefined;
 let root: HTMLElement;
+let vfs: VFS;
+let registry: ReturnType<typeof buildRegistry>;
 
 function mount(): void {
   root = document.createElement("div");
   document.body.append(root);
-  const vfs = VFS.seed();
+  vfs = VFS.seed();
+  registry = buildRegistry();
   term = new Terminal(root, {
     vfs,
     adapter: new MemoryStorageAdapter(),
-    registry: buildRegistry(),
+    registry,
     session: { user: "guest" },
     // Seed + apply ~/.pia/config at boot, exactly like main.ts.
     configure: () => loadTerminalConfig(vfs),
     // A fixed baseUrl so share/publish links don't depend on the test host.
     extendContext: piaExtendContext(new MemoryAuthAdapter(), undefined, "https://pia.example/"),
+    // Mirror main.ts: a not-yet-installed package command suggests `brew install`.
+    describeUnknownCommand: (name) => {
+      const pkg = commandPackage(name);
+      return pkg ? `${name}: not installed — run \`brew install ${pkg}\`` : null;
+    },
   });
 }
 
@@ -136,6 +145,9 @@ const TOUR: string[] = [
 
   'echo "# packages (brew)"',
   "brew list",
+  // A not-yet-installed package command explains how to get it — and names the
+  // PACKAGE, which can differ from the command (`mines` lives in `minesweeper`).
+  "mines",
   "brew install cowsay",
   "cowsay hello from a package",
   "brew uninstall cowsay",
@@ -154,7 +166,7 @@ const TOUR: string[] = [
   "echo cGlhCg== | base64 -d",
   "factor 1001",
   "echo hi | xxd",
-  "brew install man",
+  // `man` is preinstalled (see VFS.seed), so no install needed here.
   // `man` opens a pager, so the tour uses its plain-text (piped) path plus the
   // apropos search and the not-found message — all deterministic.
   "man ls | head -6",
@@ -164,7 +176,7 @@ const TOUR: string[] = [
   // Screen-app packages: install-only here (they take over the screen when run).
   "brew install sl",
   "brew install cmatrix",
-  "brew install tutor",
+  // `tutor` is preinstalled (see VFS.seed), so no install needed here.
   "brew install life",
   "brew install tetris",
   "brew install wordle",
@@ -207,6 +219,9 @@ describe("tour — a scripted session through the real terminal", () => {
   });
 
   it("matches the golden transcript (update with `vitest -u`)", async () => {
+    // Register seed-preinstalled packages (man, tutor) before boot, exactly
+    // like main.ts — so `man …` works and the greeting's pointers are live.
+    await registerInstalled(vfs, vfs.home, registry);
     await boot(term!);
     for (const line of TOUR) await run(line);
     await expect(transcript()).toMatchFileSnapshot("./tour.golden.txt");

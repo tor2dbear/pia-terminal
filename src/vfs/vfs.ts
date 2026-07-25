@@ -31,9 +31,17 @@ export class VFS {
         "",
         "this is your home. create files with `touch`, folders with `mkdir`,",
         "read them with `cat`, edit them with `nano`. type `help` for everything.",
+        "new here? try `demo`, `tutor`, or `man pia`.",
         "",
       ].join("\n"),
     );
+    // Preinstall the onboarding packages the boot greeting points at, so a new
+    // user's first `tutor` / `man pia` works instead of bouncing off
+    // command-not-found. Everything else stays opt-in via `brew`. One name per
+    // line — the format installedPackages() reads (path inlined to avoid a
+    // vfs→packages import cycle; it's just a dotfile).
+    vfs.mkdirp(`${HOME}/.pia`);
+    vfs.writeFile(`${HOME}/.pia/packages`, "man\ntutor\n");
     return vfs;
   }
 

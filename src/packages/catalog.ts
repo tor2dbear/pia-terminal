@@ -146,6 +146,20 @@ export function packagesPath(home: string): string {
   return `${home}/.pia/packages`;
 }
 
+/**
+ * The catalog package that provides a command name, or null if none does — the
+ * reverse of each entry's `commands` list. Lets the shell turn a typed-but-
+ * unregistered command (e.g. `mines`, `cowthink`) into a precise
+ * `brew install <package>` hint, since the command name and its package can
+ * differ.
+ */
+export function commandPackage(command: string): string | null {
+  for (const entry of Object.values(CATALOG)) {
+    if (entry.commands.includes(command)) return entry.name;
+  }
+  return null;
+}
+
 /** The set of installed package names, read from ~/.pia/packages. */
 export function installedPackages(vfs: VFS, home: string): string[] {
   const node = vfs.getNode(packagesPath(home));

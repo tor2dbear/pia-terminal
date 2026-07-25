@@ -11,7 +11,7 @@ import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
-import { registerInstalled } from "./packages/catalog.js";
+import { commandPackage, registerInstalled } from "./packages/catalog.js";
 import { NullShareStore } from "./share/store.js";
 import { NullReminderStore, pushSupported, ensureServiceWorker } from "./pia/reminders.js";
 import { materializeShared } from "./share/materialize.js";
@@ -121,6 +121,14 @@ async function main(): Promise<void> {
     registry,
     session,
     configure: () => loadTerminalConfig(vfs),
+    // Command-not-found → a `brew install` hint when the name is a known but
+    // not-yet-installed package command (Debian's command-not-found idiom).
+    // Names the package, which can differ from the command (`mines` →
+    // minesweeper). Unknown names fall through to the generic message.
+    describeUnknownCommand: (name) => {
+      const pkg = commandPackage(name);
+      return pkg ? `${name}: not installed — run \`brew install ${pkg}\`` : null;
+    },
     // PIA's half of the command context — the auth backend, share store and app
     // URL for share links. The engine supplies the core (fs, io, config, file
     // bridges); this adds the PIA-specific fields.

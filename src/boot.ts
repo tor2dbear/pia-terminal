@@ -22,6 +22,10 @@ export async function boot(term: Terminal): Promise<void> {
     term.print();
     // The invitation, typed out — the little computer greeting you.
     await term.printTyped("hi. type 'help' to begin.");
+    // A signpost for newcomers: a self-running tour, the interactive tutor, and
+    // the manual. `tutor`/`man` are preinstalled in the seed so these all work
+    // on first run (see VFS.seed).
+    term.print("new here? try `demo` for a tour, `tutor` to learn, or `man pia`.", "dim");
     term.print();
   } finally {
     term.setBooting(false);
