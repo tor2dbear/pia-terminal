@@ -965,6 +965,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         // when its output is being redirected to a file.
         const capture = !isLast || redirect !== null ? [] : undefined;
         await command.run(args, this.context({ stdin: input, capture, status }));
+        // Ctrl-C during a stage stops the whole foreground pipeline — no later
+        // stage runs, and (below) no redirect writes a partial capture to disk.
+        if (this.running?.signal.aborted) return false;
         input = capture ? capture.join("\n") : "";
       }
 

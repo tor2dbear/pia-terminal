@@ -85,35 +85,47 @@ describe("ping", () => {
     expect(h.text().join("\n")).toContain("-c wants a positive integer");
   });
 
-  it("stops early when interrupted, and sums only what it sent", async () => {
+  it("stops early when interrupted, without counting the interrupted probe", async () => {
     const ctrl = new AbortController();
     const h = ctxHarness("https://pia.example/", ctrl.signal);
-    // Abort after the 2nd probe; the loop should not send packets 3 and 4.
+    // Ctrl-C lands during the 3rd probe: like a real aborted fetch it returns
+    // null, and must not be reported (as a reply or a timeout) or counted.
     let n = 0;
     const deps: PingDeps = {
       probe: async () => {
-        if (++n === 2) ctrl.abort();
+        if (++n === 3) {
+          ctrl.abort();
+          return null;
+        }
         return 10;
       },
       sleep: async () => {},
     };
     await runPing(["-c", "4"], h.ctx, deps);
     const out = h.text().join("\n");
-    expect(n).toBe(2); // stopped, didn't run all four
     expect(out).toContain("seq=1");
-    expect(out).not.toContain("seq=2");
-    // Statistics reflect the two packets actually transmitted, not the -c 4.
+    expect(out).not.toContain("seq=2"); // the interrupted probe isn't reported…
+    expect(out).not.toContain("timeout"); // …and not mistaken for a network timeout
+    // Statistics reflect only the two packets that completed, not the -c 4.
     expect(out).toContain("2 transmitted, 2 received, 0% loss");
   });
 
-  it("prints nothing to sum when interrupted before the first packet", async () => {
+  it("interrupting the first probe emits no 100% loss error", async () => {
     const ctrl = new AbortController();
-    ctrl.abort();
     const h = ctxHarness("https://pia.example/", ctrl.signal);
-    await runPing([], h.ctx, depsFrom([10]));
+    const deps: PingDeps = {
+      probe: async () => {
+        ctrl.abort(); // Ctrl-C during the very first packet
+        return null;
+      },
+      sleep: async () => {},
+    };
+    await runPing([], h.ctx, deps);
     const out = h.text().join("\n");
     expect(out).toContain("PING self");
-    expect(out).not.toContain("transmitted");
+    expect(out).not.toContain("transmitted"); // nothing to sum
+    expect(out).not.toContain("loss");
+    expect(h.lines.every((l) => l.cls !== "error")).toBe(true); // not a failure
   });
 
   it("rejects more than one target", async () => {

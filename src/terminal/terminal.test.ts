@@ -505,10 +505,17 @@ describe("command chaining", () => {
 describe("Ctrl-C interrupts a running command", () => {
   /** Mount a terminal whose registry also has a command that blocks until its
    * `ctx.signal` fires — so a test can interrupt it mid-run. */
-  function mountBlocking(): { root: HTMLElement; started: Promise<void>; sawSignal: () => boolean } {
+  function mountBlocking(): {
+    root: HTMLElement;
+    vfs: VFS;
+    started: Promise<void>;
+    sawSignal: () => boolean;
+    markRan: () => boolean;
+  } {
     const root = document.createElement("div");
     document.body.append(root);
     let sawSignal = false;
+    let markRan = false;
     let announceStart: () => void;
     const started = new Promise<void>((r) => (announceStart = r));
     const blocker: Command = {
@@ -528,16 +535,28 @@ describe("Ctrl-C interrupts a running command", () => {
           );
         }),
     };
+    // A downstream stage that records whether it ran (and emits output a
+    // redirect would capture), to prove Ctrl-C stops the rest of the pipeline.
+    const mark: Command = {
+      name: "mark",
+      help: "record that a later pipeline stage ran (test only)",
+      run: (_args, ctx) => {
+        markRan = true;
+        ctx.print("marked");
+      },
+    };
     const registry = buildRegistry();
     registry.register(blocker);
+    registry.register(mark);
+    const vfs = VFS.seed();
     term = new Terminal(root, {
-      vfs: VFS.seed(),
+      vfs,
       adapter: new MemoryStorageAdapter(),
       registry,
       session: { user: "guest" },
       extendContext: piaExtendContext(new MemoryAuthAdapter()),
     });
-    return { root, started, sawSignal: () => sawSignal };
+    return { root, vfs, started, sawSignal: () => sawSignal, markRan: () => markRan };
   }
 
   it("delivers the abort signal and echoes ^C, then frees the prompt", async () => {
@@ -570,6 +589,19 @@ describe("Ctrl-C interrupts a running command", () => {
     press(root, "c", { ctrlKey: true });
     await flush();
     expect(root.querySelector(".term-inputline")?.classList.contains("collapsed")).toBe(false);
+  });
+
+  it("stops the rest of a pipeline (and its redirect) on interrupt", async () => {
+    const { root, vfs, started, markRan } = mountBlocking();
+    type(root, "block | mark > out.txt");
+    press(root, "Enter");
+    await started; // `block` is running as the first stage
+
+    press(root, "c", { ctrlKey: true });
+    await flush();
+
+    expect(markRan()).toBe(false); // the downstream stage never ran…
+    expect(vfs.getNode(vfs.resolve("/home/guest", "out.txt"))).toBeNull(); // …and nothing was written
   });
 });
 

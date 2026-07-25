@@ -171,8 +171,11 @@ export async function runPing(
     if (signal?.aborted) break;
     if (seq > 0) await deps.sleep(INTERVAL_MS, signal);
     if (signal?.aborted) break;
-    sent++;
     const rtt = await deps.probe(cacheBust(target.url, seq), signal);
+    // A Ctrl-C mid-probe surfaces as a null return; that's a user interrupt,
+    // not a real timeout — don't count it as a sent/lost packet.
+    if (signal?.aborted) break;
+    sent++;
     if (rtt === null) {
       ctx.print(`no reply from ${host}: seq=${seq} (timeout)`, "dim");
     } else {
