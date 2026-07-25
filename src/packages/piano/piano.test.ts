@@ -95,15 +95,15 @@ describe("Piano app", () => {
     expect(exited()).toBe(true);
   });
 
-  it("reports the audio state in the status once a key is struck", () => {
+  it("only flags sound trouble in the status, staying quiet when it can play", () => {
     const { root } = mount(); // jsdom → no Web Audio backend
     const status = () => root.querySelector(".pn-status")?.textContent ?? "";
-    expect(status()).not.toContain("sound:"); // nothing struck yet
-    // With no AudioContext available, a struck key honestly reads "no audio".
+    expect(status()).not.toContain("no audio"); // nothing struck yet — no nagging
+    // With no AudioContext available, a struck key honestly explains the silence.
     (root.querySelector(".pn-white") as HTMLElement).dispatchEvent(
       new Event("pointerdown", { bubbles: true }),
     );
-    expect(status()).toContain("sound: no audio");
+    expect(status()).toContain("no audio on this browser");
   });
 
   it("resumes a suspended context before scheduling a note (iOS/Safari)", async () => {

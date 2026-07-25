@@ -204,12 +204,12 @@ export class Piano implements ScreenApp {
   private renderStatus(): void {
     if (!this.statusEl) return;
     const sign = this.octave > 0 ? `+${this.octave}` : `${this.octave}`;
-    // Once a key's been struck, show whether the audio engine actually started —
-    // a live readout so silence is diagnosable ("running" = playing; "suspended"
-    // = the browser hasn't unlocked audio; "no audio" = no Web Audio at all).
+    // When sound is playing, stay out of the way. Only speak up if a struck key
+    // couldn't make sound, so silence is at least explained: the context hasn't
+    // unlocked yet (tap again) or there's no Web Audio here at all.
     let sound = "";
-    if (this.ctx) sound = ` · sound: ${this.ctx.state}`;
-    else if (this.struck) sound = " · sound: no audio";
+    if (this.ctx && this.ctx.state !== "running") sound = " · tap again for sound";
+    else if (!this.ctx && this.struck) sound = " · no audio on this browser";
     this.statusEl.textContent = `octave ${sign} · z/x to shift · a s d f… to play${sound}`;
   }
 
