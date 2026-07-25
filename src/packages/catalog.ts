@@ -127,6 +127,12 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["rev", "base64", "factor", "xxd"],
     load: () => import("./coreutils/index.js").then((m) => m.pkg),
   },
+  man: {
+    name: "man",
+    description: "read the manual — man pages for commands and concepts",
+    commands: ["man", "apropos"],
+    load: () => import("./man/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */

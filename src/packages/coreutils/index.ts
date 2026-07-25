@@ -9,15 +9,16 @@ export { reverseLine, base64Encode, base64Decode, factorize, hexdump };
  * concatenated) or, when no file is given, whatever was piped in. Returns null
  * after printing an error if a file can't be read.
  */
-function gather(args: string[], ctx: CoreCommandContext): string | null {
+function gather(args: string[], ctx: CoreCommandContext): string {
   if (args.length === 0) return ctx.stdin;
   const parts: string[] = [];
   for (const arg of args) {
     try {
       parts.push(ctx.vfs.readFile(ctx.vfs.resolve(ctx.cwd, arg)));
     } catch (err) {
+      // Report the bad path but keep going, like the real tools — one missing
+      // file must not discard the output of the readable ones.
       ctx.error(err instanceof Error ? err.message : String(err));
-      return null;
     }
   }
   // Concatenate byte-for-byte, like `cat` — inserting a separator would invent
@@ -49,8 +50,8 @@ const rev: Command<CoreCommandContext> = {
         try {
           parts.push(revText(ctx.vfs.readFile(ctx.vfs.resolve(ctx.cwd, arg))));
         } catch (err) {
+          // Report the bad path but still reverse the readable files.
           ctx.error(err instanceof Error ? err.message : String(err));
-          return;
         }
       }
       out = parts.join("");
@@ -69,7 +70,6 @@ const base64: Command<CoreCommandContext> = {
     const decode = args[0] === "-d" || args[0] === "--decode";
     const rest = decode ? args.slice(1) : args;
     const input = gather(rest, ctx);
-    if (input === null) return;
     try {
       const out = decode ? base64Decode(input) : base64Encode(input);
       if (out === "") return; // empty in → empty out; a filter never invents output
@@ -78,9 +78,12 @@ const base64: Command<CoreCommandContext> = {
       ctx.error("base64: invalid input");
     }
   },
+  // Offer -d before any operand; filename completion is merged in via
+  // completeFiles, so `base64 file<Tab>` and `base64 -d file<Tab>` still work.
   complete(args) {
     return args.length === 0 ? ["-d"] : [];
   },
+  completeFiles: true,
 };
 
 // Trial division stays snappy while sqrt(n) ≤ 10^6, so cap operands at 10^12.
@@ -118,7 +121,6 @@ const xxd: Command<CoreCommandContext> = {
   usage: "xxd [file]   (or pipe text in)",
   run(args, ctx) {
     const input = gather(args, ctx);
-    if (input === null) return;
     for (const line of hexdump(input)) ctx.print(line); // empty input → no output
   },
 };

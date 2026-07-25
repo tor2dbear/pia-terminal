@@ -105,12 +105,19 @@ export interface Command<Ctx extends CoreCommandContext = CommandContext> {
   run(args: string[], ctx: Ctx): void | Promise<void>;
   /**
    * Optional argument completion. Given the argument tokens already typed (after
-   * the command name, excluding the fragment being completed) and the VFS,
-   * return candidate tokens for this position — e.g. `brew` offers its
-   * subcommands, then package names. The terminal filters the candidates by the
-   * fragment. Commands without this fall back to filename completion.
+   * the command name, excluding the fragment being completed), the VFS, and the
+   * command registry, return candidate tokens for this position — e.g. `brew`
+   * offers its subcommands then package names, and `man` offers every command
+   * plus its concept pages. The terminal filters the candidates by the fragment.
+   * Commands without this fall back to filename completion.
    */
-  complete?(args: string[], vfs: VFS): string[];
+  complete?(args: string[], vfs: VFS, registry: CommandRegistry<CoreCommandContext>): string[];
+  /**
+   * When true, filename completions are merged in *alongside* whatever
+   * {@link complete} returns — for commands that take both flags and file
+   * operands (e.g. `base64 [-d] [file]`), so the flags don't shadow the files.
+   */
+  completeFiles?: boolean;
 }
 
 /**

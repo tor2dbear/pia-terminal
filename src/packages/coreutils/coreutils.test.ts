@@ -60,6 +60,11 @@ describe("base64", () => {
   it("throws on invalid input", () => {
     expect(() => base64Decode("!!!not base64!!!")).toThrow();
   });
+  it("rejects malformed unpadded input instead of silently accepting it", () => {
+    // Browser atob would decode "YQ" to "a"; real base64 rejects it.
+    expect(() => base64Decode("YQ")).toThrow();
+    expect(base64Decode("YQ==")).toBe("a"); // the properly padded form is fine
+  });
 });
 
 describe("factor", () => {
@@ -113,6 +118,25 @@ describe("rev processes each file independently (no cross-boundary line)", () =>
     await cmd("rev").run(["a", "b"], ctx);
     // a ends in a newline, so "ba" and "dc" land on separate lines.
     expect(lines.map((l) => l.text)).toEqual(["ba", "dc"]);
+  });
+
+  it("reports a missing operand but still reverses the readable ones", async () => {
+    const { ctx, lines, cmd } = twoFileCtx("ab", "cd");
+    await cmd("rev").run(["a", "missing", "b"], ctx);
+    // The missing file is reported…
+    expect(lines.some((l) => l.err && /no such file/.test(l.text))).toBe(true);
+    // …and the readable files still produce output ("ab"+"cd" → "badc").
+    expect(lines.some((l) => !l.err && l.text === "badc")).toBe(true);
+  });
+});
+
+describe("base64 completion", () => {
+  it("offers -d and opts into filename completion", () => {
+    const base64 = pkg.commands.find((c) => c.name === "base64")!;
+    expect(base64.complete!([], null as never, null as never)).toEqual(["-d"]);
+    expect(base64.complete!(["-d"], null as never, null as never)).toEqual([]);
+    // The flag alone would shadow the [file] operand; completeFiles restores it.
+    expect(base64.completeFiles).toBe(true);
   });
 });
 
