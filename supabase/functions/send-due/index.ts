@@ -19,7 +19,13 @@ interface Config {
 // ---- cron (UTC) — mirrors src/pia/cron.ts so recurring reminders reschedule
 // the same way the client computed their first fire. Five fields:
 // minute hour day-of-month month day-of-week (Sunday = 0 or 7).
-const FIELD_RANGES: [number, number][] = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 6]];
+const FIELD_RANGES: [number, number][] = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
+
+interface Cron {
+  fields: Set<number>[];
+  domStar: boolean;
+  dowStar: boolean;
+}
 
 function expandField(field: string, min: number, max: number): Set<number> | null {
   const allowed = new Set<number>();
@@ -42,7 +48,7 @@ function expandField(field: string, min: number, max: number): Set<number> | nul
   return allowed;
 }
 
-function parseCron(expr: string): Set<number>[] | null {
+function parseCron(expr: string): Cron | null {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return null;
   const fields: Set<number>[] = [];
@@ -51,29 +57,35 @@ function parseCron(expr: string): Set<number>[] | null {
     if (!set) return null;
     fields.push(set);
   }
-  return fields;
+  return { fields, domStar: parts[2].startsWith("*"), dowStar: parts[4].startsWith("*") };
 }
 
-function cronMatches(fields: Set<number>[], d: Date): boolean {
-  const dow = d.getUTCDay();
+// When both day-of-month and day-of-week are restricted, cron fires when EITHER
+// matches; otherwise they combine normally. Sunday is 0 or 7.
+function dayMatches(c: Cron, dom: number, dow: number): boolean {
+  const domMatch = c.fields[2].has(dom);
+  const dowMatch = c.fields[4].has(dow) || (dow === 0 && c.fields[4].has(7));
+  return c.domStar || c.dowStar ? domMatch && dowMatch : domMatch || dowMatch;
+}
+
+function cronMatches(c: Cron, d: Date): boolean {
   return (
-    fields[0].has(d.getUTCMinutes()) &&
-    fields[1].has(d.getUTCHours()) &&
-    fields[2].has(d.getUTCDate()) &&
-    fields[3].has(d.getUTCMonth() + 1) &&
-    (fields[4].has(dow) || (dow === 0 && fields[4].has(7)))
+    c.fields[0].has(d.getUTCMinutes()) &&
+    c.fields[1].has(d.getUTCHours()) &&
+    c.fields[3].has(d.getUTCMonth() + 1) &&
+    dayMatches(c, d.getUTCDate(), d.getUTCDay())
   );
 }
 
 /** Next UTC fire after `from`, or null if the expression is invalid / never fires. */
 function nextCronRun(expr: string, from: Date): Date | null {
-  const fields = parseCron(expr);
-  if (!fields) return null;
+  const cron = parseCron(expr);
+  if (!cron) return null;
   const d = new Date(from.getTime());
   d.setUTCSeconds(0, 0);
   d.setUTCMinutes(d.getUTCMinutes() + 1);
   for (let i = 0; i < 4 * 366 * 24 * 60; i++) { // ~4 years: leap-day schedules
-    if (cronMatches(fields, d)) return new Date(d.getTime());
+    if (cronMatches(cron, d)) return new Date(d.getTime());
     d.setUTCMinutes(d.getUTCMinutes() + 1);
   }
   return null;

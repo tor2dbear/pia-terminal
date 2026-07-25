@@ -29,6 +29,28 @@ describe("cronMatches", () => {
     expect(cronMatches(spec, at(9, 4))).toBe(true);
     expect(cronMatches(spec, at(9, 5))).toBe(false);
   });
+
+  it("accepts 7 as Sunday", () => {
+    const spec = parseCron("0 9 * * 7")!; // 7 must parse, not just 0
+    expect(spec).not.toBeNull();
+    expect(cronMatches(spec, new Date(2026, 0, 4, 9, 0))).toBe(true); // Jan 4 2026 is Sunday
+    expect(cronMatches(spec, new Date(2026, 0, 5, 9, 0))).toBe(false); // Monday
+  });
+
+  it("ORs day-of-month and day-of-week when both are restricted", () => {
+    // `0 9 1 * 1`: the 1st OR any Monday (Jan 1 2026 = Thu, Jan 5 = Mon).
+    const spec = parseCron("0 9 1 * 1")!;
+    expect(cronMatches(spec, new Date(2026, 0, 1, 9, 0))).toBe(true); // the 1st (a Thursday)
+    expect(cronMatches(spec, new Date(2026, 0, 5, 9, 0))).toBe(true); // a Monday (the 5th)
+    expect(cronMatches(spec, new Date(2026, 0, 6, 9, 0))).toBe(false); // neither
+  });
+
+  it("ANDs the day fields normally when one is `*`", () => {
+    // `0 9 1 * *`: only the 1st, regardless of weekday.
+    const spec = parseCron("0 9 1 * *")!;
+    expect(cronMatches(spec, new Date(2026, 0, 1, 9, 0))).toBe(true);
+    expect(cronMatches(spec, new Date(2026, 0, 5, 9, 0))).toBe(false); // Monday but not the 1st
+  });
 });
 
 describe("nextCronRun", () => {
