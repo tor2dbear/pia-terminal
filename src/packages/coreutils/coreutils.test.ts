@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { reverseLine, base64Encode, base64Decode, factorize, hexdump } from "./coreutils.js";
 import { pkg } from "./index.js";
+import { VFS, HOME } from "../../vfs/vfs.js";
 import type { CoreCommandContext } from "../../commands/registry.js";
 
 /** A minimal context that records printed and errored lines. */
@@ -8,6 +9,23 @@ function stubCtx(stdin = "") {
   const lines: { text: string; err: boolean }[] = [];
   const ctx = {
     stdin,
+    print: (text = "") => lines.push({ text, err: false }),
+    error: (text: string) => lines.push({ text, err: true }),
+  } as unknown as CoreCommandContext;
+  const cmd = (name: string) => pkg.commands.find((c) => c.name === name)!;
+  return { ctx, lines, cmd };
+}
+
+/** A context backed by a real VFS with two unterminated files, `a` and `b`. */
+function twoFileCtx() {
+  const vfs = VFS.seed();
+  vfs.writeFile(`${HOME}/a`, "a");
+  vfs.writeFile(`${HOME}/b`, "b");
+  const lines: { text: string; err: boolean }[] = [];
+  const ctx = {
+    vfs,
+    cwd: HOME,
+    stdin: "",
     print: (text = "") => lines.push({ text, err: false }),
     error: (text: string) => lines.push({ text, err: true }),
   } as unknown as CoreCommandContext;
@@ -70,6 +88,21 @@ describe("factor", () => {
     const { ctx, lines, cmd } = stubCtx();
     await cmd("factor").run(["12"], ctx);
     expect(lines).toEqual([{ text: "12: 2 2 3", err: false }]);
+  });
+});
+
+describe("multiple files concatenate byte-for-byte (no invented newline)", () => {
+  it("rev joins unterminated files into one line", async () => {
+    const { ctx, lines, cmd } = twoFileCtx();
+    await cmd("rev").run(["a", "b"], ctx);
+    // "a" + "b" = "ab" is a single line → "ba", not two lines "a","b".
+    expect(lines.map((l) => l.text)).toEqual(["ba"]);
+  });
+
+  it("base64 encodes the concatenation, not a separator-injected version", async () => {
+    const { ctx, lines, cmd } = twoFileCtx();
+    await cmd("base64").run(["a", "b"], ctx);
+    expect(lines.map((l) => l.text)).toEqual([base64Encode("ab")]); // "YWI=", not base64("a\nb")
   });
 });
 

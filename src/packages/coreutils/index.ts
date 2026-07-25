@@ -20,7 +20,10 @@ function gather(args: string[], ctx: CoreCommandContext): string | null {
       return null;
     }
   }
-  return parts.join("\n");
+  // Concatenate byte-for-byte, like `cat` — inserting a separator would invent
+  // a newline that's in neither file (corrupting a base64/xxd of the bytes, and
+  // splitting a `rev` line that spans an unterminated file boundary).
+  return parts.join("");
 }
 
 /** `rev` — reverse the characters of each line. */
