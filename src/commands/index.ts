@@ -18,6 +18,7 @@ import { remindCommands } from "./remind.js";
 import { metaCommands } from "./changelog.js";
 import { demoCommands } from "./demo.js";
 import { aboutCommands } from "./about.js";
+import { pingCommands } from "./ping.js";
 
 /** Build a registry with all commands registered. */
 export function buildRegistry(): CommandRegistry {
@@ -42,6 +43,7 @@ export function buildRegistry(): CommandRegistry {
     ...metaCommands,
     ...demoCommands,
     ...aboutCommands,
+    ...pingCommands,
   ]) {
     registry.register(cmd);
   }
