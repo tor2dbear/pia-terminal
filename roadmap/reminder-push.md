@@ -55,8 +55,8 @@ för det redundanta "PIA".
 - **Återkommande reminders (cron-uttryck)** ✅ — levererat 2026-07-25 (se ovan).
 - **"Lista uppdaterad"-notiser:** kräver coalescing (todo-appen sparar vid varje
   bock) — **utbruten till egen puck** `todo-list-notifications.md` (inbox).
-- Egen `notify on`/preferens-kommando istället för att aktivera via `remind on`
-  (prenumerationen är redan generell; bara ett litet tydlighets-val). Kvar, litet.
+- **Eget `notify on`-kommando** istället för att aktivera via `remind on` —
+  **utbruten till egen puck** `notify-command.md` (inbox).
 
 ## Vad som krävs (research)
 - **PWA + service worker:** appen installeras på hemskärmen; en service worker tar
