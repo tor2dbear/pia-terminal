@@ -231,6 +231,14 @@ guest@pia:~$ brew install python
 installed python — commands: python
 guest@pia:~$ python nope.py
 python: can't open file 'nope.py'
+guest@pia:~$ echo "# ping (honest HTTP round-trip)"
+# ping (honest HTTP round-trip)
+guest@pia:~$ ping google.com
+ping: cannot reach `google.com` — the browser has no raw sockets (no ICMP), and
+PIA's CSP only allows its own origin and the cloud backend.
+try `ping self` or `ping cloud`.
+guest@pia:~$ ping cloud
+ping: cloud is not configured — PIA is running fully local (no backend to reach).
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -292,6 +300,7 @@ available commands:
   neofetch   show system info with a small logo
   passwd     set or change your account password
   piano      a little synth piano (a s d f… to play, z/x to shift octave)
+  ping       measure round-trip latency to the app (self) or the cloud backend
   publish    publish a folder as a shareable link (its files land in the opener's ~/incoming)
   pwd        print the current directory path
   python     run Python via Pyodide (python, python file.py, or python -c 'code')
@@ -322,8 +331,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-80  version
-81  about
-82  date -u
-83  help
-84  history | tail -5
+83  version
+84  about
+85  date -u
+86  help
+87  history | tail -5

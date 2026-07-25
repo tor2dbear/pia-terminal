@@ -162,6 +162,13 @@ const TOUR: string[] = [
   // can only show the pre-sandbox path: a missing-file error is deterministic.
   "python nope.py",
 
+  'echo "# ping (honest HTTP round-trip)"',
+  // `ping self` does a real timed fetch (non-deterministic), so the tour shows
+  // only the deterministic paths: the honest refusal of an arbitrary host, and
+  // the "no backend" reply when running fully local (as the tour does).
+  "ping google.com",
+  "ping cloud",
+
   'echo "# system"',
   "whoami",
   "version",
