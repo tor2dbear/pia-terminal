@@ -1,5 +1,5 @@
 ---
-title: paket: fortune — slumpcitat
+title: "paket: fortune — slumpcitat"
 status: done
 tags: [packages]
 updated: 2026-07-18

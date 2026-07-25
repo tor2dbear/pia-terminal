@@ -1,5 +1,5 @@
 ---
-title: paket: tetris
+title: "paket: tetris"
 status: done
 tags: [packages, games]
 updated: 2026-07-18

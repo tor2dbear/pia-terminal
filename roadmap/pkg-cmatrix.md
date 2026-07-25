@@ -1,5 +1,5 @@
 ---
-title: paket: cmatrix — matrix-regn
+title: "paket: cmatrix — matrix-regn"
 status: done
 tags: [packages, fun]
 updated: 2026-07-18

@@ -1,5 +1,5 @@
 ---
-title: paket: life — Conways livsspel
+title: "paket: life — Conways livsspel"
 status: done
 tags: [packages, games]
 updated: 2026-07-18
