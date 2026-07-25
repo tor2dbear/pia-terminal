@@ -53,4 +53,19 @@ describe("boot", () => {
     expect(text).toContain("memory ok · vfs mounted · adapters loaded");
     expect(text).toContain("hi. type 'help' to begin.");
   });
+
+  it("honours reduced motion: prints everything but paces nothing", async () => {
+    // Report the preference, matching the check printTyped uses.
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: /reduce/.test(q) }));
+    vi.useFakeTimers();
+    const { term, lines } = fakeTerm();
+    // No runAllTimersAsync(): if any pacing delay were scheduled this would hang,
+    // so completing purely on microtasks proves the pauses collapsed to nothing.
+    await boot(term, { bios: true });
+    const text = lines.join("\n");
+    expect(text).toContain("PIA BIOS"); // content still shown…
+    expect(text).toContain("Loading adapters");
+    expect(text).toContain("hi. type 'help' to begin.");
+    vi.unstubAllGlobals();
+  });
 });

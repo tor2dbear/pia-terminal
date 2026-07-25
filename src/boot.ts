@@ -3,6 +3,15 @@ import { VERSION } from "./meta.js";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Whether the user asked the OS for reduced motion — the same check
+ * `Terminal.printTyped` uses, so the whole boot animation honours it together. */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+  );
+}
+
 /** Options controlling the boot animation. */
 export interface BootOptions {
   /** Play the longer retro BIOS/POST preamble before the prompt (opt-in). */
@@ -16,21 +25,25 @@ export async function boot(term: Terminal, opts: BootOptions = {}): Promise<void
   // banner that types in above it. This also ignores input during boot, so a
   // command can't be submitted before the prompt is even shown.
   term.setBooting(true);
+  // Reduced motion collapses every paced delay to nothing (the lines still
+  // print — they're content, not decoration), matching printTyped's behaviour.
+  const reduce = prefersReducedMotion();
+  const pause = (ms: number) => (reduce ? Promise.resolve() : delay(ms));
   try {
     // Opt-in retro power-on self-test — a longer, BIOS-flavoured preamble.
-    if (opts.bios) await postSequence(term);
+    if (opts.bios) await postSequence(term, reduce);
 
     // Wordmark lockup — the same p + block-cursor mark as the favicon.
     term.print("pia:~$ █", "accent");
     await term.printTyped("a little computer in the browser", "dim");
-    await delay(160);
+    await pause(160);
     term.print(`PIA v${VERSION} · Personal Integrated Applications`, "dim");
-    await delay(140);
+    await pause(140);
     // In BIOS mode the POST already reported memory/adapters, so skip the terse
     // one-liner rather than say it twice.
     if (!opts.bios) {
       term.print("memory ok · vfs mounted · adapters loaded", "dim");
-      await delay(220);
+      await pause(220);
     }
     term.print();
     // The invitation, typed out — the little computer greeting you.
@@ -50,14 +63,15 @@ export async function boot(term: Terminal, opts: BootOptions = {}): Promise<void
  * the CRT overlay (both purely cosmetic, both off by default). Any keypress
  * skips the remaining pauses so a reload never traps you behind it.
  */
-async function postSequence(term: Terminal): Promise<void> {
+async function postSequence(term: Terminal, reduce: boolean): Promise<void> {
   let skipped = false;
   const onKey = () => {
     skipped = true;
   };
-  const listening = typeof window !== "undefined";
+  // Under reduced motion the whole POST is instant, so there's nothing to skip.
+  const listening = !reduce && typeof window !== "undefined";
   if (listening) window.addEventListener("keydown", onKey);
-  const pause = (ms: number) => (skipped ? Promise.resolve() : delay(ms));
+  const pause = (ms: number) => (skipped || reduce ? Promise.resolve() : delay(ms));
   try {
     term.print(`PIA BIOS v${VERSION}`, "accent");
     await pause(140);
