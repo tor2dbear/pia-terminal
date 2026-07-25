@@ -338,6 +338,7 @@ available commands:
   mv           move or rename a file or directory
   nano         edit text files in a full-screen editor
   neofetch     show system info with a small logo
+  notify       turn push notifications on/off for this device, or show their state (notify [on|off])
   passwd       set or change your account password
   piano        a little synth piano (a s d f… to play, z/x to shift octave)
   ping         measure round-trip latency to the app (self) or the cloud backend

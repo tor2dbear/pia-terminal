@@ -15,6 +15,7 @@ import { viewCommands } from "./view.js";
 import { transferCommands } from "./transfer.js";
 import { pagerCommands } from "./pager.js";
 import { remindCommands } from "./remind.js";
+import { notifyCommands } from "./notify.js";
 import { metaCommands } from "./changelog.js";
 import { demoCommands } from "./demo.js";
 import { aboutCommands } from "./about.js";
@@ -40,6 +41,7 @@ export function buildRegistry(): CommandRegistry {
     ...transferCommands,
     ...pagerCommands,
     ...remindCommands,
+    ...notifyCommands,
     ...metaCommands,
     ...demoCommands,
     ...aboutCommands,
