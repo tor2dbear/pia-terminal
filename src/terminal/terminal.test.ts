@@ -5,6 +5,7 @@ import { VFS } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 import { MemoryAuthAdapter } from "../auth/fakeAuth.js";
 import { buildRegistry } from "../commands/index.js";
+import type { Command } from "../commands/registry.js";
 import { piaExtendContext } from "../pia/context.js";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -498,6 +499,109 @@ describe("command chaining", () => {
     // snake can't run captured; the refusal must count as a failure so && stops
     await runLine(root, "snake | cat && echo unreached");
     expect(out(root)).not.toContain("unreached");
+  });
+});
+
+describe("Ctrl-C interrupts a running command", () => {
+  /** Mount a terminal whose registry also has a command that blocks until its
+   * `ctx.signal` fires — so a test can interrupt it mid-run. */
+  function mountBlocking(): {
+    root: HTMLElement;
+    vfs: VFS;
+    started: Promise<void>;
+    sawSignal: () => boolean;
+    markRan: () => boolean;
+  } {
+    const root = document.createElement("div");
+    document.body.append(root);
+    let sawSignal = false;
+    let markRan = false;
+    let announceStart: () => void;
+    const started = new Promise<void>((r) => (announceStart = r));
+    const blocker: Command = {
+      name: "block",
+      help: "block until interrupted (test only)",
+      run: (_args, ctx) =>
+        new Promise<void>((resolve) => {
+          announceStart();
+          if (ctx.signal?.aborted) return resolve();
+          ctx.signal?.addEventListener(
+            "abort",
+            () => {
+              sawSignal = true;
+              resolve();
+            },
+            { once: true },
+          );
+        }),
+    };
+    // A downstream stage that records whether it ran (and emits output a
+    // redirect would capture), to prove Ctrl-C stops the rest of the pipeline.
+    const mark: Command = {
+      name: "mark",
+      help: "record that a later pipeline stage ran (test only)",
+      run: (_args, ctx) => {
+        markRan = true;
+        ctx.print("marked");
+      },
+    };
+    const registry = buildRegistry();
+    registry.register(blocker);
+    registry.register(mark);
+    const vfs = VFS.seed();
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry,
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    return { root, vfs, started, sawSignal: () => sawSignal, markRan: () => markRan };
+  }
+
+  it("delivers the abort signal and echoes ^C, then frees the prompt", async () => {
+    const { root, started, sawSignal } = mountBlocking();
+    type(root, "block");
+    press(root, "Enter");
+    await started; // the command is now running and waiting on the signal
+
+    press(root, "c", { ctrlKey: true }); // Ctrl-C
+    await flush();
+
+    expect(sawSignal()).toBe(true);
+    const lines = [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+    expect(lines).toContain("^C");
+    // The prompt is usable again (the input line is no longer collapsed).
+    expect(root.querySelector(".term-inputline")?.classList.contains("collapsed")).toBe(false);
+  });
+
+  it("ignores other keys while busy but still takes Ctrl-C", async () => {
+    const { root, started } = mountBlocking();
+    type(root, "block");
+    press(root, "Enter");
+    await started;
+
+    type(root, "xyz"); // typing while busy must not reach the buffer
+    press(root, "Enter"); // …nor submit anything
+    await flush();
+    expect(root.querySelector(".term-inputline")?.classList.contains("collapsed")).toBe(true);
+
+    press(root, "c", { ctrlKey: true });
+    await flush();
+    expect(root.querySelector(".term-inputline")?.classList.contains("collapsed")).toBe(false);
+  });
+
+  it("stops the rest of a pipeline (and its redirect) on interrupt", async () => {
+    const { root, vfs, started, markRan } = mountBlocking();
+    type(root, "block | mark > out.txt");
+    press(root, "Enter");
+    await started; // `block` is running as the first stage
+
+    press(root, "c", { ctrlKey: true });
+    await flush();
+
+    expect(markRan()).toBe(false); // the downstream stage never ran…
+    expect(vfs.getNode(vfs.resolve("/home/guest", "out.txt"))).toBeNull(); // …and nothing was written
   });
 });
 

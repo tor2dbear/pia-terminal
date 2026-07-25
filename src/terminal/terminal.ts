@@ -119,6 +119,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private historyIndex = 0; // points one past the last entry when not browsing
   private suggestionIndex = 0; // which of several matches the ghost shows
   private busy = false;
+  /** Aborts the command currently running, so Ctrl-C can interrupt it. */
+  private running: AbortController | null = null;
   /** True during the boot sequence — the terminal ignores input until it ends. */
   private booting = false;
   /** Key bar shows the Ctrl tray (^A ^E …) instead of the normal keys. */
@@ -606,8 +608,10 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         label: "^K",
         run: () => this.editLine(this.buffer.slice(0, this.cursor), this.cursor),
       },
-      // Control.
-      { key: "c", label: "^C", run: () => this.cancelLine() },
+      // Control. ^C interrupts a running command; on an idle prompt it clears
+      // the current line (the on-screen key bar stays live while busy, so this
+      // is how a phone sends the interrupt too).
+      { key: "c", label: "^C", run: () => (this.busy ? this.interrupt() : this.cancelLine()) },
       { key: "l", label: "^L", run: () => this.clear() },
       {
         key: "d",
@@ -649,7 +653,16 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       this.renderKeybar(); // the app's keys may have changed (e.g. mode switch)
       return;
     }
-    if (this.busy || this.booting) return;
+    if (this.booting) return;
+    // While a command runs the line is gone, but Ctrl-C must still get through
+    // to interrupt it (everything else stays ignored until it finishes).
+    if (this.busy) {
+      if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        this.interrupt();
+      }
+      return;
+    }
 
     // Ctrl bindings are readline-style line editing; anything else with a
     // modifier (⌘, or a Ctrl combo we don't bind) is a browser shortcut —
@@ -879,6 +892,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     }
 
     this.busy = true;
+    this.running = new AbortController();
     this.setInputVisible(false);
     try {
       // Run each pipeline in turn; `&&` skips on the previous failure, `||`
@@ -886,12 +900,16 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       // leaves the running status untouched, like a real shell.
       let ok = true;
       for (const item of parsed.items) {
+        if (this.running.signal.aborted) break; // Ctrl-C stops the rest of the chain
         if (item.connector === "&&" && !ok) continue;
         if (item.connector === "||" && ok) continue;
         ok = await this.executePipeline(item.pipeline);
       }
     } finally {
+      const aborted = this.running?.signal.aborted ?? false;
       this.busy = false;
+      this.running = null;
+      if (aborted) this.print("^C", "dim"); // echo the interrupt, like a real shell
       this.setInputVisible(true);
     }
     this.renderInput();
@@ -947,6 +965,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         // when its output is being redirected to a file.
         const capture = !isLast || redirect !== null ? [] : undefined;
         await command.run(args, this.context({ stdin: input, capture, status }));
+        // Ctrl-C during a stage stops the whole foreground pipeline — no later
+        // stage runs, and (below) no redirect writes a partial capture to disk.
+        if (this.running?.signal.aborted) return false;
         input = capture ? capture.join("\n") : "";
       }
 
@@ -989,6 +1010,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       registry: this.registry,
       stdin: opts.stdin ?? "",
       piped: capture !== undefined,
+      signal: this.running?.signal,
       cwd: this.cwd,
       setCwd: (path: string) => {
         this.cwd = path;
@@ -1113,6 +1135,12 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private cancelLine(): void {
     this.printPromptLine(`${this.buffer}^C`, "dim");
     this.resetLine();
+  }
+
+  /** Signal the running command to stop. Cooperative commands (those that watch
+   * `ctx.signal`) return promptly; the `^C` echo is printed when the run ends. */
+  private interrupt(): void {
+    this.running?.abort();
   }
 
   /** Redraw the key bar for the current context (active app, else the prompt). */
