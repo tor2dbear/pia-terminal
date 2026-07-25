@@ -1,5 +1,6 @@
 import { HOME, VFS } from "../vfs/vfs.js";
-import type { StorageAdapter } from "../storage/adapter.js";
+import type { DirNode } from "../vfs/types.js";
+import { StorageConflictError, type StorageAdapter } from "../storage/adapter.js";
 import {
   type CommandContext,
   type CoreCommandContext,
@@ -89,6 +90,20 @@ function decodeText(bytes: Uint8Array): string | null {
   } catch {
     return new TextDecoder("windows-1252").decode(bytes);
   }
+}
+
+/** A filesystem-safe timestamp (no `:`/`.`) for a conflict-snapshot filename. */
+function conflictStamp(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+/** Deep-clone a home directory for a conflict snapshot, dropping any earlier
+ * `.pia/conflicts/` so successive snapshots don't nest and grow without bound. */
+function homeSnapshot(home: DirNode): DirNode {
+  const clone = JSON.parse(JSON.stringify(home)) as DirNode;
+  const pia = clone.children[".pia"];
+  if (pia && pia.type === "dir") delete pia.children["conflicts"];
+  return clone;
 }
 
 /**
@@ -995,7 +1010,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
             ? this.vfs.readFile(path) + "\n"
             : "";
         this.vfs.writeFile(path, prefix + input);
-        await this.adapter.save(this.vfs.root);
+        await this.persistTree();
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1003,6 +1018,47 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return false;
     }
     return !status.failed;
+  }
+
+  /**
+   * Persist the tree, reconciling a concurrent cloud write rather than clobbering
+   * it. On a {@link StorageConflictError} the newer remote tree is adopted and
+   * the local (un-synced) version is set aside as a snapshot — git's "keep both,
+   * mark clearly", never a silent overwrite. The re-save lands because the
+   * adapter has adopted the remote version as its new base.
+   */
+  private async persistTree(): Promise<void> {
+    try {
+      await this.adapter.save(this.vfs.root);
+    } catch (err) {
+      if (!(err instanceof StorageConflictError)) throw err;
+      this.reconcileConflict(err.remoteTree);
+      await this.adapter.save(this.vfs.root);
+    }
+  }
+
+  /** Adopt the remote tree and stash the local version under
+   * `~/.pia/conflicts/<timestamp>.json`, so a concurrent edit on another device
+   * loses nothing. Prints a clear notice; re-homes `cwd` if it vanished. */
+  private reconcileConflict(remoteTree: DirNode): void {
+    const home = this.vfs.home;
+    const localHome = this.vfs.getNode(home);
+    const snapshot =
+      localHome && localHome.type === "dir" ? homeSnapshot(localHome) : null;
+
+    this.vfs.root = remoteTree; // adopt the remote as the working filesystem
+    if (!this.vfs.getNode(this.cwd)) this.cwd = home; // cwd may have vanished
+
+    this.print(
+      "⚠ filesystem changed on another device — reloaded the newer version.",
+      "error",
+    );
+    if (snapshot) {
+      const path = `${home}/.pia/conflicts/${conflictStamp()}.json`;
+      this.vfs.mkdirp(`${home}/.pia/conflicts`);
+      this.vfs.writeFile(path, JSON.stringify(snapshot));
+      this.print(`your unsynced changes were set aside in ${path}`, "dim");
+    }
   }
 
   /**
@@ -1039,7 +1095,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       // stderr always goes to the screen, never into the pipe.
       error: (text) => fail(text),
       clear: () => this.clear(),
-      persist: () => this.adapter.save(this.vfs.root),
+      persist: () => this.persistTree(),
       reloadFs: async () => {
         const root = await this.adapter.load();
         if (root) this.vfs.root = root;

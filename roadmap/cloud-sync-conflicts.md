@@ -1,11 +1,27 @@
 ---
 title: Konflikthantering vid cloud-sync
-status: inbox
+status: done
 tags: [storage, supabase]
-updated: 2026-07-17
+updated: 2026-07-25
 ---
 
-## Mål
+## Levererat (2026-07-25)
+Optimistisk samtidighetskontroll på `SupabaseStorageAdapter`. Varje rad bär redan
+`updated_at` (bumpad av en trigger vid varje skrivning) — den läses vid `load()`
+och krävs oförändrad vid `save()` (vaktad `update … match({user_id, updated_at})`;
+noll rader ⇒ någon annan skrev). Ingen schemaändring behövdes (`updated_at` har
+funnits sedan första Supabase-committen) och ingen deploy — allt klientsidigt.
+
+Vid konflikt kastar adaptern `StorageConflictError` med fjärrträdet, och
+terminalen **behåller båda, git-likt**: adopterar fjärrträdet, lägger den
+osynkade lokala versionen åt sidan som en snapshot i
+`~/.pia/conflicts/<ts>.json`, och skriver en tydlig varning (aldrig tyst
+överskrivning). `cwd` flyttas hem om katalogen försvann. Täckt av tester
+(adapter-nivå: insert-race, update-konflikt, retry landar; terminal-nivå:
+adoption + snapshot + varning) och verifierad i webbläsare. Vald efter
+"behåll båda, git-likt" framför avvisa-och-vänta och loud-last-write-wins.
+
+## Mål (ursprunglig research)
 (Ännu inte beslutat — det här är research.) När samma dokument redigeras på två
 enheter mot Supabase-backenden: vad händer? Idag är sista-skrivning-vinner
 implicit, vilket tyst kan äta ändringar. Vill förstå alternativen innan vi

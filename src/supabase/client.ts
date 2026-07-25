@@ -37,6 +37,9 @@ export interface SupabaseLike {
     }>;
     signOut(): Promise<{ error: { message: string } | null }>;
   };
+  // The filesystems table: read the tree + its updated_at (the optimistic-
+  // concurrency token), insert a first row, or guardedly update the row we last
+  // read. Deliberately narrow — see SupabaseStorageAdapter.
   from(table: string): {
     select(columns: string): {
       eq(
@@ -44,14 +47,27 @@ export interface SupabaseLike {
         value: string,
       ): {
         maybeSingle(): Promise<{
-          data: { tree: DirNode } | null;
+          data: { tree: DirNode; updated_at: string } | null;
           error: { message: string } | null;
         }>;
       };
     };
-    upsert(row: Record<string, unknown>): Promise<{
-      error: { message: string } | null;
-    }>;
+    insert(row: Record<string, unknown>): {
+      select(columns: string): {
+        maybeSingle(): Promise<{
+          data: { updated_at: string } | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+    update(values: Record<string, unknown>): {
+      match(criteria: Record<string, string>): {
+        select(columns: string): Promise<{
+          data: Array<{ updated_at: string }> | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
   };
 }
 
