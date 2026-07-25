@@ -64,6 +64,17 @@ describe("minesweeper", () => {
     expect(game.state).toBe("won");
   });
 
+  it("counts only the mines that fit, so the counter is right after a clipped win", () => {
+    // 5×5 = 25 cells; a centre first click reserves 9, leaving 16 — fewer than
+    // the 20 requested. Every remaining cell is a mine, so the click wins at
+    // once and flags all 16. minesLeft must be 16-16 = 0, not 20-16 = 4.
+    const game = new Minesweeper(5, 5, 20, Math.random);
+    game.reveal(2, 2);
+    expect(game.state).toBe("won");
+    expect(countMines(game)).toBe(16);
+    expect(game.minesLeft).toBe(0);
+  });
+
   it("flags decrement the mines-left counter and block reveals", () => {
     const game = new Minesweeper(4, 4, 4, Math.random);
     game.reveal(0, 0);

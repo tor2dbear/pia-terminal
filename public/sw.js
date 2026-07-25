@@ -62,20 +62,32 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Assets (hashed, immutable): stale-while-revalidate — serve cache instantly,
-  // refresh it in the background.
+  // Assets (hashed, immutable): stale-while-revalidate — serve cache instantly
+  // and refresh in the background; otherwise go to the network and cache it.
   event.respondWith(
     caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
+      if (cached) {
+        // Refresh in the background without blocking the cached response.
+        event.waitUntil(
+          fetch(req)
+            .then((res) => {
+              if (res && res.status === 200) return caches.open(CACHE).then((c) => c.put(req, res.clone()));
+            })
+            .catch(() => {}),
+        );
+        return cached;
+      }
+      // Not cached: fetch and cache on success. On a network miss let the error
+      // surface as a normal failed request (retryable) rather than resolving to
+      // an empty response — a lazily-imported chunk that blips on a flaky
+      // connection must not turn into an opaque "failed to import module".
+      return fetch(req).then((res) => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      });
     }),
   );
 });
