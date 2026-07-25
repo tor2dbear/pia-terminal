@@ -31,7 +31,9 @@ const version: Command = {
 const changelog: Command = {
   name: "changelog",
   help: "show what's changed in PIA (latest by default; --all for the full history)",
-  usage: "changelog [--all]   ·   changelog | less   ·   changelog | grep python",
+  // Pipe examples use --all: a bare `changelog` shows only the latest release,
+  // so searching the whole history needs the full text.
+  usage: "changelog [--all]   ·   changelog --all | less   ·   changelog --all | grep python",
   aliases: ["whatsnew"],
   async run(args, ctx) {
     const all = args[0] === "--all" || args[0] === "-a";
@@ -56,7 +58,7 @@ const changelog: Command = {
     // Default: the latest slice, coloured inline, with a pointer to the rest.
     for (const { text, cls } of renderMarkdown(md)) ctx.print(text, cls);
     if (trimmed) {
-      ctx.print("(`changelog --all` for the full history · `changelog | less` to page)", "dim");
+      ctx.print("(`changelog --all` for the full history — it opens in a pager)", "dim");
     }
   },
 };
