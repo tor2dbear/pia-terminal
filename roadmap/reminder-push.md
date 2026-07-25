@@ -1,14 +1,22 @@
 ---
 title: Påminnelser som webapp — push till iOS/Android
-status: now
+status: done
 tags: [scheduling, pwa, push]
-updated: 2026-07-18
+updated: 2026-07-25
 ---
 
 ## Mål
 Den "riktiga" versionen av `at`/`crontab`: påminnelser som fyrar **även när fliken
 är stängd**, som en notis på iOS/Android. Bygger vidare på lärverktyget (samma
 `at`/cron-syntax) men lägger till äkta leverans.
+
+## Levererat (2026-07-25) — återkommande
+`remind "0 9 * * 1-5" standup` schemalägger nu en **återkommande** push via ett
+cron-uttryck (klienten känner igen en citerad femfälts-cron; annars one-off).
+`send-due` räknar om nästa fyrning (UTC) i stället för att avaktivera jobbet, och
+`remind -l` visar schemat + nästa körning. Cron läses i UTC på båda sidor så
+klient och server aldrig driftar (PR #73, edge-funktionen deployad). Därmed är
+kärnan + återkommande + kollaborations-notiser levererade och enhets-verifierade.
 
 ## Levererat (2026-07-18)
 `remind <tid> <text>` (inloggad) schemalägger en push-notis som fyrar serversidan.
@@ -42,14 +50,13 @@ typer). **Verifierat end-to-end** (trigger → kö → `send-due` → levererad,
 till en riktig enhet). Notis-texten putsades också: titel `⏰ Reminder` istället
 för det redundanta "PIA".
 
-## Kvar
+## Klart / kvar
 - **On-device-test bekräftat** ✅ (notisen landade på iPhone-låsskärmen).
-- **"Lista uppdaterad"-notiser:** todo-appen sparar vid varje bock/tillägg, så en
-  naiv `AFTER UPDATE`-trigger blir pratig — kräver coalescing (max en per lista,
-  per medlem, per N min) först. Ej byggd.
+- **Återkommande reminders (cron-uttryck)** ✅ — levererat 2026-07-25 (se ovan).
+- **"Lista uppdaterad"-notiser:** kräver coalescing (todo-appen sparar vid varje
+  bock) — **utbruten till egen puck** `todo-list-notifications.md` (inbox).
 - Egen `notify on`/preferens-kommando istället för att aktivera via `remind on`
-  (prenumerationen är redan generell; bara ett tydlighets-val).
-- Återkommande reminders (cron-uttryck) — kolumnen finns, logiken är one-off nu.
+  (prenumerationen är redan generell; bara ett litet tydlighets-val). Kvar, litet.
 
 ## Vad som krävs (research)
 - **PWA + service worker:** appen installeras på hemskärmen; en service worker tar
