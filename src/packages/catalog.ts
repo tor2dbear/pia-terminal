@@ -103,6 +103,24 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["python"],
     load: () => import("./python/index.js").then((m) => m.pkg),
   },
+  figlet: {
+    name: "figlet",
+    description: "print big ASCII banner text (figlet <text>)",
+    commands: ["figlet"],
+    load: () => import("./figlet/index.js").then((m) => m.pkg),
+  },
+  wordle: {
+    name: "wordle",
+    description: "guess the hidden five-letter word in six tries",
+    commands: ["wordle"],
+    load: () => import("./wordle/index.js").then((m) => m.pkg),
+  },
+  piano: {
+    name: "piano",
+    description: "a little Web Audio synth piano (a s d f… to play)",
+    commands: ["piano"],
+    load: () => import("./piano/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */

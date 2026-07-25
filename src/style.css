@@ -919,3 +919,160 @@ body {
     0 0 11px color-mix(in srgb, var(--accent) 42%, transparent),
     inset 0 0 12px color-mix(in srgb, var(--accent) 16%, transparent);
 }
+
+/* ---- wordle (brew) ------------------------------------------------------- */
+.wd {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  overflow-y: auto;
+}
+.wd-title {
+  align-self: stretch;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+}
+.wd-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+.wd-row {
+  display: flex;
+  gap: 0.35rem;
+}
+.wd-tile {
+  width: 2.4rem;
+  height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  border: 2px solid color-mix(in srgb, var(--dim) 50%, transparent);
+  color: var(--fg);
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.wd-tile.filled {
+  border-color: var(--dim);
+}
+.wd-tile.correct {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+.wd-tile.present {
+  /* No yellow in the palette — a warm amber reads as "present" on any theme. */
+  background: #c9a227;
+  border-color: #c9a227;
+  color: #0b0f0a;
+}
+.wd-tile.absent {
+  background: color-mix(in srgb, var(--dim) 30%, transparent);
+  border-color: transparent;
+  color: var(--bg);
+}
+.wd-status {
+  color: var(--dim);
+  min-height: 1.2em;
+}
+.wd-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: auto;
+  padding-bottom: 0.5rem;
+}
+.wd-krow {
+  display: flex;
+  justify-content: center;
+  gap: 0.2rem;
+}
+.wd-key {
+  min-width: 1.4rem;
+  padding: 0.25rem 0.35rem;
+  text-align: center;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--dim) 22%, transparent);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+.wd-key.correct { background: var(--accent); color: var(--bg); }
+.wd-key.present { background: #c9a227; color: #0b0f0a; }
+.wd-key.absent { background: color-mix(in srgb, var(--dim) 20%, transparent); color: var(--dim); }
+
+/* ---- piano (brew) ------------------------------------------------------- */
+.pn {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.pn-title {
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+}
+.pn-board {
+  position: relative;
+  flex: 1 1 auto;
+  max-height: 16rem;
+  margin: 0 0.5rem;
+}
+.pn-whites {
+  display: flex;
+  height: 100%;
+  gap: 2px;
+}
+.pn-white {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.5rem;
+  font: inherit;
+  color: var(--dim);
+  background: color-mix(in srgb, var(--fg) 90%, var(--bg));
+  border: 1px solid var(--bg);
+  border-radius: 0 0 5px 5px;
+  cursor: pointer;
+}
+.pn-white.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+.pn-black {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 9%;
+  height: 60%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.35rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  background: #10160f;
+  border: 1px solid var(--bg);
+  border-radius: 0 0 4px 4px;
+  cursor: pointer;
+}
+.pn-black.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+.pn-status {
+  color: var(--dim);
+  padding: 0 0.5rem 0.5rem;
+}

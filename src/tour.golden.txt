@@ -165,6 +165,9 @@ guest@pia:~$ brew list
   tetris       play Tetris — the falling-blocks classic
   qr           show a QR code for text or a share link
   python       run real Python in a sandbox (Pyodide/WASM)
+  figlet       print big ASCII banner text (figlet <text>)
+  wordle       guess the hidden five-letter word in six tries
+  piano        a little Web Audio synth piano (a s d f… to play)
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -200,6 +203,14 @@ installed fortune — commands: fortune
 guest@pia:~$ fortune
 Programs must be written for people to read, and only incidentally for machines to execute.
     — Harold Abelson
+guest@pia:~$ brew install figlet
+installed figlet — commands: figlet
+guest@pia:~$ figlet pia
+###  ###  ## 
+#  #  #  #  #
+###   #  ####
+#     #  #  #
+#    ### #  #
 guest@pia:~$ brew install sl
 installed sl — commands: sl
 guest@pia:~$ brew install cmatrix
@@ -210,6 +221,10 @@ guest@pia:~$ brew install life
 installed life — commands: life
 guest@pia:~$ brew install tetris
 installed tetris — commands: tetris
+guest@pia:~$ brew install wordle
+installed wordle — commands: wordle
+guest@pia:~$ brew install piano
+installed piano — commands: piano
 guest@pia:~$ brew install qr
 installed qr — commands: qr
 guest@pia:~$ brew install python
@@ -256,6 +271,7 @@ available commands:
   demo       play a looping, self-running tour of PIA (any key to exit)
   download   download a file from the VFS to your computer
   echo       print the arguments
+  figlet     print big ASCII banner text (figlet <text>)
   find       list files and directories recursively
   fortune    print a random epigram
   glow       render a Markdown file (headings, lists, quotes) in the terminal
@@ -275,6 +291,7 @@ available commands:
   nano       edit text files in a full-screen editor
   neofetch   show system info with a small logo
   passwd     set or change your account password
+  piano      a little synth piano (a s d f… to play, z/x to shift octave)
   publish    publish a folder as a shareable link (its files land in the opener's ~/incoming)
   pwd        print the current directory path
   python     run Python via Pyodide (python, python file.py, or python -c 'code')
@@ -301,11 +318,12 @@ available commands:
   version    print the PIA version
   wc         count lines, words, and characters
   whoami     show who you are logged in as
+  wordle     guess the hidden five-letter word in six tries
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-76  version
-77  about
-78  date -u
-79  help
-80  history | tail -5
+80  version
+81  about
+82  date -u
+83  help
+84  history | tail -5
