@@ -17,8 +17,10 @@ export const VAPID_PUBLIC_KEY =
 export interface Reminder {
   id: string;
   body: string;
-  /** ISO timestamp of when it fires. */
+  /** ISO timestamp of when it (next) fires. */
   nextRun: string;
+  /** A five-field cron expression when this reminder recurs; absent for one-off. */
+  cron?: string;
 }
 
 /** Outcome of trying to turn on notifications. */
@@ -36,8 +38,9 @@ export interface ReminderStore {
   enablePush(): Promise<PushStatus>;
   /** Whether this device already has notifications enabled. */
   isEnabled(): Promise<boolean>;
-  /** Schedule a one-off reminder. */
-  schedule(body: string, at: Date): Promise<void>;
+  /** Schedule a reminder: one-off at `at`, or recurring when a cron expression
+   * is given (then `at` is the first fire the server recomputes after each). */
+  schedule(body: string, at: Date, cron?: string): Promise<void>;
   /** Upcoming reminders, soonest first. */
   list(): Promise<Reminder[]>;
   /** Cancel a reminder by id. */
@@ -126,8 +129,8 @@ export class MemoryReminderStore implements ReminderStore {
   async isEnabled(): Promise<boolean> {
     return this.enabled;
   }
-  async schedule(body: string, at: Date): Promise<void> {
-    this.items.push({ id: String(++this.seq), body, nextRun: at.toISOString() });
+  async schedule(body: string, at: Date, cron?: string): Promise<void> {
+    this.items.push({ id: String(++this.seq), body, nextRun: at.toISOString(), cron });
   }
   async list(): Promise<Reminder[]> {
     return [...this.items].sort((a, b) => a.nextRun.localeCompare(b.nextRun));

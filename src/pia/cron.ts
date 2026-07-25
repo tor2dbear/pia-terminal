@@ -83,6 +83,33 @@ export function nextCronRun(spec: CronSpec, from: Date): Date | null {
   return null;
 }
 
+/** Like {@link cronMatches}, but read in UTC — used for recurring push reminders,
+ * whose next fire is recomputed server-side (which runs in UTC), so the client's
+ * first fire must be computed the same way to avoid drift. */
+export function cronMatchesUtc(spec: CronSpec, date: Date): boolean {
+  const dow = date.getUTCDay();
+  return (
+    spec.fields[0].has(date.getUTCMinutes()) &&
+    spec.fields[1].has(date.getUTCHours()) &&
+    spec.fields[2].has(date.getUTCDate()) &&
+    spec.fields[3].has(date.getUTCMonth() + 1) &&
+    (spec.fields[4].has(dow) || (dow === 0 && spec.fields[4].has(7)))
+  );
+}
+
+/** The next UTC minute after `from` that fires (see {@link cronMatchesUtc}). */
+export function nextCronRunUtc(spec: CronSpec, from: Date): Date | null {
+  const d = new Date(from.getTime());
+  d.setUTCSeconds(0, 0);
+  d.setUTCMinutes(d.getUTCMinutes() + 1);
+  const limit = 366 * 24 * 60;
+  for (let i = 0; i < limit; i++) {
+    if (cronMatchesUtc(spec, d)) return new Date(d.getTime());
+    d.setUTCMinutes(d.getUTCMinutes() + 1);
+  }
+  return null;
+}
+
 const REL_UNITS: Record<string, number> = {
   s: 1000, sec: 1000, secs: 1000, second: 1000, seconds: 1000,
   m: 60_000, min: 60_000, mins: 60_000, minute: 60_000, minutes: 60_000,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCron, cronMatches, nextCronRun, parseAtTime } from "./cron.js";
+import { parseCron, cronMatches, nextCronRun, nextCronRunUtc, parseAtTime } from "./cron.js";
 
 describe("parseCron", () => {
   it("accepts valid expressions", () => {
@@ -38,6 +38,19 @@ describe("nextCronRun", () => {
     expect(next?.getDate()).toBe(19); // tomorrow
     expect(next?.getHours()).toBe(9);
     expect(next?.getMinutes()).toBe(0);
+  });
+});
+
+describe("nextCronRunUtc", () => {
+  it("finds the next fire in UTC, independent of the local zone", () => {
+    const spec = parseCron("0 9 * * *")!; // 09:00 UTC daily
+    // 2026-07-18T12:00:00Z is past 09:00 UTC today → next is tomorrow 09:00 UTC.
+    const next = nextCronRunUtc(spec, new Date("2026-07-18T12:00:00Z"));
+    expect(next?.toISOString()).toBe("2026-07-19T09:00:00.000Z");
+  });
+
+  it("returns null for a schedule that never fires (Feb 30)", () => {
+    expect(nextCronRunUtc(parseCron("0 0 30 2 *")!, new Date("2026-01-01T00:00:00Z"))).toBeNull();
   });
 });
 

@@ -41,6 +41,33 @@ describe("remind", () => {
     expect(await store.list()).toHaveLength(1);
   });
 
+  it("schedules a recurring reminder from a cron expression (UTC)", async () => {
+    const store = new MemoryReminderStore();
+    const { ctx, out } = makeCtx(store);
+    // Daily at 15:00 UTC; now is 12:00 UTC → first fire is today at 15:00.
+    await remind.run(["0 15 * * *", "standup"], ctx);
+    expect(out[0]).toMatch(/recurring reminder set \(0 15 \* \* \*\), next 2026-07-18 15:00 UTC: standup/);
+    const [r] = await store.list();
+    expect(r.cron).toBe("0 15 * * *");
+    expect(r.nextRun).toBe("2026-07-18T15:00:00.000Z");
+  });
+
+  it("lists a recurring reminder with its schedule", async () => {
+    const store = new MemoryReminderStore();
+    await store.enablePush();
+    await store.schedule("standup", new Date("2026-07-18T15:00:00Z"), "0 15 * * *");
+    const { ctx, out } = makeCtx(store);
+    await remind.run(["-l"], ctx);
+    expect(out[0]).toContain("0 15 * * * · next 2026-07-18 15:00 UTC  standup");
+  });
+
+  it("rejects a cron expression that never fires", async () => {
+    const store = new MemoryReminderStore();
+    const { ctx, err } = makeCtx(store);
+    await remind.run(["0 0 30 2 *", "impossible"], ctx); // Feb 30th
+    expect(err[0]).toMatch(/never fires/);
+  });
+
   it("lists and cancels reminders", async () => {
     const store = new MemoryReminderStore();
     await store.enablePush();
@@ -61,7 +88,7 @@ describe("remind", () => {
   it("rejects a bad time", async () => {
     const { ctx, err } = makeCtx(new MemoryReminderStore());
     await remind.run(["notatime", "hi"], ctx);
-    expect(err[0]).toMatch(/can't read the time/);
+    expect(err[0]).toMatch(/can't read 'notatime'/);
   });
 });
 

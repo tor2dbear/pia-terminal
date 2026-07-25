@@ -18,6 +18,7 @@ interface ReminderRow {
   id: string;
   body: string;
   next_run: string;
+  cron: string | null;
 }
 
 /** A chainable, awaitable filter builder — the slice of supabase-js we use. */
@@ -98,14 +99,14 @@ export class SupabaseReminderStore implements ReminderStore {
     return "enabled";
   }
 
-  async schedule(body: string, at: Date): Promise<void> {
+  async schedule(body: string, at: Date, cron?: string): Promise<void> {
     const uid = await this.uid();
     if (!uid) throw new Error("log in to set a reminder (run `login`)");
     const { error } = await this.db.from("reminders").insert({
       user_id: uid,
       body,
       next_run: at.toISOString(),
-      cron: null,
+      cron: cron ?? null,
       enabled: true,
     });
     if (error) throw new Error(error.message);
@@ -115,12 +116,17 @@ export class SupabaseReminderStore implements ReminderStore {
     const now = new Date().toISOString();
     const { data, error } = await this.db
       .from("reminders")
-      .select("id, body, next_run")
+      .select("id, body, next_run, cron")
       .eq("enabled", true)
       .gt("next_run", now)
       .order("next_run", { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => ({ id: r.id, body: r.body, nextRun: r.next_run }));
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      body: r.body,
+      nextRun: r.next_run,
+      cron: r.cron ?? undefined,
+    }));
   }
 
   async remove(id: string): Promise<void> {
