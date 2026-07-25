@@ -27,30 +27,36 @@ function gather(args: string[], ctx: CoreCommandContext): string | null {
 }
 
 /**
- * `rev` — reverse the characters of each line. Unlike the byte-oriented tools,
- * `rev` processes each file (or stdin) independently, so a line never spans a
- * file boundary — matching the real `rev [file...]`.
+ * `rev` — reverse the characters of each line. Each file (or stdin) is reversed
+ * on its own — a line never spans a file boundary — and the results are joined
+ * with no separator, so an unterminated file stays adjacent to the next, exactly
+ * like the real `rev [file...]` (`rev a b` on "ab","cd" → "badc", not "dcba").
+ * Emitting the combined string line-by-line keeps a pipe/redirect byte-faithful
+ * (split-then-join is an identity), while the screen still breaks on newlines.
  */
 const rev: Command<CoreCommandContext> = {
   name: "rev",
   help: "reverse the characters of each line",
   usage: "rev [file...]   (or pipe text in)",
   run(args, ctx) {
-    const revText = (text: string) => {
-      if (text === "") return; // empty source → nothing (no spurious blank line)
-      for (const line of text.split("\n")) ctx.print(reverseLine(line));
-    };
-    if (args.length === 0) return revText(ctx.stdin);
-    for (const arg of args) {
-      let content: string;
-      try {
-        content = ctx.vfs.readFile(ctx.vfs.resolve(ctx.cwd, arg));
-      } catch (err) {
-        ctx.error(err instanceof Error ? err.message : String(err));
-        return;
+    const revText = (text: string) => text.split("\n").map(reverseLine).join("\n");
+    let out: string;
+    if (args.length === 0) {
+      out = revText(ctx.stdin);
+    } else {
+      const parts: string[] = [];
+      for (const arg of args) {
+        try {
+          parts.push(revText(ctx.vfs.readFile(ctx.vfs.resolve(ctx.cwd, arg))));
+        } catch (err) {
+          ctx.error(err instanceof Error ? err.message : String(err));
+          return;
+        }
       }
-      revText(content);
+      out = parts.join("");
     }
+    if (out === "") return; // empty input → nothing (no spurious blank line)
+    for (const line of out.split("\n")) ctx.print(line);
   },
 };
 

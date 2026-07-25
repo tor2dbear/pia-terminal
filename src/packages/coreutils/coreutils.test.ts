@@ -100,10 +100,18 @@ describe("byte-oriented tools concatenate files (no invented newline)", () => {
 });
 
 describe("rev processes each file independently (no cross-boundary line)", () => {
-  it("reverses each file's line on its own", async () => {
+  it("reverses each file's line, keeping unterminated files adjacent", async () => {
     const { ctx, lines, cmd } = twoFileCtx("ab", "cd");
     await cmd("rev").run(["a", "b"], ctx);
-    // Per-file: "ab"→"ba", "cd"→"dc" — NOT the concatenated "abcd"→"dcba".
+    // Per-file reversal ("ab"→"ba", "cd"→"dc"), but the unterminated files stay
+    // adjacent → one line "badc" (not "dcba", and not two lines "ba"/"dc").
+    expect(lines.map((l) => l.text)).toEqual(["badc"]);
+  });
+
+  it("keeps a terminated file's newline as a real break", async () => {
+    const { ctx, lines, cmd } = twoFileCtx("ab\n", "cd");
+    await cmd("rev").run(["a", "b"], ctx);
+    // a ends in a newline, so "ba" and "dc" land on separate lines.
     expect(lines.map((l) => l.text)).toEqual(["ba", "dc"]);
   });
 });
