@@ -14,7 +14,7 @@ updated: 2026-07-18
 ## Katalog idag (klart)
 `snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
 `cmatrix` · `tutor` · `life` · `tetris` · `qr` · `python` · `figlet` · `wordle` ·
-`piano` · `coreutils` (rev · base64 · factor · xxd).
+`piano` · `coreutils` (rev · base64 · factor · xxd) · `man` (+ `apropos`).
 
 ## Kandidater (S/M/L = insats)
 
@@ -29,7 +29,8 @@ updated: 2026-07-18
 
 **Lär dig terminalen (PIA:s själ)**
 - `tutor` (M) — interaktiv terminal-kurs 🎯 · `vim` (L) — modal editor ·
-  `sed`/`awk` (M) · `man` (S–M) — fylligare manualsidor.
+  `sed`/`awk` (M) · ~~`man` (S–M) — fylligare manualsidor~~ — **klart**
+  (`man` + `apropos`, hybrid: register-skelett + handskrivna sidor + koncept-sidor).
 
 **Kreativt / dev**
 - `piano` (M, Web Audio) · `asciiquarium` (S–M) · `jq` (M) · `diff` (S).

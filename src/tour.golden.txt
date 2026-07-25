@@ -169,6 +169,7 @@ guest@pia:~$ brew list
   wordle       guess the hidden five-letter word in six tries
   piano        a little Web Audio synth piano (a s d f… to play)
   coreutils    small Unix text tools: rev, base64, factor, xxd
+  man          read the manual — man pages for commands and concepts
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -225,6 +226,24 @@ guest@pia:~$ factor 1001
 1001: 7 11 13
 guest@pia:~$ echo hi | xxd
 00000000: 6869                                     hi
+guest@pia:~$ brew install man
+installed man — commands: man, apropos
+guest@pia:~$ man ls | head -6
+NAME
+       ls - list directory contents
+
+SYNOPSIS
+       ls [-a] [file...]
+
+guest@pia:~$ man pipes | head -4
+NAME
+       pipes - connect commands with | and redirect with > >>
+
+DESCRIPTION
+guest@pia:~$ man -k latency
+ping - measure round-trip latency to the app or cloud
+guest@pia:~$ man nope
+No manual entry for nope
 guest@pia:~$ brew install sl
 installed sl — commands: sl
 guest@pia:~$ brew install cmatrix
@@ -275,6 +294,7 @@ available commands:
 
   about      about PIA — version, source, and links
   alias      make a shortcut (alias ll ls -la), or list aliases
+  apropos    search the manual page names and summaries
   at         schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
   base64     base64-encode (or -d to decode) text
   bc         evaluate arithmetic expressions
@@ -310,6 +330,7 @@ available commands:
   login      log in (a username locally; email + password with a backend)
   logout     log out and return to guest
   ls         list the contents of a directory
+  man        show the manual page for a command or topic
   mkdir      create a new directory
   mv         move or rename a file or directory
   nano       edit text files in a full-screen editor
@@ -349,8 +370,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-89  version
-90  about
-91  date -u
-92  help
-93  history | tail -5
+94  version
+95  about
+96  date -u
+97  help
+98  history | tail -5

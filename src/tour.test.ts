@@ -154,6 +154,13 @@ const TOUR: string[] = [
   "echo cGlhCg== | base64 -d",
   "factor 1001",
   "echo hi | xxd",
+  "brew install man",
+  // `man` opens a pager, so the tour uses its plain-text (piped) path plus the
+  // apropos search and the not-found message — all deterministic.
+  "man ls | head -6",
+  "man pipes | head -4",
+  "man -k latency",
+  "man nope",
   // Screen-app packages: install-only here (they take over the screen when run).
   "brew install sl",
   "brew install cmatrix",

@@ -20,7 +20,15 @@ export function base64Encode(text: string): string {
 
 /** base64 → UTF-8. Throws on input that isn't valid base64. */
 export function base64Decode(b64: string): string {
-  const bin = atob(b64.replace(/\s+/g, ""));
+  const clean = b64.replace(/\s+/g, "");
+  // Validate before decoding: the browser's `atob` is lenient (it accepts
+  // unpadded/truncated input like "YQ"), but real base64 rejects anything that
+  // isn't well-formed RFC 4648 — a multiple of four chars from the alphabet
+  // with at most two trailing '='. Don't accept corrupt data as complete.
+  if (clean.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(clean)) {
+    throw new Error("invalid base64");
+  }
+  const bin = atob(clean);
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
   return new TextDecoder().decode(bytes);
 }

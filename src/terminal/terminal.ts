@@ -512,7 +512,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       const cmd = this.registry.get(tokens[0]);
       if (cmd?.complete) {
         const args = tokens.slice(1, index);
-        candidates = cmd.complete(args, this.vfs).filter((c) => c.startsWith(fragment));
+        // The registry is generic over the app's Ctx; completers only read
+        // command names from it, so hand it over at the core type.
+        const registry = this.registry as unknown as CommandRegistry<CoreCommandContext>;
+        candidates = cmd.complete(args, this.vfs, registry).filter((c) => c.startsWith(fragment));
+        // Some commands take both flags and file operands — merge in filename
+        // completions so the flags don't shadow the files.
+        if (cmd.completeFiles) candidates = [...candidates, ...this.completePath(fragment)];
       } else {
         candidates = this.completePath(fragment);
       }
