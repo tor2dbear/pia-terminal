@@ -133,6 +133,12 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["man", "apropos"],
     load: () => import("./man/index.js").then((m) => m.pkg),
   },
+  minesweeper: {
+    name: "minesweeper",
+    description: "clear the minefield — arrows/WASD move, reveal, flag",
+    commands: ["minesweeper", "mines"],
+    load: () => import("./minesweeper/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */
