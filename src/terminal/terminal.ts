@@ -57,6 +57,14 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
    * of PIA's dotfile format and theming.
    */
   configure?: () => TerminalConfig;
+  /**
+   * Describe an unknown command name. The engine calls this when a typed command
+   * isn't registered and, if it returns a string, prints that instead of the
+   * generic "unknown command" line. PIA uses it to turn a not-yet-installed
+   * package command into a `brew install <package>` hint. Return null to fall
+   * back to the generic message. Keeps the engine unaware of the package catalog.
+   */
+  describeUnknownCommand?: (name: string) => string | null;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -107,6 +115,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly session: Session;
   private readonly extendContext?: (core: CoreCommandContext) => Ctx;
   private readonly configure?: () => TerminalConfig;
+  private readonly describeUnknownCommand?: (name: string) => string | null;
 
   private cwd = HOME;
   private buffer = "";
@@ -136,6 +145,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.session = opts.session ?? { user: "user" };
     this.extendContext = opts.extendContext;
     this.configure = opts.configure;
+    this.describeUnknownCommand = opts.describeUnknownCommand;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -963,7 +973,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         args = expandArgs(args, this.cwd, globFs);
         const command = this.registry.get(name);
         if (!command) {
-          this.print(`unknown command: ${name}. type 'help'.`, "error");
+          const hint = this.describeUnknownCommand?.(name);
+          this.print(hint ?? `unknown command: ${name}. type 'help'.`, "error");
           return false;
         }
         const isLast = i === stages.length - 1;

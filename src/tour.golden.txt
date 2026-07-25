@@ -4,6 +4,7 @@ PIA v<version> · Personal Integrated Applications
 memory ok · vfs mounted · adapters loaded
 
 hi. type 'help' to begin.
+new here? try `demo` for a tour, `tutor` to learn, or `man pia`.
 
 guest@pia:~$ echo "# filesystem"
 # filesystem
@@ -160,7 +161,7 @@ guest@pia:~$ brew list
   fortune      print a random computing epigram
   sl           a steam locomotive chuffs across the screen (mistype ls…)
   cmatrix      Matrix-style falling digital rain
-  tutor        an interactive course that teaches real terminal commands
+✓ tutor        an interactive course that teaches real terminal commands
   life         Conway's Game of Life — a cellular-automaton sandbox
   tetris       play Tetris — the falling-blocks classic
   qr           show a QR code for text or a share link
@@ -169,9 +170,11 @@ guest@pia:~$ brew list
   wordle       guess the hidden five-letter word in six tries
   piano        a little Web Audio synth piano (a s d f… to play)
   coreutils    small Unix text tools: rev, base64, factor, xxd
-  man          read the manual — man pages for commands and concepts
+✓ man          read the manual — man pages for commands and concepts
   minesweeper  clear the minefield — arrows/WASD move, reveal, flag
 install with `brew install <name>`
+guest@pia:~$ mines
+mines: not installed — run `brew install minesweeper`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
 guest@pia:~$ cowsay hello from a package
@@ -227,8 +230,6 @@ guest@pia:~$ factor 1001
 1001: 7 11 13
 guest@pia:~$ echo hi | xxd
 00000000: 6869                                     hi
-guest@pia:~$ brew install man
-installed man — commands: man, apropos
 guest@pia:~$ man ls | head -6
 NAME
        ls - list directory contents
@@ -249,8 +250,6 @@ guest@pia:~$ brew install sl
 installed sl — commands: sl
 guest@pia:~$ brew install cmatrix
 installed cmatrix — commands: cmatrix
-guest@pia:~$ brew install tutor
-installed tutor — commands: tutor
 guest@pia:~$ brew install life
 installed life — commands: life
 guest@pia:~$ brew install tetris
@@ -374,8 +373,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-95  version
-96  about
-97  date -u
-98  help
-99  history | tail -5
+94  version
+95  about
+96  date -u
+97  help
+98  history | tail -5

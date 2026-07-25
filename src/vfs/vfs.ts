@@ -31,9 +31,15 @@ export class VFS {
         "",
         "this is your home. create files with `touch`, folders with `mkdir`,",
         "read them with `cat`, edit them with `nano`. type `help` for everything.",
+        "new here? try `demo`, `tutor`, or `man pia`.",
         "",
       ].join("\n"),
     );
+    // The onboarding packages the greeting points at (man, tutor) are installed
+    // by seedDefaultPackages() against the *active* home at boot — not here — so
+    // logged-in users and returning guests get them too, not only this fresh
+    // guest tree. Keeping VFS.seed() free of package knowledge also avoids a
+    // vfs→packages import cycle.
     return vfs;
   }
 
