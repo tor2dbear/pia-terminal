@@ -39,6 +39,7 @@ type AudioCtor = typeof AudioContext;
 
 export class Piano implements ScreenApp {
   private octave = 0; // shift in octaves, via z/x
+  private struck = false; // a key has been played (so the status can report audio)
   private ctx?: AudioContext;
   private rootEl?: HTMLElement;
   private statusEl?: HTMLElement;
@@ -92,8 +93,10 @@ export class Piano implements ScreenApp {
   private strike(k: string): void {
     const key = BY_KEY.get(k);
     if (!key) return;
+    this.struck = true;
     this.play(noteFreq(key.note) * 2 ** this.octave);
     this.flashKey(k);
+    this.renderStatus(); // reflect the audio state (running / suspended / no audio)
   }
 
   private play(freq: number): void {
@@ -105,7 +108,10 @@ export class Piano implements ScreenApp {
     // exactly "no sound". So resume first and only schedule the tone once the
     // clock is actually running; when it's already running, play immediately.
     if (ctx.state === "suspended") {
-      void ctx.resume().then(() => this.tone(ctx, freq));
+      void ctx.resume().then(() => {
+        this.tone(ctx, freq);
+        this.renderStatus(); // flip the status to "running" once actually resumed
+      });
       return;
     }
     this.tone(ctx, freq);
@@ -128,6 +134,17 @@ export class Piano implements ScreenApp {
 
   private ensureCtx(): AudioContext | undefined {
     if (this.ctx) return this.ctx;
+    // iOS silences Web Audio under the Ring/Silent switch because the default
+    // session is "ambient". Opt into "playback" so a tapped key sounds even in
+    // silent mode and at full volume (Safari 16.4+; absent/no-op elsewhere).
+    const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+    if (session) {
+      try {
+        session.type = "playback";
+      } catch {
+        /* not settable on this engine — ignore */
+      }
+    }
     const Ctor: AudioCtor | undefined =
       typeof AudioContext !== "undefined"
         ? AudioContext
@@ -185,10 +202,15 @@ export class Piano implements ScreenApp {
   }
 
   private renderStatus(): void {
-    if (this.statusEl) {
-      const sign = this.octave > 0 ? `+${this.octave}` : `${this.octave}`;
-      this.statusEl.textContent = `octave ${sign} · z/x to shift · a s d f… to play`;
-    }
+    if (!this.statusEl) return;
+    const sign = this.octave > 0 ? `+${this.octave}` : `${this.octave}`;
+    // Once a key's been struck, show whether the audio engine actually started —
+    // a live readout so silence is diagnosable ("running" = playing; "suspended"
+    // = the browser hasn't unlocked audio; "no audio" = no Web Audio at all).
+    let sound = "";
+    if (this.ctx) sound = ` · sound: ${this.ctx.state}`;
+    else if (this.struck) sound = " · sound: no audio";
+    this.statusEl.textContent = `octave ${sign} · z/x to shift · a s d f… to play${sound}`;
   }
 
   private shift(by: number): void {
