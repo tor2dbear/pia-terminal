@@ -1076,3 +1076,74 @@ body {
   color: var(--dim);
   padding: 0 0.5rem 0.5rem;
 }
+
+/* ---- minesweeper (brew) ------------------------------------------------- */
+.ms {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  overflow: auto;
+}
+.ms-title {
+  align-self: stretch;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+}
+.ms-status {
+  color: var(--dim);
+  min-height: 1.2em;
+}
+.ms-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 0.3rem;
+}
+.ms-row {
+  display: flex;
+  gap: 2px;
+}
+.ms-cell {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--dim) 40%, transparent);
+  border-radius: 3px;
+  color: var(--fg);
+  /* Unrevealed tiles read as raised; revealed ones sink in. */
+  background: color-mix(in srgb, var(--dim) 22%, transparent);
+}
+.ms-cell.open {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border-color: color-mix(in srgb, var(--dim) 25%, transparent);
+}
+.ms-cell.flag {
+  color: #c9a227;
+}
+.ms-cell.mine {
+  background: #b3402f;
+  border-color: #b3402f;
+  color: var(--bg);
+}
+.ms-cell.cursor {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+/* Classic per-number colours, tuned to read on the dark board. */
+.ms-cell.n1 { color: #6ea8ff; }
+.ms-cell.n2 { color: #7cf27c; }
+.ms-cell.n3 { color: #ff7a7a; }
+.ms-cell.n4 { color: #c69bff; }
+.ms-cell.n5 { color: #e0a35e; }
+.ms-cell.n6 { color: #5ad6d6; }
+.ms-cell.n7 { color: var(--fg); }
+.ms-cell.n8 { color: var(--dim); }

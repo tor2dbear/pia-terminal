@@ -169,6 +169,7 @@ const TOUR: string[] = [
   "brew install tetris",
   "brew install wordle",
   "brew install piano",
+  "brew install minesweeper",
   "brew install qr",
   "brew install python",
   // Running Python needs the sandboxed iframe (a real browser), so the tour

@@ -14,7 +14,7 @@ updated: 2026-07-18
 ## Katalog idag (klart)
 `snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
 `cmatrix` · `tutor` · `life` · `tetris` · `qr` · `python` · `figlet` · `wordle` ·
-`piano` · `coreutils` (rev · base64 · factor · xxd) · `man` (+ `apropos`).
+`piano` · `coreutils` (rev · base64 · factor · xxd) · `man` (+ `apropos`) · `minesweeper`.
 
 ## Kandidater (S/M/L = insats)
 
@@ -24,7 +24,7 @@ updated: 2026-07-18
   (S) — **klart** (`coreutils`-paketet).
 
 **Arkad (screen-appar)**
-- `tetris` (M) · `minesweeper` (M) · `life` (S) · `wordle` (S–M) ·
+- `tetris` (M) · ~~`minesweeper` (M)~~ **klart** · `life` (S) · `wordle` (S–M) ·
   `sudoku` (M) · `hangman` (S) · `sokoban` (M).
 
 **Lär dig terminalen (PIA:s själ)**
