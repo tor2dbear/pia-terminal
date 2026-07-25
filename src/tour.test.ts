@@ -148,6 +148,12 @@ const TOUR: string[] = [
   "fortune",
   "brew install figlet",
   "figlet pia",
+  "brew install coreutils",
+  "echo hello | rev",
+  "echo pia | base64",
+  "echo cGlhCg== | base64 -d",
+  "factor 1001",
+  "echo hi | xxd",
   // Screen-app packages: install-only here (they take over the screen when run).
   "brew install sl",
   "brew install cmatrix",

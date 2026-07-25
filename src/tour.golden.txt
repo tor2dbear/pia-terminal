@@ -168,6 +168,7 @@ guest@pia:~$ brew list
   figlet       print big ASCII banner text (figlet <text>)
   wordle       guess the hidden five-letter word in six tries
   piano        a little Web Audio synth piano (a s d f… to play)
+  coreutils    small Unix text tools: rev, base64, factor, xxd
 install with `brew install <name>`
 guest@pia:~$ brew install cowsay
 installed cowsay — commands: cowsay, cowthink
@@ -211,6 +212,19 @@ guest@pia:~$ figlet pia
 ###   #  ####
 #     #  #  #
 #    ### #  #
+guest@pia:~$ brew install coreutils
+installed coreutils — commands: rev, base64, factor, xxd
+guest@pia:~$ echo hello | rev
+olleh
+guest@pia:~$ echo pia | base64
+cGlh
+guest@pia:~$ echo cGlhCg== | base64 -d
+pia
+
+guest@pia:~$ factor 1001
+1001: 7 11 13
+guest@pia:~$ echo hi | xxd
+00000000: 6869                                     hi
 guest@pia:~$ brew install sl
 installed sl — commands: sl
 guest@pia:~$ brew install cmatrix
@@ -262,6 +276,7 @@ available commands:
   about      about PIA — version, source, and links
   alias      make a shortcut (alias ll ls -la), or list aliases
   at         schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
+  base64     base64-encode (or -d to decode) text
   bc         evaluate arithmetic expressions
   brew       install optional command packages (brew list | install <name> | uninstall <name>)
   cal        display a calendar for a month
@@ -279,6 +294,7 @@ available commands:
   demo       play a looping, self-running tour of PIA (any key to exit)
   download   download a file from the VFS to your computer
   echo       print the arguments
+  factor     print the prime factors of a number
   figlet     print big ASCII banner text (figlet <text>)
   find       list files and directories recursively
   fortune    print a random epigram
@@ -306,6 +322,7 @@ available commands:
   python     run Python via Pyodide (python, python file.py, or python -c 'code')
   qr         show a QR code for text or a URL
   remind     schedule a push reminder (remind <time> <text>; -l list, -r <n> cancel, on enable)
+  rev        reverse the characters of each line
   rm         remove files or directories (-r for directories)
   share      share a file or folder as a read-only link, or `share <file> <email>` to co-edit
   shared     list and open files shared with you (co-edited)
@@ -328,11 +345,12 @@ available commands:
   wc         count lines, words, and characters
   whoami     show who you are logged in as
   wordle     guess the hidden five-letter word in six tries
+  xxd        make a hex dump of text
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-83  version
-84  about
-85  date -u
-86  help
-87  history | tail -5
+89  version
+90  about
+91  date -u
+92  help
+93  history | tail -5
