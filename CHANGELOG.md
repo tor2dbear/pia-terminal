@@ -11,6 +11,27 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-07-25
+
+Honesty, discoverability, and a retro boot.
+
+- **`notify on/off`**: turn push notifications on or off per device — the off
+  switch that was missing. `off` also unsubscribes the browser and forgets the
+  device's stored subscription (your other devices stay subscribed).
+- **Discoverability**: an unknown package command now suggests how to get it
+  (`brew install <package>`, naming the package even when it differs from the
+  command); the boot greeting points at `demo`, `tutor`, and `man pia`; and
+  `man` + `tutor` come preinstalled so those pointers work on the first run.
+- **`bios`**: an opt-in retro BIOS/POST boot sequence — a power-on self-test
+  before the prompt. Skippable, off by default, and honours reduced-motion.
+- **Safer cloud sync**: editing the same account on two devices no longer
+  silently overwrites. The newer version wins and your unsynced changes are set
+  aside under `~/.pia/conflicts/` instead of vanishing.
+- **`changelog`**: shows the latest release by default now, with `--all` (paged)
+  for the full history — so it stays readable as it grows.
+- **Under the hood**: the server's reminder cron engine is guarded against
+  drifting from the client's copy, and a flaky test was made deterministic.
+
 ## [0.10.0] — 2026-07-19
 
 Polish & process.
@@ -113,5 +134,6 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.11.0
 [0.10.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.10.0
