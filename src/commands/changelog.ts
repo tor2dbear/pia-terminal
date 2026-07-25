@@ -20,6 +20,21 @@ function latestChangelog(md: string): string {
   return lines.slice(0, released[1]).join("\n").replace(/\n+$/, "") + "\n";
 }
 
+/**
+ * Drop Keep-a-Changelog reference-link definitions (`[x]: https://…`). They make
+ * the version headings clickable on github.com, but the terminal's renderer
+ * doesn't resolve them — so they'd otherwise leak out as a block of raw,
+ * often-dead `[x]: url` lines. Kept in the file (for GitHub), hidden here.
+ */
+function stripLinkRefs(md: string): string {
+  return md
+    .split("\n")
+    .filter((line) => !/^\[[^\]]+\]:\s+\S/.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n") // tidy the gap the removed block left
+    .replace(/\n+$/, "\n");
+}
+
 const version: Command = {
   name: "version",
   help: "print the PIA version",
@@ -39,7 +54,7 @@ const changelog: Command = {
     const all = args[0] === "--all" || args[0] === "-a";
     const latest = latestChangelog(CHANGELOG);
     const trimmed = latest !== CHANGELOG;
-    const md = all ? CHANGELOG : latest;
+    const md = stripLinkRefs(all ? CHANGELOG : latest);
 
     // Piped: emit plain rendered text so `| grep` / `| less` work (a screen app
     // can't take over mid-pipeline anyway).

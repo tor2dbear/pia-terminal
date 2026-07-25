@@ -34,6 +34,10 @@ describe("meta commands", () => {
     expect(out).toContain("Foundations"); // 0.1.0 present
     expect(out).toContain("0.11.0");
     expect(out).not.toContain("changelog --all"); // no interactive hint in a pipe
+    // Keep-a-Changelog reference-link plumbing is hidden in the terminal (it's
+    // GitHub-only, and the URLs would otherwise show as raw, often-dead lines).
+    expect(out).not.toMatch(/^\[[^\]]+\]:\s+https?:/m);
+    expect(out).not.toContain("releases/tag/");
   });
 
   it("changelog --all opens the pager when run interactively", async () => {

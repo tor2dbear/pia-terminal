@@ -11,6 +11,16 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Changed
+- **`changelog`**: hides Keep-a-Changelog link-reference plumbing in the terminal
+  (it's GitHub-only), so the version list stays clean instead of trailing raw
+  `[x]: url` lines.
+
+### Fixed
+- **`piano` on iOS**: notes now sound on iPhone/iPad — resume the audio context
+  before scheduling (Safari creates it suspended), and opt into the "playback"
+  audio session so the Ring/Silent switch no longer mutes it.
+
 ## [0.11.0] — 2026-07-25
 
 Honesty, discoverability, and a retro boot.
