@@ -146,12 +146,16 @@ const TOUR: string[] = [
   "echo 6*7 | bc",
   "brew install fortune",
   "fortune",
+  "brew install figlet",
+  "figlet pia",
   // Screen-app packages: install-only here (they take over the screen when run).
   "brew install sl",
   "brew install cmatrix",
   "brew install tutor",
   "brew install life",
   "brew install tetris",
+  "brew install wordle",
+  "brew install piano",
   "brew install qr",
   "brew install python",
   // Running Python needs the sandboxed iframe (a real browser), so the tour

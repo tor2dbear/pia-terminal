@@ -13,7 +13,8 @@ updated: 2026-07-18
 
 ## Katalog idag (klart)
 `snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
-`cmatrix` · `tutor` · `life` · `tetris` · `qr`.
+`cmatrix` · `tutor` · `life` · `tetris` · `qr` · `python` · `figlet` · `wordle` ·
+`piano`.
 
 ## Kandidater (S/M/L = insats)
 
