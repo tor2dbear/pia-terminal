@@ -35,13 +35,11 @@ export class VFS {
         "",
       ].join("\n"),
     );
-    // Preinstall the onboarding packages the boot greeting points at, so a new
-    // user's first `tutor` / `man pia` works instead of bouncing off
-    // command-not-found. Everything else stays opt-in via `brew`. One name per
-    // line — the format installedPackages() reads (path inlined to avoid a
-    // vfs→packages import cycle; it's just a dotfile).
-    vfs.mkdirp(`${HOME}/.pia`);
-    vfs.writeFile(`${HOME}/.pia/packages`, "man\ntutor\n");
+    // The onboarding packages the greeting points at (man, tutor) are installed
+    // by seedDefaultPackages() against the *active* home at boot — not here — so
+    // logged-in users and returning guests get them too, not only this fresh
+    // guest tree. Keeping VFS.seed() free of package knowledge also avoids a
+    // vfs→packages import cycle.
     return vfs;
   }
 

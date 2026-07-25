@@ -160,6 +160,28 @@ export function commandPackage(command: string): string | null {
   return null;
 }
 
+/** The packages every home starts with — the onboarding surface the boot
+ *  greeting points at (`tutor`, `man pia`). Deliberately tiny; everything else
+ *  is opt-in via `brew`. */
+export const DEFAULT_PACKAGES = ["man", "tutor"];
+
+/**
+ * Give a home its default packages, but only if it has never been configured —
+ * i.e. it has no packages list yet. That gate means a fresh guest seed, a
+ * brand-new account's home, and a legacy tree from before defaults existed all
+ * receive them, while anyone who has used `brew` (including deliberately
+ * uninstalling a default) keeps their exact choices untouched. Run against the
+ * *active* home (`vfs.home`) at boot, so the greeting's `tutor`/`man pia`
+ * pointers work for guests and logged-in users alike — not only the fresh guest
+ * tree. Idempotent; returns true if it wrote the list.
+ */
+export function seedDefaultPackages(vfs: VFS, home: string): boolean {
+  if (vfs.getNode(packagesPath(home))) return false; // already configured
+  vfs.mkdirp(`${home}/.pia`);
+  vfs.writeFile(packagesPath(home), DEFAULT_PACKAGES.join("\n") + "\n");
+  return true;
+}
+
 /** The set of installed package names, read from ~/.pia/packages. */
 export function installedPackages(vfs: VFS, home: string): string[] {
   const node = vfs.getNode(packagesPath(home));

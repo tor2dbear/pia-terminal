@@ -143,16 +143,6 @@ describe("Terminal (driven via keyboard)", () => {
     const root = mount();
     await runLine(root, "login alice");
     await runLine(root, "logout");
-    // Returning to guest reconciles guest's seed-installed packages (man, tutor)
-    // via dynamic import, so the prompt re-renders a few macrotasks after the
-    // single flush in runLine — wait for it to settle rather than racing it.
-    for (
-      let i = 0;
-      i < 100 && root.querySelector(".term-prompt")?.textContent !== "guest@pia:~$";
-      i++
-    ) {
-      await flush();
-    }
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 

@@ -16,7 +16,7 @@ import { VFS } from "./vfs/vfs.js";
 import { MemoryStorageAdapter } from "./storage/localStorage.js";
 import { MemoryAuthAdapter } from "./auth/fakeAuth.js";
 import { buildRegistry } from "./commands/index.js";
-import { commandPackage, registerInstalled } from "./packages/catalog.js";
+import { commandPackage, registerInstalled, seedDefaultPackages } from "./packages/catalog.js";
 import { piaExtendContext } from "./pia/context.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { boot } from "./boot.js";
@@ -219,8 +219,10 @@ describe("tour — a scripted session through the real terminal", () => {
   });
 
   it("matches the golden transcript (update with `vitest -u`)", async () => {
-    // Register seed-preinstalled packages (man, tutor) before boot, exactly
-    // like main.ts — so `man …` works and the greeting's pointers are live.
+    // Seed the active home's default packages (man, tutor) and register them
+    // before boot, exactly like main.ts — so `man …` works and the greeting's
+    // pointers are live.
+    seedDefaultPackages(vfs, vfs.home);
     await registerInstalled(vfs, vfs.home, registry);
     await boot(term!);
     for (const line of TOUR) await run(line);
