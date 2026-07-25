@@ -1,9 +1,25 @@
 ---
 title: Boot-BIOS — retro-uppstartssekvens
-status: inbox
+status: done
 tags: [aesthetic, ui]
 updated: 2026-07-25
 ---
+
+## Levererat (2026-07-25)
+Opt-in `bios`-läge: en längre POST-preamble före prompten (BIOS-rad, minnestest,
+"Detecting storage…", adapter-lista, boot device), sedan över i den vanliga
+hälsningen. `boot.ts` tar nu ett `BootOptions{bios}`; `main.ts` läser flaggan ur
+`~/.pia/config` vid boot. **Egen `bios`-flagga** (inte hopbuntad med `crt`) med
+ett `bios [on|off]`-kommando som speglar `crt` men bara persisterar (POST spelar
+vid nästa reload, inget live att visa). **Skippbar** — valfri tangenttryckning
+nollar kvarvarande pauser så en reload aldrig fastnar bakom den. Av som default
+(samma tillgänglighets-resonemang som CRT). Verifierad i webbläsare (skärmdump)
++ tester (rc-parse, `bios`-kommando, boot-preamble på/av med fake-timers).
+
+**Kvar som svansar (medvetet ute ur v1):** ljud (boot-brus/tangentljud bakom
+samma toggle, Web Audio/CSP-säkert), och en riktig in-place minnesräknare (kräver
+att skriva över senaste raden — terminalen är append-only idag). `retro`-paraply
+som slår på både `crt` och `bios` kan läggas till senare; flaggorna är oberoende.
 
 ## Mål
 En valbar, längre retro-uppstart à la ett BIOS/POST: minnesräkning, "detecting

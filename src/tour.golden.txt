@@ -104,6 +104,9 @@ theme = amber
 # retro cathode-ray overlay — scanlines + phosphor glow (or use `crt on`)
 # crt = on
 
+# retro BIOS/POST boot — a longer power-on before the prompt (or use `bios on`)
+# bios = on
+
 # custom colours — override the theme, any of: bg fg dim accent error
 # color.accent = #ff8800
 # color.bg = #001018
@@ -300,6 +303,7 @@ available commands:
   at           schedule a one-off command (at <time> <command>; -l list, -r <n> remove)
   base64       base64-encode (or -d to decode) text
   bc           evaluate arithmetic expressions
+  bios         toggle the retro BIOS/POST boot sequence (plays on next reload)
   brew         install optional command packages (brew list | install <name> | uninstall <name>)
   cal          display a calendar for a month
   cat          print the contents of a file (or piped input)

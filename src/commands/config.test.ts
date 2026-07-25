@@ -173,6 +173,21 @@ describe(".pia/config — themes, aliases, prompt", () => {
     expect(document.documentElement.classList.contains("crt")).toBe(false);
   });
 
+  it("`bios on` / `bios off` persists the retro boot toggle (applies next reload)", async () => {
+    const vfs = VFS.seed();
+    const root = mount(vfs);
+    await runLine(root, "bios");
+    expect(root.textContent).toContain("BIOS boot is off"); // off by default
+
+    await runLine(root, "bios on");
+    expect(root.textContent).toContain("BIOS boot on");
+    // Persisted to the dotfile so the next boot reads it (nothing live to show).
+    expect(vfs.readFile("/home/guest/.pia/config")).toMatch(/^\s*bios\s*=\s*on\s*$/m);
+
+    await runLine(root, "bios off");
+    expect(vfs.readFile("/home/guest/.pia/config")).toMatch(/^\s*bios\s*=\s*off\s*$/m);
+  });
+
   it("`source` refuses anything but the config file", async () => {
     const root = mount();
     await runLine(root, "source ~/notes.txt");
