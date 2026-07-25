@@ -50,12 +50,15 @@ describe("ping", () => {
     expect(out).toContain("round-trip min/avg/max = 10.0/20.0/30.0 ms");
   });
 
-  it("prints no round-trip line when every packet is lost", async () => {
+  it("fails (non-zero) with no round-trip line when every packet is lost", async () => {
     const h = ctxHarness();
     await runPing(["-c", "2"], h.ctx, depsFrom([null, null]));
     const out = h.text().join("\n");
     expect(out).toContain("2 transmitted, 0 received, 100% loss");
     expect(out).not.toContain("round-trip");
+    // The all-lost summary goes through `error`, so `ping || …` can branch.
+    const summary = h.lines.find((l) => l.text.includes("100% loss"));
+    expect(summary?.cls).toBe("error");
   });
 
   it("refuses an arbitrary host honestly (no faked numbers)", async () => {

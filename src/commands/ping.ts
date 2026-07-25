@@ -17,7 +17,10 @@ import type { Command, CommandContext } from "./registry.js";
 const COUNT_DEFAULT = 4;
 const COUNT_MAX = 20;
 const INTERVAL_MS = 300; // gap between packets (real ping waits ~1s; keep it snappy)
-const TIMEOUT_MS = 5000;
+// Per-probe timeout. Kept short because a running command can't be interrupted
+// here (the terminal ignores keys, ^C included, while busy) — so a dead host
+// must not freeze the prompt for long. `self` and `cloud` reply in ms when up.
+const TIMEOUT_MS = 2000;
 
 /** A single timed probe: resolves to the round-trip in ms, or null on failure. */
 export type Probe = (url: string) => Promise<number | null>;
@@ -164,13 +167,18 @@ export async function runPing(
   ctx.print();
   ctx.print(`--- ${host} ping statistics ---`);
   const loss = Math.round(((count - times.length) / count) * 100);
-  ctx.print(`${count} transmitted, ${times.length} received, ${loss}% loss`);
-  if (times.length > 0) {
-    const min = Math.min(...times);
-    const max = Math.max(...times);
-    const avg = times.reduce((a, b) => a + b, 0) / times.length;
-    ctx.print(`round-trip min/avg/max = ${fmt(min)}/${fmt(avg)}/${fmt(max)} ms`);
+  const summary = `${count} transmitted, ${times.length} received, ${loss}% loss`;
+  if (times.length === 0) {
+    // Every packet was lost: report through `error` so the pipeline exits
+    // non-zero, like real ping — `ping cloud || echo offline` then branches.
+    ctx.error(summary);
+    return;
   }
+  ctx.print(summary);
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  const avg = times.reduce((a, b) => a + b, 0) / times.length;
+  ctx.print(`round-trip min/avg/max = ${fmt(min)}/${fmt(avg)}/${fmt(max)} ms`);
 }
 
 export const ping: Command = {
