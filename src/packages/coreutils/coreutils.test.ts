@@ -16,11 +16,11 @@ function stubCtx(stdin = "") {
   return { ctx, lines, cmd };
 }
 
-/** A context backed by a real VFS with two unterminated files, `a` and `b`. */
-function twoFileCtx() {
+/** A context backed by a real VFS holding two unterminated files, `a` and `b`. */
+function twoFileCtx(a: string, b: string) {
   const vfs = VFS.seed();
-  vfs.writeFile(`${HOME}/a`, "a");
-  vfs.writeFile(`${HOME}/b`, "b");
+  vfs.writeFile(`${HOME}/a`, a);
+  vfs.writeFile(`${HOME}/b`, b);
   const lines: { text: string; err: boolean }[] = [];
   const ctx = {
     vfs,
@@ -76,7 +76,7 @@ describe("factor", () => {
     expect(factorize(1001)).toEqual([7, 11, 13]);
   });
 
-  it("refuses a value past Number's safe range (would round silently)", async () => {
+  it("refuses a value that would freeze the main thread / round silently", async () => {
     const { ctx, lines, cmd } = stubCtx();
     await cmd("factor").run(["9007199254740993"], ctx);
     expect(lines.some((l) => l.err && /too large/.test(l.text))).toBe(true);
@@ -91,18 +91,34 @@ describe("factor", () => {
   });
 });
 
-describe("multiple files concatenate byte-for-byte (no invented newline)", () => {
-  it("rev joins unterminated files into one line", async () => {
-    const { ctx, lines, cmd } = twoFileCtx();
-    await cmd("rev").run(["a", "b"], ctx);
-    // "a" + "b" = "ab" is a single line → "ba", not two lines "a","b".
-    expect(lines.map((l) => l.text)).toEqual(["ba"]);
-  });
-
+describe("byte-oriented tools concatenate files (no invented newline)", () => {
   it("base64 encodes the concatenation, not a separator-injected version", async () => {
-    const { ctx, lines, cmd } = twoFileCtx();
+    const { ctx, lines, cmd } = twoFileCtx("a", "b");
     await cmd("base64").run(["a", "b"], ctx);
     expect(lines.map((l) => l.text)).toEqual([base64Encode("ab")]); // "YWI=", not base64("a\nb")
+  });
+});
+
+describe("rev processes each file independently (no cross-boundary line)", () => {
+  it("reverses each file's line on its own", async () => {
+    const { ctx, lines, cmd } = twoFileCtx("ab", "cd");
+    await cmd("rev").run(["a", "b"], ctx);
+    // Per-file: "ab"→"ba", "cd"→"dc" — NOT the concatenated "abcd"→"dcba".
+    expect(lines.map((l) => l.text)).toEqual(["ba", "dc"]);
+  });
+});
+
+describe("filters keep empty input empty (no usage text into a pipe)", () => {
+  it("base64 of empty stdin produces no output", async () => {
+    const { ctx, lines, cmd } = stubCtx("");
+    await cmd("base64").run([], ctx);
+    expect(lines).toEqual([]);
+  });
+
+  it("xxd of empty stdin produces no output", async () => {
+    const { ctx, lines, cmd } = stubCtx("");
+    await cmd("xxd").run([], ctx);
+    expect(lines).toEqual([]);
   });
 });
 

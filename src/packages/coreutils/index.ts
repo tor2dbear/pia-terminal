@@ -26,16 +26,31 @@ function gather(args: string[], ctx: CoreCommandContext): string | null {
   return parts.join("");
 }
 
-/** `rev` — reverse the characters of each line. */
+/**
+ * `rev` — reverse the characters of each line. Unlike the byte-oriented tools,
+ * `rev` processes each file (or stdin) independently, so a line never spans a
+ * file boundary — matching the real `rev [file...]`.
+ */
 const rev: Command<CoreCommandContext> = {
   name: "rev",
   help: "reverse the characters of each line",
   usage: "rev [file...]   (or pipe text in)",
   run(args, ctx) {
-    const input = gather(args, ctx);
-    if (input === null) return;
-    if (input === "" && args.length === 0) return; // nothing to do
-    for (const line of input.split("\n")) ctx.print(reverseLine(line));
+    const revText = (text: string) => {
+      if (text === "") return; // empty source → nothing (no spurious blank line)
+      for (const line of text.split("\n")) ctx.print(reverseLine(line));
+    };
+    if (args.length === 0) return revText(ctx.stdin);
+    for (const arg of args) {
+      let content: string;
+      try {
+        content = ctx.vfs.readFile(ctx.vfs.resolve(ctx.cwd, arg));
+      } catch (err) {
+        ctx.error(err instanceof Error ? err.message : String(err));
+        return;
+      }
+      revText(content);
+    }
   },
 };
 
@@ -49,9 +64,9 @@ const base64: Command<CoreCommandContext> = {
     const rest = decode ? args.slice(1) : args;
     const input = gather(rest, ctx);
     if (input === null) return;
-    if (input === "" && rest.length === 0) return ctx.print("usage: base64 [-d] [file]");
     try {
       const out = decode ? base64Decode(input) : base64Encode(input);
+      if (out === "") return; // empty in → empty out; a filter never invents output
       for (const line of out.split("\n")) ctx.print(line);
     } catch {
       ctx.error("base64: invalid input");
@@ -62,6 +77,11 @@ const base64: Command<CoreCommandContext> = {
   },
 };
 
+// Trial division stays snappy while sqrt(n) ≤ 10^6, so cap operands at 10^12.
+// That keeps `factor` from freezing the (uninterruptible) main thread on a large
+// prime — and never silently rounds, since 10^12 is well within safe integers.
+const FACTOR_MAX = 1_000_000_000_000;
+
 /** `factor` — print the prime factorisation of each number. */
 const factor: Command<CoreCommandContext> = {
   name: "factor",
@@ -69,17 +89,15 @@ const factor: Command<CoreCommandContext> = {
   usage: "factor <number>...   (or pipe numbers in)",
   run(args, ctx) {
     const tokens = args.length > 0 ? args : ctx.stdin.split(/\s+/).filter(Boolean);
-    if (tokens.length === 0) return ctx.print("usage: factor <number>...");
+    if (tokens.length === 0) return; // empty input → nothing, like any filter
     for (const tok of tokens) {
       const n = Number(tok);
       if (!Number.isInteger(n) || n < 1) {
         ctx.error(`factor: '${tok}' is not a positive integer`);
         continue;
       }
-      // Past 2^53, Number() silently rounds, so `n` would no longer be the
-      // number the user typed — refuse rather than factor a different value.
-      if (!Number.isSafeInteger(n)) {
-        ctx.error(`factor: '${tok}' is too large (max ${Number.MAX_SAFE_INTEGER})`);
+      if (n > FACTOR_MAX) {
+        ctx.error(`factor: '${tok}' is too large (max ${FACTOR_MAX})`);
         continue;
       }
       ctx.print(`${n}: ${factorize(n).join(" ")}`.trimEnd());
@@ -95,8 +113,7 @@ const xxd: Command<CoreCommandContext> = {
   run(args, ctx) {
     const input = gather(args, ctx);
     if (input === null) return;
-    if (input === "" && args.length === 0) return ctx.print("usage: xxd [file]");
-    for (const line of hexdump(input)) ctx.print(line);
+    for (const line of hexdump(input)) ctx.print(line); // empty input → no output
   },
 };
 
