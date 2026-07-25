@@ -2,8 +2,8 @@ import type { Command, CommandContext } from "./registry.js";
 import type { PushStatus } from "../pia/reminders.js";
 import { parseAtTime, parseCron, nextCronRunUtc } from "../pia/cron.js";
 
-/** A short, human message for each non-success push status. */
-function pushHelp(status: PushStatus): string {
+/** A short, human message for each non-success push status. Shared with `notify`. */
+export function pushHelp(status: PushStatus): string {
   switch (status) {
     case "denied":
       return "notifications are blocked — allow them for this site, then `remind on`";

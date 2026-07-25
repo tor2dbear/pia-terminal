@@ -99,6 +99,24 @@ export class SupabaseReminderStore implements ReminderStore {
     return "enabled";
   }
 
+  async disablePush(): Promise<void> {
+    if (!pushSupported()) return; // nothing subscribed on this device to turn off
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    const endpoint = sub?.endpoint;
+    if (sub) await sub.unsubscribe(); // stop the browser delivering push here
+    // Forget this device's row so the server stops sending to a dead endpoint.
+    // RLS already scopes deletes to auth.uid(); matching the endpoint removes
+    // only THIS device, leaving the user's other devices subscribed.
+    if (endpoint) {
+      const { error } = await this.db
+        .from("push_subscriptions")
+        .delete()
+        .eq("endpoint", endpoint);
+      if (error) throw new Error(error.message);
+    }
+  }
+
   async schedule(body: string, at: Date, cron?: string): Promise<void> {
     const uid = await this.uid();
     if (!uid) throw new Error("log in to set a reminder (run `login`)");

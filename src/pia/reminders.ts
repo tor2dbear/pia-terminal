@@ -36,6 +36,10 @@ export interface ReminderStore {
   available(): boolean;
   /** Turn on push for this device (register SW, ask permission, subscribe). */
   enablePush(): Promise<PushStatus>;
+  /** Turn off push for this device: unsubscribe and forget its stored
+   * subscription. Idempotent — a no-op if it wasn't on. Scoped to this device;
+   * the user's other devices keep their notifications. */
+  disablePush(): Promise<void>;
   /** Whether this device already has notifications enabled. */
   isEnabled(): Promise<boolean>;
   /** Schedule a reminder: one-off at `at`, or recurring when a cron expression
@@ -126,6 +130,9 @@ export class MemoryReminderStore implements ReminderStore {
     this.enabled = true;
     return "enabled";
   }
+  async disablePush(): Promise<void> {
+    this.enabled = false;
+  }
   async isEnabled(): Promise<boolean> {
     return this.enabled;
   }
@@ -147,6 +154,9 @@ export class NullReminderStore implements ReminderStore {
   }
   async enablePush(): Promise<PushStatus> {
     return "no-cloud";
+  }
+  async disablePush(): Promise<void> {
+    /* no-op — guests have no push to turn off */
   }
   async isEnabled(): Promise<boolean> {
     return false;

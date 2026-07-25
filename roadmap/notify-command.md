@@ -1,9 +1,21 @@
 ---
 title: "notify on — eget notis-preferenskommando"
-status: inbox
+status: done
 tags: [scheduling, push]
 updated: 2026-07-25
 ---
+
+## Levererat (2026-07-25)
+`notify [on|off]` levererat. Bar `notify` visar tillstånd ("notifications: on/off
+on this device."); `notify on` återanvänder `enablePush()`; `notify off` är den
+nya vägen — ett `disablePush()` i `ReminderStore`-sömmen (Null/Memory/Supabase)
+som på Supabase-sidan `unsubscribe()`:ar browser-prenumerationen och raderar
+enhetens rad i `push_subscriptions` (per endpoint; RLS scopar till användaren, så
+andra enheter påverkas inte). Gäst utan moln får ärligt "off — needs a cloud
+account". `remind on` lämnades kvar som fungerande motsvarighet (samma
+`enablePush()`). Ingen schemaändring, ingen deploy — radraderingen är en
+klient-DELETE. Täckt av tester (kommando-nivå + Supabase-`disablePush`) och
+verifierad i webbläsare.
 
 ## Mål
 Ett eget `notify on/off`-kommando för att slå på/av push-notiser, i stället för
