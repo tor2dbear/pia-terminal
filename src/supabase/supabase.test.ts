@@ -3,6 +3,7 @@ import type { DirNode } from "../vfs/types.js";
 import type { SupabaseLike } from "./client.js";
 import { SupabaseAuthAdapter } from "./auth.js";
 import { SupabaseStorageAdapter } from "./storage.js";
+import { StorageConflictError } from "../storage/adapter.js";
 import { HybridStorageAdapter } from "./hybrid.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
 
@@ -15,7 +16,11 @@ interface StubUser {
 
 function stubClient(): SupabaseLike {
   let user: StubUser | null = null;
-  const rows: Record<string, DirNode> = {};
+  // Each row carries a version (updated_at) that bumps on every write, exactly
+  // like the DB trigger — this is what the optimistic-concurrency guard reads.
+  const rows: Record<string, { tree: DirNode; updated_at: string }> = {};
+  let clock = 0;
+  const stamp = () => `v${++clock}`;
   const client = {
     auth: {
       async getUser() {
@@ -60,16 +65,51 @@ function stubClient(): SupabaseLike {
             eq(_col: string, uid: string) {
               return {
                 async maybeSingle() {
-                  const tree = rows[uid];
-                  return { data: tree ? { tree } : null, error: null };
+                  const row = rows[uid];
+                  return {
+                    data: row ? { tree: row.tree, updated_at: row.updated_at } : null,
+                    error: null,
+                  };
                 },
               };
             },
           };
         },
-        async upsert(row: Record<string, unknown>) {
-          rows[row.user_id as string] = row.tree as DirNode;
-          return { error: null };
+        insert(row: Record<string, unknown>) {
+          const uid = row.user_id as string;
+          return {
+            select() {
+              return {
+                async maybeSingle() {
+                  if (rows[uid]) {
+                    return { data: null, error: { message: "duplicate key value" } };
+                  }
+                  const updated_at = stamp();
+                  rows[uid] = { tree: row.tree as DirNode, updated_at };
+                  return { data: { updated_at }, error: null };
+                },
+              };
+            },
+          };
+        },
+        update(values: Record<string, unknown>) {
+          return {
+            match(criteria: Record<string, string>) {
+              return {
+                async select() {
+                  const uid = criteria.user_id;
+                  const row = rows[uid];
+                  // No row, or its version moved under us → nothing matches.
+                  if (!row || row.updated_at !== criteria.updated_at) {
+                    return { data: [], error: null };
+                  }
+                  const updated_at = stamp();
+                  rows[uid] = { tree: values.tree as DirNode, updated_at };
+                  return { data: [{ updated_at }], error: null };
+                },
+              };
+            },
+          };
         },
       };
     },
@@ -208,6 +248,73 @@ describe("SupabaseStorageAdapter", () => {
     });
     const loaded = await store.load();
     expect(loaded?.children["keep.txt"]).toBeDefined();
+  });
+
+  it("refuses to clobber a newer remote write and reports the conflict", async () => {
+    const client = stubClient();
+    await client.auth.signInWithPassword({ email: "a@b.c", password: "x" });
+    // Two devices on the same account. Device A seeds the row; both then load it,
+    // so they share the same base version.
+    const a = new SupabaseStorageAdapter(client);
+    const b = new SupabaseStorageAdapter(client);
+    const seed = tree();
+    seed.children["shared.txt"] = { type: "file", name: "shared.txt", content: "0" };
+    await a.save(seed); // inserts the row
+    await a.load();
+    await b.load(); // both now hold the same base version
+
+    // A writes → the row's version moves.
+    const fromA = tree();
+    fromA.children["fromA.txt"] = { type: "file", name: "fromA.txt", content: "A" };
+    await a.save(fromA);
+
+    // B still holds the old base → its save must not overwrite A's; it conflicts.
+    const fromB = tree();
+    fromB.children["fromB.txt"] = { type: "file", name: "fromB.txt", content: "B" };
+    let conflict: StorageConflictError | null = null;
+    try {
+      await b.save(fromB);
+    } catch (err) {
+      conflict = err instanceof StorageConflictError ? err : null;
+    }
+    expect(conflict).toBeInstanceOf(StorageConflictError);
+    // The conflict carries A's (newer) tree, and the remote still has it intact.
+    expect(conflict?.remoteTree.children["fromA.txt"]).toBeDefined();
+    expect((await a.load())?.children["fromA.txt"]).toBeDefined();
+  });
+
+  it("lands a retry after a conflict, because it adopts the remote base", async () => {
+    const client = stubClient();
+    await client.auth.signInWithPassword({ email: "a@b.c", password: "x" });
+    const a = new SupabaseStorageAdapter(client);
+    const b = new SupabaseStorageAdapter(client);
+    await a.save(tree()); // seed
+    await b.load();
+    await a.save(tree()); // A bumps the version out from under B
+
+    await expect(b.save(tree())).rejects.toBeInstanceOf(StorageConflictError);
+    // After the conflict, B's base == the remote's, so a follow-up save (what the
+    // terminal does after reconciling) succeeds instead of looping.
+    const merged = tree();
+    merged.children["merged.txt"] = { type: "file", name: "merged.txt", content: "!" };
+    await expect(b.save(merged)).resolves.toBeUndefined();
+    expect((await a.load())?.children["merged.txt"]).toBeDefined();
+  });
+
+  it("treats a first-write race (row already exists) as a conflict, not a clobber", async () => {
+    const client = stubClient();
+    await client.auth.signInWithPassword({ email: "a@b.c", password: "x" });
+    const a = new SupabaseStorageAdapter(client);
+    const b = new SupabaseStorageAdapter(client);
+    // Neither has loaded a row (both think it's a brand-new account).
+    const fromA = tree();
+    fromA.children["fromA.txt"] = { type: "file", name: "fromA.txt", content: "A" };
+    await a.save(fromA); // A inserts first
+    const fromB = tree();
+    fromB.children["fromB.txt"] = { type: "file", name: "fromB.txt", content: "B" };
+    // B's insert hits an existing row → conflict, not a silent overwrite.
+    await expect(b.save(fromB)).rejects.toBeInstanceOf(StorageConflictError);
+    expect((await a.load())?.children["fromA.txt"]).toBeDefined();
   });
 });
 
