@@ -346,7 +346,7 @@ available commands:
   pwd          print the current directory path
   python       run Python via Pyodide (python, python file.py, or python -c 'code')
   qr           show a QR code for text or a URL
-  remind       schedule a push reminder (remind <time> <text>; -l list, -r <n> cancel, on enable)
+  remind       schedule a push reminder (remind <time|cron> <text>; -l list, -r <n> cancel, on enable)
   rev          reverse the characters of each line
   rm           remove files or directories (-r for directories)
   share        share a file or folder as a read-only link, or `share <file> <email>` to co-edit

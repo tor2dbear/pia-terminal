@@ -70,12 +70,12 @@ export function cronMatches(spec: CronSpec, date: Date): boolean {
 }
 
 /** The next minute at/after `from` (exclusive of `from`'s minute) that fires,
- * searching up to a year ahead. Null if nothing matches in that window. */
+ * searching ~4 years ahead (enough for Feb 29). Null if nothing matches. */
 export function nextCronRun(spec: CronSpec, from: Date): Date | null {
   const d = new Date(from.getTime());
   d.setSeconds(0, 0);
   d.setMinutes(d.getMinutes() + 1);
-  const limit = 366 * 24 * 60;
+  const limit = 4 * 366 * 24 * 60; // ~4 years, so Feb 29 (leap-day) schedules resolve
   for (let i = 0; i < limit; i++) {
     if (cronMatches(spec, d)) return new Date(d.getTime());
     d.setMinutes(d.getMinutes() + 1);
@@ -102,7 +102,7 @@ export function nextCronRunUtc(spec: CronSpec, from: Date): Date | null {
   const d = new Date(from.getTime());
   d.setUTCSeconds(0, 0);
   d.setUTCMinutes(d.getUTCMinutes() + 1);
-  const limit = 366 * 24 * 60;
+  const limit = 4 * 366 * 24 * 60; // ~4 years, so Feb 29 (leap-day) schedules resolve
   for (let i = 0; i < limit; i++) {
     if (cronMatchesUtc(spec, d)) return new Date(d.getTime());
     d.setUTCMinutes(d.getUTCMinutes() + 1);

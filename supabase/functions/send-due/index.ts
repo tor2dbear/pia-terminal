@@ -72,7 +72,7 @@ function nextCronRun(expr: string, from: Date): Date | null {
   const d = new Date(from.getTime());
   d.setUTCSeconds(0, 0);
   d.setUTCMinutes(d.getUTCMinutes() + 1);
-  for (let i = 0; i < 366 * 24 * 60; i++) {
+  for (let i = 0; i < 4 * 366 * 24 * 60; i++) { // ~4 years: leap-day schedules
     if (cronMatches(fields, d)) return new Date(d.getTime());
     d.setUTCMinutes(d.getUTCMinutes() + 1);
   }
