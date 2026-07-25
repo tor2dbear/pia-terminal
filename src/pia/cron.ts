@@ -10,7 +10,7 @@ const FIELD_RANGES: [min: number, max: number][] = [
   [0, 23], // hour
   [1, 31], // day of month
   [1, 12], // month
-  [0, 6], // day of week (0 = Sunday)
+  [0, 7], // day of week (0 or 7 = Sunday, per cron convention)
 ];
 
 /** Expand one cron field to the set of numbers it allows, or null if invalid.
@@ -42,6 +42,9 @@ function expandField(field: string, min: number, max: number): Set<number> | nul
 
 export interface CronSpec {
   fields: Set<number>[];
+  /** Whether the day-of-month / day-of-week fields were `*` (unrestricted). */
+  domStar: boolean;
+  dowStar: boolean;
 }
 
 /** Parse a five-field cron expression, or null if it's malformed. */
@@ -54,31 +57,65 @@ export function parseCron(expr: string): CronSpec | null {
     if (!set) return null;
     fields.push(set);
   }
-  return { fields };
+  return { fields, domStar: parts[2].startsWith("*"), dowStar: parts[4].startsWith("*") };
+}
+
+/**
+ * Does the day-of-month/day-of-week pair match? Cron's quirk: when *both* fields
+ * are restricted, the job runs when *either* matches (a union); when at least one
+ * is `*`, they combine normally. Sunday is 0 or 7.
+ */
+function dayMatches(spec: CronSpec, dom: number, dow: number): boolean {
+  const domMatch = spec.fields[2].has(dom);
+  const dowMatch = spec.fields[4].has(dow) || (dow === 0 && spec.fields[4].has(7));
+  return spec.domStar || spec.dowStar ? domMatch && dowMatch : domMatch || dowMatch;
 }
 
 /** Does `date` fall on a minute this cron expression fires? (Sunday = 0 or 7.) */
 export function cronMatches(spec: CronSpec, date: Date): boolean {
-  const dow = date.getDay(); // 0..6, Sunday = 0
   return (
     spec.fields[0].has(date.getMinutes()) &&
     spec.fields[1].has(date.getHours()) &&
-    spec.fields[2].has(date.getDate()) &&
     spec.fields[3].has(date.getMonth() + 1) &&
-    (spec.fields[4].has(dow) || (dow === 0 && spec.fields[4].has(7)))
+    dayMatches(spec, date.getDate(), date.getDay())
   );
 }
 
 /** The next minute at/after `from` (exclusive of `from`'s minute) that fires,
- * searching up to a year ahead. Null if nothing matches in that window. */
+ * searching ~4 years ahead (enough for Feb 29). Null if nothing matches. */
 export function nextCronRun(spec: CronSpec, from: Date): Date | null {
   const d = new Date(from.getTime());
   d.setSeconds(0, 0);
   d.setMinutes(d.getMinutes() + 1);
-  const limit = 366 * 24 * 60;
+  const limit = 4 * 366 * 24 * 60; // ~4 years, so Feb 29 (leap-day) schedules resolve
   for (let i = 0; i < limit; i++) {
     if (cronMatches(spec, d)) return new Date(d.getTime());
     d.setMinutes(d.getMinutes() + 1);
+  }
+  return null;
+}
+
+/** Like {@link cronMatches}, but read in UTC — used for recurring push reminders,
+ * whose next fire is recomputed server-side (which runs in UTC), so the client's
+ * first fire must be computed the same way to avoid drift. */
+export function cronMatchesUtc(spec: CronSpec, date: Date): boolean {
+  return (
+    spec.fields[0].has(date.getUTCMinutes()) &&
+    spec.fields[1].has(date.getUTCHours()) &&
+    spec.fields[3].has(date.getUTCMonth() + 1) &&
+    dayMatches(spec, date.getUTCDate(), date.getUTCDay())
+  );
+}
+
+/** The next UTC minute after `from` that fires (see {@link cronMatchesUtc}). */
+export function nextCronRunUtc(spec: CronSpec, from: Date): Date | null {
+  const d = new Date(from.getTime());
+  d.setUTCSeconds(0, 0);
+  d.setUTCMinutes(d.getUTCMinutes() + 1);
+  const limit = 4 * 366 * 24 * 60; // ~4 years, so Feb 29 (leap-day) schedules resolve
+  for (let i = 0; i < limit; i++) {
+    if (cronMatchesUtc(spec, d)) return new Date(d.getTime());
+    d.setUTCMinutes(d.getUTCMinutes() + 1);
   }
   return null;
 }

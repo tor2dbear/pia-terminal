@@ -1,6 +1,6 @@
 import type { Command, CommandContext } from "./registry.js";
 import type { PushStatus } from "../pia/reminders.js";
-import { parseAtTime } from "../pia/cron.js";
+import { parseAtTime, parseCron, nextCronRunUtc } from "../pia/cron.js";
 
 /** A short, human message for each non-success push status. */
 function pushHelp(status: PushStatus): string {
@@ -25,8 +25,8 @@ function fmt(iso: string): string {
 
 const remind: Command<CommandContext> = {
   name: "remind",
-  help: "schedule a push reminder (remind <time> <text>; -l list, -r <n> cancel, on enable)",
-  usage: "remind <HH:MM | now+Nm> <text>   ·   remind -l   ·   remind -r <n>   ·   remind on",
+  help: "schedule a push reminder (remind <time|cron> <text>; -l list, -r <n> cancel, on enable)",
+  usage: 'remind <HH:MM | now+Nm | "cron"> <text>   ·   remind -l   ·   remind -r <n>   ·   remind on',
   async run(args, ctx) {
     const store = ctx.reminders;
     if (!store || !store.available()) {
@@ -49,7 +49,10 @@ const remind: Command<CommandContext> = {
         ctx.print("no reminders. set one with `remind now+10m tea is ready`.");
         return;
       }
-      reminders.forEach((r, i) => ctx.print(`${i + 1}  ${fmt(r.nextRun)}  ${r.body}`));
+      reminders.forEach((r, i) => {
+        const sched = r.cron ? `${r.cron} · next ${fmt(r.nextRun)}` : fmt(r.nextRun);
+        ctx.print(`${i + 1}  ${sched}  ${r.body}`);
+      });
       return;
     }
 
@@ -66,17 +69,33 @@ const remind: Command<CommandContext> = {
       return;
     }
 
-    // `remind <time> <text>` — schedule.
+    // `remind <time|cron> <text>` — schedule. A quoted five-field cron
+    // expression (e.g. `remind "0 9 * * 1-5" standup`) recurs; anything else is
+    // a one-off `at`-style time.
     const time = args[0];
     const body = args.slice(1).join(" ").trim();
     if (body === "") {
       ctx.error("remind: usage — remind <time> <text>  (e.g. `remind now+5m stretch`)");
       return;
     }
-    const when = parseAtTime(time, new Date());
-    if (!when) {
-      ctx.error(`remind: can't read the time '${time}' — try HH:MM or now+5m`);
-      return;
+
+    const spec = parseCron(time);
+    let when: Date | null;
+    let cron: string | undefined;
+    if (spec) {
+      // Cron is read in UTC (the server recomputes each next fire in UTC).
+      when = nextCronRunUtc(spec, new Date());
+      cron = time.trim().replace(/\s+/g, " ");
+      if (!when) {
+        ctx.error(`remind: that cron schedule never fires`);
+        return;
+      }
+    } else {
+      when = parseAtTime(time, new Date());
+      if (!when) {
+        ctx.error(`remind: can't read '${time}' — try HH:MM, now+5m, or a "cron expression"`);
+        return;
+      }
     }
 
     // Make sure this device is subscribed before scheduling.
@@ -88,8 +107,12 @@ const remind: Command<CommandContext> = {
       }
     }
 
-    await store.schedule(body, when);
-    ctx.print(`⏰ reminder set for ${fmt(when.toISOString())}: ${body}`);
+    await store.schedule(body, when, cron);
+    ctx.print(
+      cron
+        ? `⏰ recurring reminder set (${cron}), next ${fmt(when.toISOString())}: ${body}`
+        : `⏰ reminder set for ${fmt(when.toISOString())}: ${body}`,
+    );
   },
 };
 
