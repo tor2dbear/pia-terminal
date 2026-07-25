@@ -94,3 +94,22 @@ specified.
 - **Cloud config** lives in committed `.env.production` (public client keys; RLS
   is the security boundary). Absent → app is fully local and Supabase is
   tree-shaken out.
+- **Changelog & versioning** — Keep a Changelog 1.1.0 + SemVer. `CHANGELOG.md`
+  is bundled into the `changelog` command, and `package.json` `version` is the
+  single source of truth (injected at build → boot banner). **The agent keeps
+  this current itself — no CI bot, no external tool:**
+  - **Every PR** adds one human-readable, grouped line under `## [Unreleased]`
+    (`Added` / `Changed` / `Fixed` / `Removed` / `Deprecated` / `Security`) —
+    prose, never a commit-log dump (that's Keep a Changelog's cardinal rule).
+    Purely internal churn (refactor, test/tooling only) may be omitted.
+  - **A release-worthy PR** (a notable feature, or when asked to "cut a release")
+    *also* rolls a version: move the accumulated `## [Unreleased]` items into a
+    new `## [X.Y.Z] — YYYY-MM-DD` section (this PR's line included), pick X.Y.Z by
+    SemVer (major = breaking, minor = feature, patch = fix), bump `package.json`
+    to match, add the `[X.Y.Z]: …/releases/tag/vX.Y.Z` reference link and re-point
+    `[Unreleased]` at `compare/vX.Y.Z...HEAD`. **After the PR merges, create the
+    `vX.Y.Z` git tag + a GitHub release** so those changelog links actually
+    resolve (a bump without a tag is why they 404).
+  - Always leave an (often empty) `## [Unreleased]` at the top. This same rule
+    text is the shared convention — copy it verbatim into sibling repos'
+    `CLAUDE.md` rather than reinventing it.
