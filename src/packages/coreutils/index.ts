@@ -73,6 +73,12 @@ const factor: Command<CoreCommandContext> = {
         ctx.error(`factor: '${tok}' is not a positive integer`);
         continue;
       }
+      // Past 2^53, Number() silently rounds, so `n` would no longer be the
+      // number the user typed — refuse rather than factor a different value.
+      if (!Number.isSafeInteger(n)) {
+        ctx.error(`factor: '${tok}' is too large (max ${Number.MAX_SAFE_INTEGER})`);
+        continue;
+      }
       ctx.print(`${n}: ${factorize(n).join(" ")}`.trimEnd());
     }
   },

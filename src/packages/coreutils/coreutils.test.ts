@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { reverseLine, base64Encode, base64Decode, factorize, hexdump } from "./coreutils.js";
+import { pkg } from "./index.js";
+import type { CoreCommandContext } from "../../commands/registry.js";
+
+/** A minimal context that records printed and errored lines. */
+function stubCtx(stdin = "") {
+  const lines: { text: string; err: boolean }[] = [];
+  const ctx = {
+    stdin,
+    print: (text = "") => lines.push({ text, err: false }),
+    error: (text: string) => lines.push({ text, err: true }),
+  } as unknown as CoreCommandContext;
+  const cmd = (name: string) => pkg.commands.find((c) => c.name === name)!;
+  return { ctx, lines, cmd };
+}
 
 describe("rev", () => {
   it("reverses characters", () => {
@@ -42,6 +56,20 @@ describe("factor", () => {
   });
   it("handles a larger semiprime", () => {
     expect(factorize(1001)).toEqual([7, 11, 13]);
+  });
+
+  it("refuses a value past Number's safe range (would round silently)", async () => {
+    const { ctx, lines, cmd } = stubCtx();
+    await cmd("factor").run(["9007199254740993"], ctx);
+    expect(lines.some((l) => l.err && /too large/.test(l.text))).toBe(true);
+    // Crucially, it did not print a (wrong) factorisation.
+    expect(lines.some((l) => !l.err && l.text.includes(":"))).toBe(false);
+  });
+
+  it("still factors a normal number through the command", async () => {
+    const { ctx, lines, cmd } = stubCtx();
+    await cmd("factor").run(["12"], ctx);
+    expect(lines).toEqual([{ text: "12: 2 2 3", err: false }]);
   });
 });
 
