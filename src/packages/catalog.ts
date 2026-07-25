@@ -121,6 +121,12 @@ export const CATALOG: Record<string, CatalogEntry> = {
     commands: ["piano"],
     load: () => import("./piano/index.js").then((m) => m.pkg),
   },
+  coreutils: {
+    name: "coreutils",
+    description: "small Unix text tools: rev, base64, factor, xxd",
+    commands: ["rev", "base64", "factor", "xxd"],
+    load: () => import("./coreutils/index.js").then((m) => m.pkg),
+  },
 };
 
 /** Absolute path to the installed-packages list in a home directory. */

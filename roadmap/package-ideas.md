@@ -14,13 +14,14 @@ updated: 2026-07-18
 ## Katalog idag (klart)
 `snake` · `2048` · `draw` · `cowsay` · `cal` · `bc` · `fortune` · `sl` ·
 `cmatrix` · `tutor` · `life` · `tetris` · `qr` · `python` · `figlet` · `wordle` ·
-`piano`.
+`piano` · `coreutils` (rev · base64 · factor · xxd).
 
 ## Kandidater (S/M/L = insats)
 
 **Unix-klassiker**
 - `cal` (S) · `bc` (S) · `qr` (M, QR av en share-länk) · `figlet` (S–M) ·
-  `fortune` (S) · `sl` (S) · `cmatrix` (S) · `rev`/`factor`/`base64`/`xxd` (S).
+  `fortune` (S) · `sl` (S) · `cmatrix` (S) · ~~`rev`/`factor`/`base64`/`xxd`~~
+  (S) — **klart** (`coreutils`-paketet).
 
 **Arkad (screen-appar)**
 - `tetris` (M) · `minesweeper` (M) · `life` (S) · `wordle` (S–M) ·
