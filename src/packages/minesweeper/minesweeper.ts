@@ -18,6 +18,9 @@ export class Minesweeper {
   readonly cells: Cell[][];
   state: GameState = "playing";
   private placed = false;
+  /** How many mines are actually on the board — equals `mines` unless the safe
+   * area left too few cells (only possible on a pathologically dense config). */
+  private effectiveMines: number;
 
   constructor(
     readonly rows = 9,
@@ -25,6 +28,7 @@ export class Minesweeper {
     readonly mines = 10,
     private readonly rng: () => number = Math.random,
   ) {
+    this.effectiveMines = mines;
     this.cells = Array.from({ length: rows }, () =>
       Array.from({ length: cols }, () => ({ mine: false, revealed: false, flagged: false, adjacent: 0 })),
     );
@@ -59,6 +63,7 @@ export class Minesweeper {
       [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
     }
     const count = Math.min(this.mines, candidates.length);
+    this.effectiveMines = count; // report what actually fit, not what was asked
     for (let k = 0; k < count; k++) {
       const idx = candidates[k];
       this.cells[Math.floor(idx / this.cols)][idx % this.cols].mine = true;
@@ -113,7 +118,7 @@ export class Minesweeper {
   get minesLeft(): number {
     let flags = 0;
     for (const row of this.cells) for (const cell of row) if (cell.flagged) flags++;
-    return this.mines - flags;
+    return this.effectiveMines - flags;
   }
 
   private revealAllMines(): void {
