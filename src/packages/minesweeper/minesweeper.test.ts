@@ -46,8 +46,13 @@ describe("minesweeper", () => {
   });
 
   it("reveals a mine → lost, and exposes every mine", () => {
-    const game = new Minesweeper(4, 4, 3, Math.random);
+    // Deterministic seed (CLAUDE.md's rule): with Math.random the safe first
+    // click could flood-fill every non-mine cell and *win*, making the later
+    // mine-reveal a no-op and reddening CI at random. This layout leaves cells
+    // hidden after the first click (guarded below), so there's a mine to step on.
+    const game = new Minesweeper(4, 4, 3, seq([0.025]));
     game.reveal(0, 0); // safe first click, places mines
+    expect(game.state).toBe("playing"); // guard: no accidental auto-win
     const mine = game.cells.flat().find((c) => c.mine)!;
     const [mr, mc] = findCell(game, mine);
     game.reveal(mr, mc);
