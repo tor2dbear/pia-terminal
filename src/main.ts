@@ -8,6 +8,7 @@ import type { CommandContext } from "./commands/registry.js";
 import { piaExtendContext } from "./pia/context.js";
 import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
+import { parseConfig } from "./pia/rc.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
@@ -146,7 +147,12 @@ async function main(): Promise<void> {
   // when the prompt appears.
   seedDefaultPackages(vfs, vfs.home);
   await registerInstalled(vfs, vfs.home, registry);
-  await boot(term);
+  // The BIOS/POST preamble is an opt-in retro flourish read from ~/.pia/config
+  // (seeded above by the Terminal's config load), consumed only here at boot.
+  const rcNode = vfs.getNode(`${vfs.home}/.pia/config`);
+  const bios =
+    rcNode?.type === "file" ? parseConfig(vfs.readFile(`${vfs.home}/.pia/config`)).bios === true : false;
+  await boot(term, { bios });
 
   // Turn pending invites into memberships, then place any not-yet-placed shares
   // into ~/shared/ as real linked files, so files shared with this user show up

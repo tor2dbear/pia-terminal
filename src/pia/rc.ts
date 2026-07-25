@@ -25,6 +25,9 @@ export interface PiaConfig {
   colors: Partial<Record<ColorKey, string>>;
   /** CRT/retro overlay on (scanlines + phosphor glow). Off unless set. */
   crt?: boolean;
+  /** Retro BIOS/POST boot sequence — a longer power-on before the prompt.
+   * Off unless set; consumed at boot only (see boot.ts). */
+  bios?: boolean;
   /** Font-family override (an installed font, by name). */
   font?: string;
   /** Font size in px. */
@@ -41,6 +44,9 @@ export const DEFAULT_CONFIG = [
   "",
   "# retro cathode-ray overlay — scanlines + phosphor glow (or use `crt on`)",
   "# crt = on",
+  "",
+  "# retro BIOS/POST boot — a longer power-on before the prompt (or use `bios on`)",
+  "# bios = on",
   "",
   "# custom colours — override the theme, any of: bg fg dim accent error",
   "# color.accent = #ff8800",
@@ -100,6 +106,7 @@ export function parseConfig(text: string): PiaConfig {
       if (key === "theme") cfg.theme = value;
       else if (key === "prompt") cfg.prompt = value;
       else if (key === "crt") cfg.crt = value === "on" || value === "true";
+      else if (key === "bios") cfg.bios = value === "on" || value === "true";
       else if (key === "font") {
         if (FONT_RE.test(value)) cfg.font = value;
       } else if (key === "font-size") {
@@ -114,7 +121,7 @@ export function parseConfig(text: string): PiaConfig {
 /** Replace the `key = …` line (theme/prompt/crt), or append it if absent. */
 export function setConfigValue(
   text: string,
-  key: "theme" | "prompt" | "crt",
+  key: "theme" | "prompt" | "crt" | "bios",
   value: string,
 ): string {
   const re = new RegExp(`^\\s*${key}\\s*=.*$`);

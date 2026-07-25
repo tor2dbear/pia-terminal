@@ -138,6 +138,34 @@ export const unalias: Command = {
   },
 };
 
+export const bios: Command = {
+  name: "bios",
+  help: "toggle the retro BIOS/POST boot sequence (plays on next reload)",
+  usage: "bios [on|off]",
+  run(args, ctx) {
+    const current = parseConfig(readRc(ctx)).bios === true;
+    if (args.length === 0) {
+      ctx.print(`BIOS boot is ${current ? "on" : "off"}`, current ? "accent" : "dim");
+      ctx.print("toggle with `bios on` / `bios off` — takes effect on next reload", "dim");
+      return;
+    }
+    const arg = args[0].toLowerCase();
+    if (arg !== "on" && arg !== "off" && arg !== "toggle") {
+      ctx.error("bios: usage — bios on | off");
+      return;
+    }
+    const on = arg === "toggle" ? !current : arg === "on";
+    // Unlike `crt`, there's nothing to show live — the POST plays at boot — so
+    // this just persists the choice and says when it'll take effect.
+    return writeRc(ctx, setConfigValue(readRc(ctx), "bios", on ? "on" : "off")).then(() =>
+      ctx.print(
+        on ? "BIOS boot on — full POST on next reload" : "BIOS boot off",
+        on ? "accent" : "dim",
+      ),
+    );
+  },
+};
+
 export const source: Command = {
   name: "source",
   help: "re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)",
@@ -156,4 +184,4 @@ export const source: Command = {
   },
 };
 
-export const configCommands: Command[] = [theme, crt, alias, unalias, source];
+export const configCommands: Command[] = [theme, crt, bios, alias, unalias, source];

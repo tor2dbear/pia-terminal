@@ -29,6 +29,16 @@ describe("parseConfig", () => {
     expect(cfg.theme).toBe("phosphor");
     expect(cfg.prompt).toBe("{user}@pia:{cwd}$");
     expect(cfg.aliases.ll).toBe("ls -la");
+    // Retro toggles are off unless set (they're commented out in the default).
+    expect(cfg.crt).toBeUndefined();
+    expect(cfg.bios).toBeUndefined();
+  });
+
+  it("reads the crt and bios retro toggles (on/true)", () => {
+    expect(parseConfig("crt = on").crt).toBe(true);
+    expect(parseConfig("bios = on").bios).toBe(true);
+    expect(parseConfig("bios = true").bios).toBe(true);
+    expect(parseConfig("bios = off").bios).toBe(false);
   });
 });
 
