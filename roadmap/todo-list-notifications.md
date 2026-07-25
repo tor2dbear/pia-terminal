@@ -1,5 +1,5 @@
 ---
-title: "Lista uppdaterad"-notiser (coalescade)
+title: '"Lista uppdaterad"-notiser (coalescade)'
 status: inbox
 tags: [collaboration, push]
 updated: 2026-07-25

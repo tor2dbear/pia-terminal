@@ -75,4 +75,5 @@ för det redundanta "PIA".
 - Hur mycket äga vs använda tjänst? Web Push är gratis/standard; det är schemaläggar-
   backenden som är jobbet.
 
-_Ligger i `inbox` tills lärverktyget finns och lusten att göra det "på riktigt"._
+_Levererat (#73, edge-funktionen deployad). Kvarvarande svansar bor i egna
+puckar: `todo-list-notifications.md` och `notify on`-tydligheten ovan._

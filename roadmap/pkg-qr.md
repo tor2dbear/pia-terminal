@@ -1,5 +1,5 @@
 ---
-title: paket: qr — QR-kod som ASCII
+title: "paket: qr — QR-kod som ASCII"
 status: done
 tags: [packages]
 updated: 2026-07-18

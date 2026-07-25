@@ -1,5 +1,5 @@
 ---
-title: paket: tutor — interaktiv terminal-kurs
+title: "paket: tutor — interaktiv terminal-kurs"
 status: done
 tags: [packages, learning]
 updated: 2026-07-18

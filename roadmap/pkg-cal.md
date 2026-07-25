@@ -1,5 +1,5 @@
 ---
-title: paket: cal — månadskalender
+title: "paket: cal — månadskalender"
 status: done
 tags: [packages]
 updated: 2026-07-18

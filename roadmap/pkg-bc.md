@@ -1,5 +1,5 @@
 ---
-title: paket: bc — kalkylator
+title: "paket: bc — kalkylator"
 status: done
 tags: [packages]
 updated: 2026-07-18

@@ -1,5 +1,5 @@
 ---
-title: paket: sl — ånglok
+title: "paket: sl — ånglok"
 status: done
 tags: [packages, fun]
 updated: 2026-07-18
