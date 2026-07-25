@@ -308,7 +308,7 @@ available commands:
   cal          display a calendar for a month
   cat          print the contents of a file (or piped input)
   cd           change the current directory
-  changelog    show what's changed across PIA's versions
+  changelog    show what's changed in PIA (latest by default; --all for the full history)
   clear        clear the screen
   cmatrix      Matrix-style falling digital rain (q or ^X to quit)
   column       format delimited text into a table (column -t [-s sep])
