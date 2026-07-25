@@ -1,6 +1,52 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Piano, noteFreq } from "./piano.js";
+
+/** A stand-in AudioContext that starts suspended (like iOS/Safari) and only
+ *  becomes "running" when a pending resume() is flushed. Records the context
+ *  state at each createOscillator, so a note scheduled while suspended is
+ *  visible (that's the bug — such a note is dropped by real browsers). */
+class FakeAudioContext {
+  state: "suspended" | "running" = "suspended";
+  currentTime = 0;
+  destination = {};
+  startedAt: string[] = [];
+  private pending: Array<() => void> = [];
+  resume(): Promise<void> {
+    return new Promise((resolve) => {
+      this.pending.push(() => {
+        this.state = "running";
+        resolve();
+      });
+    });
+  }
+  flushResume(): void {
+    const p = this.pending;
+    this.pending = [];
+    for (const f of p) f();
+  }
+  createOscillator() {
+    this.startedAt.push(this.state);
+    return {
+      type: "",
+      frequency: { value: 0 },
+      connect() {
+        return this;
+      },
+      start() {},
+      stop() {},
+    };
+  }
+  createGain() {
+    return {
+      gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+      connect() {
+        return this;
+      },
+    };
+  }
+  close() {}
+}
 
 describe("noteFreq", () => {
   it("anchors A4 at 440 Hz and middle C near 261.63", () => {
@@ -48,4 +94,40 @@ describe("Piano app", () => {
     app.onText("q");
     expect(exited()).toBe(true);
   });
+
+  it("only flags sound trouble in the status, staying quiet when it can play", () => {
+    const { root } = mount(); // jsdom → no Web Audio backend
+    const status = () => root.querySelector(".pn-status")?.textContent ?? "";
+    expect(status()).not.toContain("no audio"); // nothing struck yet — no nagging
+    // With no AudioContext available, a struck key honestly explains the silence.
+    (root.querySelector(".pn-white") as HTMLElement).dispatchEvent(
+      new Event("pointerdown", { bubbles: true }),
+    );
+    expect(status()).toContain("no audio on this browser");
+  });
+
+  it("resumes a suspended context before scheduling a note (iOS/Safari)", async () => {
+    const fake = new FakeAudioContext();
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(() => fake),
+    );
+    const { app } = mount();
+
+    app.onText("a"); // strike while suspended
+    // The note must NOT be scheduled yet — a tone on a suspended context is
+    // dropped (the "no sound" bug). It waits for resume.
+    expect(fake.startedAt).toEqual([]);
+
+    fake.flushResume(); // context becomes running
+    await Promise.resolve(); // let the resume().then(...) run
+    expect(fake.startedAt).toEqual(["running"]); // scheduled only once running
+
+    app.onText("s"); // already running → immediate
+    expect(fake.startedAt).toEqual(["running", "running"]);
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });

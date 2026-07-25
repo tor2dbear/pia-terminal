@@ -39,6 +39,7 @@ type AudioCtor = typeof AudioContext;
 
 export class Piano implements ScreenApp {
   private octave = 0; // shift in octaves, via z/x
+  private struck = false; // a key has been played (so the status can report audio)
   private ctx?: AudioContext;
   private rootEl?: HTMLElement;
   private statusEl?: HTMLElement;
@@ -92,15 +93,32 @@ export class Piano implements ScreenApp {
   private strike(k: string): void {
     const key = BY_KEY.get(k);
     if (!key) return;
+    this.struck = true;
     this.play(noteFreq(key.note) * 2 ** this.octave);
     this.flashKey(k);
+    this.renderStatus(); // reflect the audio state (running / suspended / no audio)
   }
 
   private play(freq: number): void {
     if (freq <= 0) return;
     const ctx = this.ensureCtx();
     if (!ctx) return; // no Web Audio (e.g. jsdom) — stay visual
-    if (ctx.state === "suspended") void ctx.resume();
+    // A note scheduled on a *suspended* context is silently dropped — and iOS /
+    // Safari create the context suspended even inside a user gesture, which is
+    // exactly "no sound". So resume first and only schedule the tone once the
+    // clock is actually running; when it's already running, play immediately.
+    if (ctx.state === "suspended") {
+      void ctx.resume().then(() => {
+        this.tone(ctx, freq);
+        this.renderStatus(); // flip the status to "running" once actually resumed
+      });
+      return;
+    }
+    this.tone(ctx, freq);
+  }
+
+  /** Schedule one plucked note on a running context. */
+  private tone(ctx: AudioContext, freq: number): void {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "triangle";
@@ -116,6 +134,17 @@ export class Piano implements ScreenApp {
 
   private ensureCtx(): AudioContext | undefined {
     if (this.ctx) return this.ctx;
+    // iOS silences Web Audio under the Ring/Silent switch because the default
+    // session is "ambient". Opt into "playback" so a tapped key sounds even in
+    // silent mode and at full volume (Safari 16.4+; absent/no-op elsewhere).
+    const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+    if (session) {
+      try {
+        session.type = "playback";
+      } catch {
+        /* not settable on this engine — ignore */
+      }
+    }
     const Ctor: AudioCtor | undefined =
       typeof AudioContext !== "undefined"
         ? AudioContext
@@ -173,10 +202,15 @@ export class Piano implements ScreenApp {
   }
 
   private renderStatus(): void {
-    if (this.statusEl) {
-      const sign = this.octave > 0 ? `+${this.octave}` : `${this.octave}`;
-      this.statusEl.textContent = `octave ${sign} · z/x to shift · a s d f… to play`;
-    }
+    if (!this.statusEl) return;
+    const sign = this.octave > 0 ? `+${this.octave}` : `${this.octave}`;
+    // When sound is playing, stay out of the way. Only speak up if a struck key
+    // couldn't make sound, so silence is at least explained: the context hasn't
+    // unlocked yet (tap again) or there's no Web Audio here at all.
+    let sound = "";
+    if (this.ctx && this.ctx.state !== "running") sound = " · tap again for sound";
+    else if (!this.ctx && this.struck) sound = " · no audio on this browser";
+    this.statusEl.textContent = `octave ${sign} · z/x to shift · a s d f… to play${sound}`;
   }
 
   private shift(by: number): void {
