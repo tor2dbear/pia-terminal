@@ -100,7 +100,19 @@ export class Piano implements ScreenApp {
     if (freq <= 0) return;
     const ctx = this.ensureCtx();
     if (!ctx) return; // no Web Audio (e.g. jsdom) — stay visual
-    if (ctx.state === "suspended") void ctx.resume();
+    // A note scheduled on a *suspended* context is silently dropped — and iOS /
+    // Safari create the context suspended even inside a user gesture, which is
+    // exactly "no sound". So resume first and only schedule the tone once the
+    // clock is actually running; when it's already running, play immediately.
+    if (ctx.state === "suspended") {
+      void ctx.resume().then(() => this.tone(ctx, freq));
+      return;
+    }
+    this.tone(ctx, freq);
+  }
+
+  /** Schedule one plucked note on a running context. */
+  private tone(ctx: AudioContext, freq: number): void {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "triangle";
