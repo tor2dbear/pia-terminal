@@ -104,15 +104,16 @@ function cowsay(text: string): OutLine[] {
 }
 
 // `figlet PIA`, mirrored from the real figlet package (a `src/packages` chunk we
-// don't want to pull into the demo bundle). The test asserts this equals the
-// live figlet("PIA"), so it can't drift.
+// don't want to pull into the demo bundle). The real command prints every row
+// with the `accent` class, so carry that here too — the test asserts this equals
+// the live command's output (text *and* class), so it can't drift.
 const FIGLET_PIA: OutLine[] = [
   "###  ###  ## ",
   "#  #  #  #  #",
   "###   #  ####",
   "#     #  #  #",
   "#    ### #  #",
-].map((text) => ({ text }));
+].map((text) => ({ text, cls: "accent" as const }));
 
 // ---- full-screen scene rendering (reuses the real apps' chrome) ------------
 

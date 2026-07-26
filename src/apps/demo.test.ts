@@ -4,6 +4,7 @@ import { DemoReel, REEL } from "./demo.js";
 import { neofetch } from "../commands/system.js";
 import { figlet } from "../packages/figlet/figlet.js";
 import { find, grep } from "../commands/text.js";
+import { pkg as figletPkg } from "../packages/figlet/index.js";
 import { Todo } from "./todo.js";
 import { VFS } from "../vfs/vfs.js";
 import type { Command, CommandContext, LineClass } from "../commands/registry.js";
@@ -34,11 +35,22 @@ describe("demo reel content", () => {
     expect(REEL.at(-1)).toEqual({ kind: "clear" });
   });
 
-  it("shows the real figlet banner, kept in sync with the figlet package", () => {
+  it("shows the real figlet banner, styled like the figlet command", () => {
     const scene = REEL.find((s) => s.kind === "cmd" && s.text === "figlet PIA");
-    const shown = scene?.kind === "cmd" ? (scene.out ?? []).map((l) => l.text) : [];
-    // The hand-carried banner in the reel must equal what figlet actually draws.
-    expect(shown).toEqual(figlet("PIA"));
+    const shown = scene?.kind === "cmd" ? (scene.out ?? []) : [];
+    // Run the real `figlet` command and compare text AND styling — it prints
+    // every row with the `accent` class, so a text-only check would miss a
+    // colour mismatch in the reel.
+    const real: { text: string; cls?: string }[] = [];
+    figletPkg.commands[0].run(["PIA"], {
+      stdin: "",
+      print: (text = "", cls: LineClass = "normal") =>
+        real.push(cls === "normal" ? { text } : { text, cls }),
+      error: () => {},
+    } as unknown as CommandContext);
+    expect(shown).toEqual(real);
+    // Sanity: still the exact glyphs the render function produces.
+    expect(shown.map((l) => l.text)).toEqual(figlet("PIA"));
   });
 
   it("the search scene prints what real find/grep print from the guest home", () => {
