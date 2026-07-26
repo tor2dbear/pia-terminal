@@ -317,7 +317,9 @@ export const REEL: Step[] = [
   {
     kind: "cmd",
     text: 'find . -name "*.md"',
-    out: [{ text: "./notes/notes.md" }],
+    // `find` resolves `.` to the absolute cwd and prints absolute paths — this
+    // is what a guest actually sees (guarded against drift in the test).
+    out: [{ text: "/home/guest/notes/notes.md" }],
   },
   clear,
 

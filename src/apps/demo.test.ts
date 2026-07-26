@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { DemoReel, REEL } from "./demo.js";
 import { neofetch } from "../commands/system.js";
 import { figlet } from "../packages/figlet/figlet.js";
-import type { CommandContext, LineClass } from "../commands/registry.js";
+import { find, grep } from "../commands/text.js";
+import { VFS } from "../vfs/vfs.js";
+import type { Command, CommandContext, LineClass } from "../commands/registry.js";
 
 /** Drive the reel one tick at a time (no timers), collecting the delays. */
 function drive(reel: DemoReel, ticks: number): void {
@@ -36,6 +38,36 @@ describe("demo reel content", () => {
     const shown = scene?.kind === "cmd" ? (scene.out ?? []).map((l) => l.text) : [];
     // The hand-carried banner in the reel must equal what figlet actually draws.
     expect(shown).toEqual(figlet("PIA"));
+  });
+
+  it("the search scene prints what real find/grep print from the guest home", () => {
+    // Reconstruct the reel's state at that point: a guest home with the note it
+    // wrote in nano. The reel promises retyping reproduces the shown output, so
+    // run the *real* commands and hold the scripted lines to their result — this
+    // catches drift like `./notes/notes.md` vs find's absolute path.
+    const vfs = VFS.seed();
+    vfs.mkdirp("/home/guest/notes");
+    vfs.writeFile("/home/guest/notes/notes.md", "# PIA\n");
+
+    const real = (cmd: Command, args: string[]): string[] => {
+      const out: string[] = [];
+      const ctx = {
+        vfs,
+        cwd: "/home/guest",
+        session: { user: "guest" },
+        print: (text = "") => out.push(text),
+        error: (text = "") => out.push(text),
+      } as unknown as CommandContext;
+      cmd.run(args, ctx);
+      return out;
+    };
+    const scriptOf = (text: string) => {
+      const s = REEL.find((x) => x.kind === "cmd" && x.text === text);
+      return s?.kind === "cmd" ? (s.out ?? []).map((l) => l.text) : [];
+    };
+
+    expect(scriptOf('find . -name "*.md"')).toEqual(real(find, [".", "-name", "*.md"]));
+    expect(scriptOf("grep -in pia welcome.txt")).toEqual(real(grep, ["-in", "pia", "welcome.txt"]));
   });
 
   it("shows ~/notes in the prompt while working inside notes/", () => {
