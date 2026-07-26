@@ -34,6 +34,14 @@ interface VapidDetails {
   privateKey: string;
 }
 
+// A row returned by the claim_notifications RPC.
+interface QueuedNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
+}
+
 // Send one {title, body} to every push subscription a user has. Expired
 // subscriptions (404/410) are pruned. Returns delivery counts.
 async function sendToUser(
@@ -128,19 +136,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 2) Queued collaboration notifications (invites + coalesced list-updates).
-  //    Claim the batch atomically: stamp sent_at and get the rows back in one
-  //    UPDATE, so two overlapping ticks can't each grab the same still-unsent
-  //    row and double-deliver (row locks make the second UPDATE re-evaluate
-  //    `sent_at is null` and skip what the first claimed). Trade-off: a delivery
-  //    that then fails drops that one push rather than retrying — acceptable for
-  //    these non-critical pushes, the same way an expired subscription is
-  //    dropped, and the price of never sending a duplicate.
-  const { data: notifs } = await supabase
-    .from("notifications")
-    .update({ sent_at: now })
-    .is("sent_at", null)
-    .select("id, user_id, title, body");
-  for (const n of notifs ?? []) {
+  //    Claim a *bounded* batch atomically (claim_notifications stamps sent_at
+  //    and returns the rows via `for update skip locked`): overlapping ticks
+  //    grab disjoint batches, so no double-delivery, and the limit means a crash
+  //    mid-delivery can only drop that batch — the rest stays unsent for the
+  //    next tick rather than the whole backlog being marked sent.
+  const { data: notifs } = await supabase.rpc("claim_notifications", { p_limit: 100 });
+  for (const n of (notifs as QueuedNotification[] | null) ?? []) {
     const c = await sendToUser(supabase, vapid, n.user_id, n.title, n.body);
     sent += c.sent;
     cleaned += c.cleaned;

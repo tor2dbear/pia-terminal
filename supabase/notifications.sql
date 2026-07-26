@@ -192,7 +192,33 @@ $$;
 revoke execute on function public.flush_list_activity(integer, integer) from public, anon, authenticated;
 grant  execute on function public.flush_list_activity(integer, integer) to service_role;
 
-revoke execute on function public.record_list_activity() from public, anon, authenticated;
+-- Atomically claim up to p_limit unsent notifications for delivery: stamp
+-- sent_at and hand the rows back in one statement. `for update skip locked`
+-- means two overlapping send-due ticks grab *disjoint* batches (no blocking, no
+-- double-send), and the limit bounds each tick's work — so if an invocation
+-- crashes mid-delivery it can only drop that bounded batch, never skip the whole
+-- backlog (the rest stays unsent and is claimed next tick). Trade-off: a claimed
+-- row whose push then fails is dropped rather than retried — fine for these
+-- non-critical pushes, and the price of never sending a duplicate.
+create or replace function public.claim_notifications(p_limit integer)
+returns table (id uuid, user_id uuid, title text, body text)
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.notifications n
+     set sent_at = now()
+   where n.id in (
+     select c.id from public.notifications c
+      where c.sent_at is null
+      order by c.created_at
+      limit p_limit
+      for update skip locked
+   )
+  returning n.id, n.user_id, n.title, n.body;
+$$;
+revoke execute on function public.claim_notifications(integer) from public, anon, authenticated;
+grant  execute on function public.claim_notifications(integer) to service_role;
 
 -- ---- housekeeping ----------------------------------------------------------
 -- Drop delivered notifications and fired one-off reminders older than 30 days.
