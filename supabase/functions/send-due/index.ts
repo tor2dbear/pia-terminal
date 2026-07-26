@@ -12,16 +12,14 @@ import webpush from "npm:web-push@3.6.7";
 // client's copy (src/pia/cron.ts) by src/pia/cron.parity.test.ts — the guard
 // that catches the two mirrors drifting apart.
 import { nextCronRun } from "./cron.ts";
-// Fold "list updated" bursts into one summary per list — the DB logs a row per
-// edit; this decides when a burst has settled and who to tell. Pure, so it's
-// unit-tested from src/pia/list-activity.test.ts.
-import { coalesceActivity, changesForRecipient } from "./coalesce.ts";
 
-// A shared list saves on every toggle/add, so coalesce edits: deliver once a
-// burst has been quiet this long, but never hold a nonstop-edited list past the
-// max — one summary either way.
-const ACTIVITY_DEBOUNCE_MS = 3 * 60_000;
-const ACTIVITY_MAX_HOLD_MS = 15 * 60_000;
+// A shared list saves on every toggle/add, so "list updated" pushes are
+// coalesced: a list is summarised once its edits go quiet for the debounce, but
+// never held past the max hold. The folding itself is done atomically in the DB
+// (public.flush_list_activity) — claim + summarise + enqueue in one transaction,
+// so two overlapping ticks can't double-send. These are just the knobs.
+const ACTIVITY_DEBOUNCE_SECONDS = 3 * 60;
+const ACTIVITY_MAX_HOLD_SECONDS = 15 * 60;
 
 interface Config {
   vapid_public: string;
@@ -99,6 +97,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let sent = 0;
   let cleaned = 0;
 
+  // 0) Fold settled "list updated" bursts into the notifications queue. One
+  //    atomic DB call (claim + summarise + enqueue) — done before the drain
+  //    below so today's summaries go out this same tick, not next.
+  const { data: listUpdates } = await supabase.rpc("flush_list_activity", {
+    p_debounce_seconds: ACTIVITY_DEBOUNCE_SECONDS,
+    p_maxhold_seconds: ACTIVITY_MAX_HOLD_SECONDS,
+  });
+
   // 1) Due reminders. One-off jobs fire once, then disable; a recurring job
   //    (with a cron expression) is rescheduled to its next UTC fire instead.
   const { data: due } = await supabase
@@ -134,49 +140,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     await supabase.from("notifications").update({ sent_at: now }).eq("id", n.id);
   }
 
-  // 3) Coalesced "list updated" notifications. The DB logs one row per content
-  //    edit to a shared list (public.shared_list_activity); fold each *settled*
-  //    burst into a single summary per member — never the editor — and enqueue
-  //    it on the same notifications queue drained above (delivered next tick).
-  const { data: activity } = await supabase
-    .from("shared_list_activity")
-    .select("id, list_id, actor_id, created_at");
-  const ready = coalesceActivity(
-    (activity ?? []).map((a) => ({
-      id: a.id,
-      listId: a.list_id,
-      actorId: a.actor_id,
-      createdAt: a.created_at,
-    })),
-    new Date(now),
-    { debounceMs: ACTIVITY_DEBOUNCE_MS, maxHoldMs: ACTIVITY_MAX_HOLD_MS },
-  );
-  let coalesced = 0;
-  for (const list of ready) {
-    const [{ data: meta }, { data: members }] = await Promise.all([
-      supabase.from("shared_lists").select("name").eq("id", list.listId).single(),
-      supabase.from("shared_list_members").select("user_id").eq("list_id", list.listId),
-    ]);
-    const name = meta?.name ?? "a list";
-    for (const m of members ?? []) {
-      const n = changesForRecipient(list, m.user_id);
-      if (n <= 0) continue; // nothing they didn't do themselves
-      await supabase.from("notifications").insert({
-        user_id: m.user_id,
-        title: "📋 Shared list",
-        body: `${n} ${n === 1 ? "update" : "updates"} to "${name}"`,
-      });
-      coalesced++;
-    }
-    // Delivered (or nobody to tell) — clear the burst so a fresh window starts.
-    await supabase.from("shared_list_activity").delete().in("id", list.rowIds);
-  }
-
   return Response.json({
     ok: true,
     reminders: due?.length ?? 0,
     notifications: notifs?.length ?? 0,
-    listUpdates: coalesced,
+    listUpdates: (listUpdates as number | null) ?? 0,
     sent,
     cleaned,
   });
