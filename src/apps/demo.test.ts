@@ -4,6 +4,7 @@ import { DemoReel, REEL } from "./demo.js";
 import { neofetch } from "../commands/system.js";
 import { figlet } from "../packages/figlet/figlet.js";
 import { find, grep } from "../commands/text.js";
+import { Todo } from "./todo.js";
 import { VFS } from "../vfs/vfs.js";
 import type { Command, CommandContext, LineClass } from "../commands/registry.js";
 
@@ -68,6 +69,34 @@ describe("demo reel content", () => {
 
     expect(scriptOf('find . -name "*.md"')).toEqual(real(find, [".", "-name", "*.md"]));
     expect(scriptOf("grep -in pia welcome.txt")).toEqual(real(grep, ["-in", "pia", "welcome.txt"]));
+  });
+
+  it("the checklist scene follows the real todo app's add-then-list flow", () => {
+    // The reel shows each item added, then one ticked off. Drive the *real* Todo
+    // through exactly that keystroke sequence and confirm the end state matches —
+    // so the scene can't depict a flow (e.g. the add prompt staying open) that
+    // the real app never produces.
+    const scene = REEL.find((s) => s.kind === "todo");
+    const adds = scene?.kind === "todo" ? scene.add : [];
+    const app = new Todo(
+      "groceries",
+      "",
+      async () => {},
+      () => {},
+    );
+    app.mount(document.createElement("div"));
+    adds.forEach((text, i) => {
+      if (i > 0) app.onText("+"); // an empty list already opens in add mode
+      app.onText(text); // type the item
+      app.onKey(new KeyboardEvent("keydown", { key: "Enter" })); // commit → back to the list
+    });
+    app.onText(" "); // space ticks the selected (last) row off
+
+    const snap = app.snapshot();
+    expect(snap.items.map((i) => i.text)).toEqual(adds); // every item landed
+    expect(snap.mode).toBe("normal"); // not stuck in the add prompt between items
+    expect(snap.sel).toBe(adds.length - 1); // the new row is selected after each commit
+    expect(snap.items[snap.sel]?.done).toBe(true); // and space toggled it
   });
 
   it("shows ~/notes in the prompt while working inside notes/", () => {

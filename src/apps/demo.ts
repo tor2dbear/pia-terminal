@@ -36,7 +36,7 @@ type Step =
   | { kind: "cmd"; text: string; prompt?: string; out?: OutLine[] }
   | { kind: "clear" }
   | { kind: "nano"; file: string; lines: string[] }
-  | { kind: "todo"; file: string; add: string[]; check?: number }
+  | { kind: "todo"; file: string; add: string[] }
   | { kind: "repl"; banner: string; entries: ReplEntry[] };
 
 /** A single rendered moment of a full-screen scene, and how long to hold it. */
@@ -177,14 +177,15 @@ function renderTodo(
   items: TodoItem[],
   mode: "list" | "add",
   draft: string,
+  sel: number,
 ): void {
   const title = el("div", "td-title", `  todo · ${file}`);
   const body = el("div", "td-body");
   if (items.length === 0 && mode !== "add") {
     body.append(el("div", "td-empty", "empty — press + to add an item"));
   }
-  items.forEach((item) => {
-    const row = el("div", "td-row");
+  items.forEach((item, i) => {
+    const row = el("div", i === sel ? "td-row sel" : "td-row");
     row.append(
       el("span", item.done ? "td-check done" : "td-check", item.done ? "[x] " : "[ ] "),
       el("span", item.done ? "td-text done" : "td-text", item.text),
@@ -208,34 +209,42 @@ function renderTodo(
   stage.replaceChildren(title, body, status);
 }
 
-/** Frames that add each item (typed at the `+` prompt), then tick one off. */
-function todoFrames(file: string, add: string[], check: number | undefined, instant: boolean): Frame[] {
+/**
+ * Frames that add each item, then tick the last one off — mirroring the real
+ * todo app's mode transitions so the scene is reproducible: an empty list opens
+ * straight in add mode, Enter commits and returns to the *list* (selecting the
+ * new row), `+` reopens the prompt for the next, and `space` toggles the
+ * selected row. (An earlier version left the add prompt hanging open between
+ * items, a state no keystroke sequence produces.)
+ */
+function todoFrames(file: string, add: string[], instant: boolean): Frame[] {
   const frames: Frame[] = [];
   const items: TodoItem[] = [];
+  let sel = 0;
   const push = (mode: "list" | "add", draft: string, delay: number) => {
     const snapshot = items.map((i) => ({ ...i }));
-    frames.push({ render: (s) => renderTodo(s, file, snapshot, mode, draft), delay });
+    const at = sel;
+    frames.push({ render: (s) => renderTodo(s, file, snapshot, mode, draft, at), delay });
   };
 
   if (instant) {
     for (const text of add) items.push({ text, done: false });
-    if (check !== undefined && items[check]) items[check].done = true;
+    sel = items.length - 1;
+    if (items[sel]) items[sel].done = true; // space toggles the selected row
     push("list", "", TIMING.hold);
     return frames;
   }
 
-  push("list", "", TIMING.open); // opens empty
-  for (const text of add) {
-    push("add", "", TIMING.think); // enter add mode
+  add.forEach((text, idx) => {
+    // The empty list opens already in add mode; each later item reopens it (`+`).
+    push("add", "", idx === 0 ? TIMING.open : TIMING.think);
     for (let ci = 1; ci <= text.length; ci++) push("add", text.slice(0, ci), TIMING.type);
-    items.push({ text, done: false }); // Enter — the row lands, ready for the next
-    push("add", "", TIMING.read);
-  }
-  push("list", "", TIMING.read); // esc back to the list
-  if (check !== undefined && items[check]) {
-    items[check].done = true; // space toggles it
-    push("list", "", TIMING.hold);
-  } else {
+    items.push({ text, done: false }); // Enter commits…
+    sel = items.length - 1; // …and selects the new row, back in list mode
+    push("list", "", TIMING.read);
+  });
+  if (items[sel]) {
+    items[sel].done = true; // `space` ticks the selected row off
     push("list", "", TIMING.hold);
   }
   return frames;
@@ -325,7 +334,7 @@ export const REEL: Step[] = [
 
   // 4 — a checklist, in its own full-screen app (shareable to collaborate).
   { kind: "cmd", text: "todo groceries" },
-  { kind: "todo", file: "groceries", add: ["buy milk", "call the plumber", "book flights"], check: 0 },
+  { kind: "todo", file: "groceries", add: ["buy milk", "call the plumber", "book flights"] },
   clear,
 
   // 5 — sharing is a link, not a server. `notes/` holds exactly one file.
@@ -530,7 +539,7 @@ export class DemoReel implements ScreenApp {
         step.kind === "nano"
           ? nanoFrames(step.file, step.lines, this.instant)
           : step.kind === "todo"
-            ? todoFrames(step.file, step.add, step.check, this.instant)
+            ? todoFrames(step.file, step.add, this.instant)
             : replFrames(step.banner, step.entries, this.instant);
       this.phase = "frames";
       // Render the first frame now, so the take-over shows real app chrome from
