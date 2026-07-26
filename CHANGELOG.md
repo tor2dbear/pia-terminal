@@ -11,6 +11,11 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Added
+- **"List updated" push**: when someone edits a shared checklist you're in, you
+  get a push — coalesced to one summary per list (never for your own edits), so
+  a flurry of ticks doesn't turn into a flurry of notifications.
+
 ### Changed
 - **`changelog`**: hides Keep-a-Changelog link-reference plumbing in the terminal
   (it's GitHub-only), so the version list stays clean instead of trailing raw

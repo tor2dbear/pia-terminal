@@ -13,6 +13,14 @@ import webpush from "npm:web-push@3.6.7";
 // that catches the two mirrors drifting apart.
 import { nextCronRun } from "./cron.ts";
 
+// A shared list saves on every toggle/add, so "list updated" pushes are
+// coalesced: a list is summarised once its edits go quiet for the debounce, but
+// never held past the max hold. The folding itself is done atomically in the DB
+// (public.flush_list_activity) — claim + summarise + enqueue in one transaction,
+// so two overlapping ticks can't double-send. These are just the knobs.
+const ACTIVITY_DEBOUNCE_SECONDS = 3 * 60;
+const ACTIVITY_MAX_HOLD_SECONDS = 15 * 60;
+
 interface Config {
   vapid_public: string;
   vapid_private: string;
@@ -24,6 +32,14 @@ interface VapidDetails {
   subject: string;
   publicKey: string;
   privateKey: string;
+}
+
+// A row returned by the claim_notifications RPC.
+interface QueuedNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
 }
 
 // Send one {title, body} to every push subscription a user has. Expired
@@ -89,6 +105,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let sent = 0;
   let cleaned = 0;
 
+  // 0) Fold settled "list updated" bursts into the notifications queue. One
+  //    atomic DB call (claim + summarise + enqueue) — done before the drain
+  //    below so today's summaries go out this same tick, not next.
+  const { data: listUpdates } = await supabase.rpc("flush_list_activity", {
+    p_debounce_seconds: ACTIVITY_DEBOUNCE_SECONDS,
+    p_maxhold_seconds: ACTIVITY_MAX_HOLD_SECONDS,
+  });
+
   // 1) Due reminders. One-off jobs fire once, then disable; a recurring job
   //    (with a cron expression) is rescheduled to its next UTC fire instead.
   const { data: due } = await supabase
@@ -111,23 +135,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .eq("id", r.id);
   }
 
-  // 2) Queued collaboration notifications (e.g. "X shared a list with you").
-  const { data: notifs } = await supabase
-    .from("notifications")
-    .select("id, user_id, title, body")
-    .is("sent_at", null)
-    .limit(100);
-  for (const n of notifs ?? []) {
+  // 2) Queued collaboration notifications (invites + coalesced list-updates).
+  //    Claim a *bounded* batch atomically (claim_notifications stamps sent_at
+  //    and returns the rows via `for update skip locked`): overlapping ticks
+  //    grab disjoint batches, so no double-delivery, and the limit means a crash
+  //    mid-delivery can only drop that batch — the rest stays unsent for the
+  //    next tick rather than the whole backlog being marked sent.
+  const { data: notifs } = await supabase.rpc("claim_notifications", { p_limit: 100 });
+  for (const n of (notifs as QueuedNotification[] | null) ?? []) {
     const c = await sendToUser(supabase, vapid, n.user_id, n.title, n.body);
     sent += c.sent;
     cleaned += c.cleaned;
-    await supabase.from("notifications").update({ sent_at: now }).eq("id", n.id);
   }
 
   return Response.json({
     ok: true,
     reminders: due?.length ?? 0,
     notifications: notifs?.length ?? 0,
+    listUpdates: (listUpdates as number | null) ?? 0,
     sent,
     cleaned,
   });

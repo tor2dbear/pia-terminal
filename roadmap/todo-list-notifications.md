@@ -1,8 +1,8 @@
 ---
 title: '"Lista uppdaterad"-notiser (coalescade)'
-status: inbox
+status: done
 tags: [collaboration, push]
-updated: 2026-07-25
+updated: 2026-07-26
 ---
 
 ## Mål
@@ -25,9 +25,33 @@ Kräver **coalescing** först: max en notis per lista, per medlem, per N minuter
 - Prenumerationen är redan generell (per enhet, via `remind on`), så ingen ny
   opt-in behövs — men se `notify on`-idén i `reminder-push.md` för tydlighet.
 
-## Öppna frågor
-- Coalesce i DB (trigger + tidsstämpel) eller i `send-due` (gruppera köade rader)?
-- Notifiera vid varje ändringstyp, eller bara tillägg/klart (inte omordning)?
+## Levererat (2026-07-26)
+Byggt. Besvarade öppna frågor:
+- **Coalesce atomiskt i DB.** Triggern (`record_list_activity`) gör bara det
+  triviala: loggar en rad per *content*-ändring i `shared_list_activity`
+  (no-op-sparningar hoppas över via `is distinct from`). Själva vikningen sker i
+  `flush_list_activity()` — **claim + summering + enqueue i EN transaktion**
+  (`delete … returning` + CTE:er + `insert`). Första skissen la logiken i en ren,
+  testad TS-modul (`coalesce.ts`), men Codex påpekade rätt att select→insert→delete
+  över separata nätverksanrop inte är atomiskt: två överlappande minut-tick kan
+  då dubbel-skicka, tappa rader vid insert-fel, eller bara se PostgREST:s första
+  sida. Allt det försvinner när claim+enqueue är ett DB-statement. Ligger dessutom
+  i linje med syskonet `notify_on_invite` som redan är ren SQL.
+- **Debounce + tak.** En lista summeras när den varit tyst i 3 min, men hålls
+  aldrig kvar längre än 15 min (annars skulle en oavbrutet redigerad lista aldrig
+  fyra). `delete … returning` tömmer bursten → färskt fönster nästa gång.
+- **Inte till redigeraren.** Per medlem räknas allas ändringar utom de egna
+  (`total - egna`); två som redigerar samtidigt notifieras korrekt om varandras.
+- **Text:** sammanfattning (`N updates to "Inköp"`), inte en rad per bock. Går via
+  samma `notifications`-kö → `send-due`, så leverans/prune återanvänds oförändrat.
+  `send-due` anropar `flush_list_activity()` först i ticken, så summeringar går ut
+  samma minut.
+- **Ändringstyp:** varje content-ändring räknas (kan inte skilja omordning från
+  tillägg utan att parsa listan — medvetet enkelt för v1).
 
-_Utbruten från `reminder-push.md` när den pucken markerades done; det här är den
+Kvar (manuellt, kräver Supabase-åtkomst jag inte har i sessionen): applicera
+`supabase/notifications.sql` (rerunnbar) och deploya om `send-due` mot
+live-projektet.
+
+_Utbruten från `reminder-push.md` när den pucken markerades done; det här var den
 genuint obyggda svansen._

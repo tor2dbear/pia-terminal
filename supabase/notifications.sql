@@ -17,7 +17,9 @@ alter table public.notifications enable row level security;
 
 -- Users may read their own (for a possible in-app inbox later). Inserts happen
 -- only from SECURITY DEFINER triggers / the service role, so there is no insert
--- policy on purpose.
+-- policy on purpose. (Dropped-then-created so re-running this file on a live
+-- project that already has the policy is a no-op, not a "already exists" error.)
+drop policy if exists "own notifications - select" on public.notifications;
 create policy "own notifications - select" on public.notifications
   for select using (auth.uid() = user_id);
 
@@ -64,9 +66,159 @@ create trigger shared_list_invites_notify
 -- and shouldn't be callable via the REST API. (Flagged by the security linter.)
 revoke execute on function public.notify_on_invite() from public, anon, authenticated;
 
--- Follow-up (not built): "list updated" notifications. The todo app saves on
--- every toggle/add, so a naive AFTER UPDATE trigger would be chatty — it needs
--- coalescing (e.g. at most one per list, per member, per N minutes) first.
+-- ---- "list updated" notifications (coalesced) ------------------------------
+-- The todo app saves the whole list on every toggle/add, so a naive AFTER
+-- UPDATE → notify trigger would be chatty (several a second during an edit).
+-- Instead the trigger only *logs* one lightweight row per content change into
+-- shared_list_activity; flush_list_activity() (below) folds each settled burst
+-- into a single summary per member and enqueues it on the notifications queue
+-- above. The send-due Edge Function calls that function each tick — the queue
+-- it fills is then delivered by the same drain that handles invites/reminders.
+
+create table if not exists public.shared_list_activity (
+  id         uuid primary key default gen_random_uuid(),
+  list_id    uuid not null references public.shared_lists (id) on delete cascade,
+  actor_id   uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.shared_list_activity enable row level security;
+-- RLS on with *no* policies = deny-all for anon/authenticated. Only the
+-- SECURITY DEFINER trigger writes it and only the service-role Edge Function
+-- reads/clears it, so no client ever touches this table directly.
+create index if not exists shared_list_activity_list_idx
+  on public.shared_list_activity (list_id, created_at);
+
+-- Log one row per *content* edit to a shared list. Runs as the table owner
+-- (SECURITY DEFINER) so it can write the log whatever the editor's grants;
+-- auth.uid() is the editing member, preserved through the direct PostgREST
+-- update. No-op saves (unchanged content) are skipped so they don't inflate the
+-- count. flush_list_activity() does the coalescing and the actual notifying.
+create or replace function public.record_list_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.content is distinct from old.content then
+    insert into public.shared_list_activity (list_id, actor_id)
+      values (new.id, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists shared_lists_activity on public.shared_lists;
+create trigger shared_lists_activity
+  after update on public.shared_lists
+  for each row execute function public.record_list_activity();
+
+revoke execute on function public.record_list_activity() from public, anon, authenticated;
+
+-- Coalesce settled activity into the notifications queue. Called every tick by
+-- send-due. The whole claim → summarise → enqueue happens in ONE statement /
+-- transaction, which is what makes it correct under the every-minute schedule:
+--   * Atomic claim. `delete … returning` removes each settled list's rows in
+--     the same statement that reads them, so two overlapping ticks can't both
+--     process the same burst and double-send (the second's delete finds them
+--     already gone). No cross-call advisory lock — those don't survive the
+--     connection pooler anyway.
+--   * No lost rows. Enqueue and delete share the transaction: either the
+--     summaries are inserted AND the rows cleared, or neither. A failure rolls
+--     back and the burst is retried next tick.
+--   * No row cap. Grouping runs server-side, so it never sees only the first
+--     PostgREST page of a large table the way a client-side select would.
+-- A list is "settled" once quiet for p_debounce_seconds, or open (oldest row)
+-- for p_maxhold_seconds — so a nonstop-edited list still fires. Each member is
+-- told about everyone's changes but their own. Returns rows enqueued.
+create or replace function public.flush_list_activity(
+  p_debounce_seconds integer,
+  p_maxhold_seconds  integer
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_enqueued integer;
+begin
+  with settled as (
+    select list_id
+      from public.shared_list_activity
+      group by list_id
+      having max(created_at) < now() - (p_debounce_seconds * interval '1 second')
+          or min(created_at) < now() - (p_maxhold_seconds  * interval '1 second')
+  ),
+  claimed as (
+    delete from public.shared_list_activity a
+      using settled s
+      where a.list_id = s.list_id
+      returning a.list_id, a.actor_id
+  ),
+  by_actor as (
+    select list_id, actor_id, count(*)::int as n
+      from claimed group by list_id, actor_id
+  ),
+  totals as (
+    select list_id, sum(n)::int as total from by_actor group by list_id
+  ),
+  per_member as (
+    select m.user_id,
+           t.list_id,
+           t.total - coalesce(
+             (select ba.n from by_actor ba
+               where ba.list_id = t.list_id
+                 and ba.actor_id is not distinct from m.user_id), 0) as others
+      from totals t
+      join public.shared_list_members m on m.list_id = t.list_id
+  ),
+  enqueued as (
+    insert into public.notifications (user_id, title, body)
+      select pm.user_id,
+             '📋 Shared list',
+             pm.others || ' ' || case when pm.others = 1 then 'update' else 'updates' end
+               || ' to "' || coalesce(sl.name, 'a list') || '"'
+        from per_member pm
+        join public.shared_lists sl on sl.id = pm.list_id
+        where pm.others > 0
+      returning 1
+  )
+  select count(*)::int into v_enqueued from enqueued;
+  return coalesce(v_enqueued, 0);
+end;
+$$;
+
+revoke execute on function public.flush_list_activity(integer, integer) from public, anon, authenticated;
+grant  execute on function public.flush_list_activity(integer, integer) to service_role;
+
+-- Atomically claim up to p_limit unsent notifications for delivery: stamp
+-- sent_at and hand the rows back in one statement. `for update skip locked`
+-- means two overlapping send-due ticks grab *disjoint* batches (no blocking, no
+-- double-send), and the limit bounds each tick's work — so if an invocation
+-- crashes mid-delivery it can only drop that bounded batch, never skip the whole
+-- backlog (the rest stays unsent and is claimed next tick). Trade-off: a claimed
+-- row whose push then fails is dropped rather than retried — fine for these
+-- non-critical pushes, and the price of never sending a duplicate.
+create or replace function public.claim_notifications(p_limit integer)
+returns table (id uuid, user_id uuid, title text, body text)
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.notifications n
+     set sent_at = now()
+   where n.id in (
+     select c.id from public.notifications c
+      where c.sent_at is null
+      order by c.created_at
+      limit p_limit
+      for update skip locked
+   )
+  returning n.id, n.user_id, n.title, n.body;
+$$;
+revoke execute on function public.claim_notifications(integer) from public, anon, authenticated;
+grant  execute on function public.claim_notifications(integer) to service_role;
 
 -- ---- housekeeping ----------------------------------------------------------
 -- Drop delivered notifications and fired one-off reminders older than 30 days.
@@ -82,6 +234,10 @@ as $$
     where sent_at is not null and sent_at < now() - interval '30 days';
   delete from public.reminders
     where enabled = false and coalesce(last_sent, next_run) < now() - interval '30 days';
+  -- Safety net: send-due clears activity rows as it delivers, so this only ever
+  -- catches leftovers if the tick lagged for days.
+  delete from public.shared_list_activity
+    where created_at < now() - interval '7 days';
 $$;
 revoke execute on function public.prune_push_data() from public, anon, authenticated;
 
