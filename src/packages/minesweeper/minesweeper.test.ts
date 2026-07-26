@@ -32,9 +32,17 @@ describe("minesweeper", () => {
   });
 
   it("the first reveal is always safe (never an immediate loss)", () => {
-    const game = new Minesweeper(6, 6, 30, Math.random);
-    game.reveal(0, 0);
-    expect(game.state).toBe("playing");
+    // A dense 6×6/30 board leaves only a handful of safe cells, so the first
+    // click can legitimately flood-fill all of them and *win* — that's still
+    // safe. The invariant under test is only that it never *loses*, so assert
+    // that (not `=== "playing"`, which randomly reddened CI on an auto-win).
+    // Run many fresh layouts so a broken first-click guard can't slip through a
+    // lucky seed.
+    for (let i = 0; i < 50; i++) {
+      const game = new Minesweeper(6, 6, 30, Math.random);
+      game.reveal(0, 0);
+      expect(game.state).not.toBe("lost");
+    }
   });
 
   it("flood-fills an empty region on a zero-adjacent reveal", () => {
