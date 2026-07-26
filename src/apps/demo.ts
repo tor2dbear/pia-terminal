@@ -5,20 +5,24 @@ import type { ScreenApp, KeySpec } from "../terminal/screen.js";
 /**
  * `demo` — a self-running tour of PIA that loops, for screen recordings. It's a
  * full-screen {@link ScreenApp} that replays a scripted reel: it types each
- * command character by character (blinking block cursor), prints the output,
- * pauses to read, and `clear`s between scenes — then starts over. Any key exits.
+ * command character by character (blinking block cursor, with a human-ish
+ * rhythm), prints the output, pauses to read, then types `clear` to wipe the
+ * screen between scenes — and starts over. Any key exits.
  *
  * The reel is *scripted*, not live: deterministic timing, no Pyodide load, no
  * filesystem side effects — so a recording is identical every take and stitches
  * into a seamless loop (the last frame equals the first). It stays faithful to
- * the real thing: the neofetch scene is captured from the real command, and the
- * full-screen scenes reuse the actual editor (`ed-*`) and Python REPL
- * (`pyrepl-*`) chrome, so a viewer can't tell them from a live session.
+ * the real thing: the neofetch scene is captured from the real command, the
+ * figlet banner is checked against the real figlet in the test, and the
+ * full-screen scenes reuse the actual editor (`ed-*`), checklist (`td-*`) and
+ * Python REPL (`pyrepl-*`) chrome, so a viewer can't tell them from a live one.
  *
  * It's one coherent session — every command really works, in order, from a
- * fresh home — so a viewer who retypes it gets the same result: the file
+ * fresh *guest* home — so a viewer who retypes it gets the same result: the file
  * `publish` counts is the one the session just wrote in `nano`, and optional
- * packages (`python`, `cowsay`) are `brew install`ed before use.
+ * packages (`python`, `figlet`, `cowsay`) are `brew install`ed before use.
+ * (Cloud-only flows like `remind` / `todo share` are deliberately left out — a
+ * guest can't run them, and the reel must never show a command that would fail.)
  */
 
 /** A line of scripted scrollback output. `cls` omitted means normal. */
@@ -27,11 +31,12 @@ type OutLine = { text: string; cls?: Exclude<LineClass, "normal"> };
 /** One `>>>` interaction in the Python REPL scene. */
 type ReplEntry = { input: string; out?: string[] };
 
-/** One reel step. `cmd` types a shell line; `nano`/`repl` are full-screen apps. */
+/** One reel step. `cmd` types a shell line; the rest are full-screen apps. */
 type Step =
   | { kind: "cmd"; text: string; prompt?: string; out?: OutLine[] }
   | { kind: "clear" }
   | { kind: "nano"; file: string; lines: string[] }
+  | { kind: "todo"; file: string; add: string[]; check?: number }
   | { kind: "repl"; banner: string; entries: ReplEntry[] };
 
 /** A single rendered moment of a full-screen scene, and how long to hold it. */
@@ -42,7 +47,7 @@ const IN_NOTES = "guest@pia:~/notes$"; // prompt while cwd is ~/notes
 
 /** Pacing, in milliseconds. Tuned to feel like a brisk, confident operator. */
 const TIMING = {
-  type: 45, // per character while typing (~22 cps)
+  type: 45, // baseline per character while typing (~22 cps)
   think: 320, // after a line is fully typed, before it "runs"
   line: 55, // between successive output lines
   read: 1400, // after output, before the next command
@@ -51,6 +56,22 @@ const TIMING = {
   open: 480, // beat as a full-screen app takes over
   hold: 1150, // hold a finished app state (e.g. "saved") before leaving
 } as const;
+
+/**
+ * The delay before the *next* keystroke, given how much has been typed. A real
+ * typist isn't a metronome: they pause a touch longer after a word (space) and
+ * after punctuation, and every key lands a few ms off the beat. Derived purely
+ * from the text (character codes), never a RNG, so every recording is identical.
+ */
+function typeDelay(text: string, typed: number): number {
+  const prev = text[typed - 1] ?? "";
+  let d = TIMING.type;
+  if (prev === " ") d += 90; // gather for the next word
+  else if (`.,:;/-"'`.includes(prev)) d += 55; // beat after punctuation
+  // Deterministic ±jitter from the upcoming character, so the cadence breathes.
+  const jitter = ((text.charCodeAt(typed) || 0) % 5) * 6 - 12;
+  return Math.max(20, d + jitter);
+}
 
 /** Run a pure-print command into a buffer, so its scene stays truthful. */
 function capture(
@@ -81,6 +102,17 @@ function cowsay(text: string): OutLine[] {
     "                ||     ||",
   ].map((t) => ({ text: t }));
 }
+
+// `figlet PIA`, mirrored from the real figlet package (a `src/packages` chunk we
+// don't want to pull into the demo bundle). The test asserts this equals the
+// live figlet("PIA"), so it can't drift.
+const FIGLET_PIA: OutLine[] = [
+  "###  ###  ## ",
+  "#  #  #  #  #",
+  "###   #  ####",
+  "#     #  #  #",
+  "#    ### #  #",
+].map((text) => ({ text }));
 
 // ---- full-screen scene rendering (reuses the real apps' chrome) ------------
 
@@ -136,6 +168,79 @@ function nanoFrames(file: string, lines: string[], instant: boolean): Frame[] {
   return frames;
 }
 
+type TodoItem = { text: string; done: boolean };
+
+/** Draw the checklist exactly as the real todo app does: title / body / status. */
+function renderTodo(
+  stage: HTMLElement,
+  file: string,
+  items: TodoItem[],
+  mode: "list" | "add",
+  draft: string,
+): void {
+  const title = el("div", "td-title", `  todo · ${file}`);
+  const body = el("div", "td-body");
+  if (items.length === 0 && mode !== "add") {
+    body.append(el("div", "td-empty", "empty — press + to add an item"));
+  }
+  items.forEach((item) => {
+    const row = el("div", "td-row");
+    row.append(
+      el("span", item.done ? "td-check done" : "td-check", item.done ? "[x] " : "[ ] "),
+      el("span", item.done ? "td-text done" : "td-text", item.text),
+    );
+    body.append(row);
+  });
+  if (mode === "add") {
+    const add = el("div", "td-add", `+ ${draft}`);
+    add.append(el("span", "td-cursor", " "));
+    body.append(add);
+  }
+  const open = items.filter((i) => !i.done).length;
+  const done = items.length - open;
+  const status = el(
+    "div",
+    "td-status",
+    mode === "add"
+      ? "type an item · Enter to add · esc to cancel · ^X exit"
+      : `${open} open · ${done} done   space toggle · + add · ⌫ del · ^X exit`,
+  );
+  stage.replaceChildren(title, body, status);
+}
+
+/** Frames that add each item (typed at the `+` prompt), then tick one off. */
+function todoFrames(file: string, add: string[], check: number | undefined, instant: boolean): Frame[] {
+  const frames: Frame[] = [];
+  const items: TodoItem[] = [];
+  const push = (mode: "list" | "add", draft: string, delay: number) => {
+    const snapshot = items.map((i) => ({ ...i }));
+    frames.push({ render: (s) => renderTodo(s, file, snapshot, mode, draft), delay });
+  };
+
+  if (instant) {
+    for (const text of add) items.push({ text, done: false });
+    if (check !== undefined && items[check]) items[check].done = true;
+    push("list", "", TIMING.hold);
+    return frames;
+  }
+
+  push("list", "", TIMING.open); // opens empty
+  for (const text of add) {
+    push("add", "", TIMING.think); // enter add mode
+    for (let ci = 1; ci <= text.length; ci++) push("add", text.slice(0, ci), TIMING.type);
+    items.push({ text, done: false }); // Enter — the row lands, ready for the next
+    push("add", "", TIMING.read);
+  }
+  push("list", "", TIMING.read); // esc back to the list
+  if (check !== undefined && items[check]) {
+    items[check].done = true; // space toggles it
+    push("list", "", TIMING.hold);
+  } else {
+    push("list", "", TIMING.hold);
+  }
+  return frames;
+}
+
 /** Draw the Python REPL exactly as the real one does: an <pre> log + a prompt. */
 function renderRepl(stage: HTMLElement, outLines: string[], promptLine: string): void {
   const wrap = el("div", "pyrepl");
@@ -173,7 +278,7 @@ function replFrames(banner: string, entries: ReplEntry[], instant: boolean): Fra
 
 const clear: Step = { kind: "clear" };
 
-/** The reel: what a first-time visitor should see PIA do, in ~50 seconds. */
+/** The reel: what a first-time visitor should see PIA do, in ~90 seconds. */
 export const REEL: Step[] = [
   // 1 — identity.
   { kind: "cmd", text: "neofetch", out: capture(neofetch.run, []) },
@@ -202,8 +307,26 @@ export const REEL: Step[] = [
   },
   clear,
 
-  // 3 — sharing is a link, not a server. `notes/` holds exactly one file.
+  // 3 — it's a *real* shell: search and find over the files just made.
   { kind: "cmd", prompt: IN_NOTES, text: "cd ~" },
+  {
+    kind: "cmd",
+    text: "grep -in pia welcome.txt",
+    out: [{ text: "5:new here? try `demo`, `tutor`, or `man pia`." }],
+  },
+  {
+    kind: "cmd",
+    text: 'find . -name "*.md"',
+    out: [{ text: "./notes/notes.md" }],
+  },
+  clear,
+
+  // 4 — a checklist, in its own full-screen app (shareable to collaborate).
+  { kind: "cmd", text: "todo groceries" },
+  { kind: "todo", file: "groceries", add: ["buy milk", "call the plumber", "book flights"], check: 0 },
+  clear,
+
+  // 5 — sharing is a link, not a server. `notes/` holds exactly one file.
   {
     kind: "cmd",
     text: "publish notes",
@@ -214,7 +337,16 @@ export const REEL: Step[] = [
   },
   clear,
 
-  // 4 — the climax: install and run real CPython, in its own REPL.
+  // 6 — packages: install one and use it. Big ASCII type, client-side.
+  {
+    kind: "cmd",
+    text: "brew install figlet",
+    out: [{ text: "installed figlet — commands: figlet", cls: "accent" }],
+  },
+  { kind: "cmd", text: "figlet PIA", out: FIGLET_PIA },
+  clear,
+
+  // 7 — the climax: install and run real CPython, in its own REPL.
   {
     kind: "cmd",
     text: "brew install python",
@@ -231,7 +363,7 @@ export const REEL: Step[] = [
   },
   clear,
 
-  // 5 — a wink, and back to the top.
+  // 8 — a wink, and back to the top.
   {
     kind: "cmd",
     text: "brew install cowsay",
@@ -253,6 +385,14 @@ export class DemoReel implements ScreenApp {
   private charIdx = 0;
   private outIdx = 0;
   private lineCount = 0; // logical scrollback size, for tests
+
+  // The command currently being "typed" — its text, its output, and whether
+  // finishing it should wipe the screen (that's how a `clear` step is played:
+  // as a real, typed `clear` command rather than an instant blank).
+  private cmdText = "";
+  private cmdOut: OutLine[] = [];
+  private clearAfter = false;
+  private lastPrompt = PROMPT; // prompt of the last command line (for `clear`)
 
   private frames: Frame[] = [];
   private frameIdx = 0;
@@ -327,14 +467,14 @@ export class DemoReel implements ScreenApp {
 
     if (this.phase === "start") return this.beginStep(step);
 
-    if (this.phase === "typing" && step.kind === "cmd") {
+    if (this.phase === "typing") {
       this.charIdx++;
-      this.renderTyped(step.text.slice(0, this.charIdx));
-      if (this.charIdx >= step.text.length) {
+      this.renderTyped(this.cmdText.slice(0, this.charIdx));
+      if (this.charIdx >= this.cmdText.length) {
         this.phase = "run";
         return TIMING.think;
       }
-      return TIMING.type;
+      return typeDelay(this.cmdText, this.charIdx);
     }
 
     if (this.phase === "run") {
@@ -344,9 +484,16 @@ export class DemoReel implements ScreenApp {
       return 0;
     }
 
-    if (this.phase === "output" && step.kind === "cmd") {
-      const out = step.out ?? [];
+    if (this.phase === "output") {
+      const out = this.cmdOut;
       if (this.outIdx >= out.length) {
+        // A `clear` command finishes by wiping the screen; a normal command
+        // just sits on its output before the next step.
+        if (this.clearAfter) {
+          this.clearScreen();
+          this.phase = "next";
+          return TIMING.clearPause;
+        }
         this.phase = "read";
         return out.length ? 0 : TIMING.think;
       }
@@ -371,16 +518,18 @@ export class DemoReel implements ScreenApp {
 
   private beginStep(step: Step): number {
     if (step.kind === "clear") {
-      this.clearScreen();
-      this.phase = "next";
-      return TIMING.clearPause;
+      // Play `clear` as a real command: type it at the prompt, then wipe.
+      this.beginCmdLine(this.lastPrompt);
+      return this.beginCmd("clear", [], true);
     }
-    if (step.kind === "nano" || step.kind === "repl") {
+    if (step.kind === "nano" || step.kind === "todo" || step.kind === "repl") {
       this.enterStage();
       this.frames =
         step.kind === "nano"
           ? nanoFrames(step.file, step.lines, this.instant)
-          : replFrames(step.banner, step.entries, this.instant);
+          : step.kind === "todo"
+            ? todoFrames(step.file, step.add, step.check, this.instant)
+            : replFrames(step.banner, step.entries, this.instant);
       this.phase = "frames";
       // Render the first frame now, so the take-over shows real app chrome from
       // the opening beat instead of an empty stage flashing for TIMING.open.
@@ -391,14 +540,22 @@ export class DemoReel implements ScreenApp {
     }
     // cmd
     this.beginCmdLine(step.prompt ?? PROMPT);
+    return this.beginCmd(step.text, step.out ?? [], false);
+  }
+
+  /** Arm the typing machinery for a command line (shared by `cmd` and `clear`). */
+  private beginCmd(text: string, out: OutLine[], clearAfter: boolean): number {
+    this.cmdText = text;
+    this.cmdOut = out;
+    this.clearAfter = clearAfter;
     this.charIdx = 0;
     if (this.instant) {
-      this.renderTyped(step.text);
+      this.renderTyped(text);
       this.phase = "run";
       return TIMING.think;
     }
     this.phase = "typing";
-    return TIMING.type;
+    return typeDelay(text, 0);
   }
 
   private advanceStep(): number {
@@ -411,6 +568,7 @@ export class DemoReel implements ScreenApp {
   // ---- rendering (all no-ops until mounted) --------------------------------
 
   private beginCmdLine(prompt: string): void {
+    this.lastPrompt = prompt;
     this.lineCount++;
     if (!this.screenEl) return;
     const line = document.createElement("div");

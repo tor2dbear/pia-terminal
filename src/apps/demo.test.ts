@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { DemoReel, REEL } from "./demo.js";
 import { neofetch } from "../commands/system.js";
+import { figlet } from "../packages/figlet/figlet.js";
 import type { CommandContext, LineClass } from "../commands/registry.js";
 
 /** Drive the reel one tick at a time (no timers), collecting the delays. */
@@ -28,6 +29,13 @@ describe("demo reel content", () => {
 
   it("is a loop: every scene ends by clearing the screen", () => {
     expect(REEL.at(-1)).toEqual({ kind: "clear" });
+  });
+
+  it("shows the real figlet banner, kept in sync with the figlet package", () => {
+    const scene = REEL.find((s) => s.kind === "cmd" && s.text === "figlet PIA");
+    const shown = scene?.kind === "cmd" ? (scene.out ?? []).map((l) => l.text) : [];
+    // The hand-carried banner in the reel must equal what figlet actually draws.
+    expect(shown).toEqual(figlet("PIA"));
   });
 
   it("shows ~/notes in the prompt while working inside notes/", () => {
@@ -57,7 +65,7 @@ describe("demo reel content", () => {
   it("brew-installs an optional package before demonstrating its command", () => {
     // Commands that only exist after `brew install <pkg>` must be preceded by
     // that install in the reel, so a viewer who retypes the session succeeds.
-    const optional: Record<string, string> = { python: "python", cowsay: "cowsay" };
+    const optional: Record<string, string> = { python: "python", cowsay: "cowsay", figlet: "figlet" };
     const cmds = REEL.filter((s) => s.kind === "cmd") as { text: string }[];
     for (const [command, pkg] of Object.entries(optional)) {
       const useAt = cmds.findIndex((s) => s.text.split(/\s+/)[0] === command);
@@ -89,9 +97,9 @@ describe("DemoReel playback", () => {
 
   it("cycles back to the first scene after the last, forever", () => {
     const reel = new DemoReel(() => {});
-    // Plenty of ticks to run the whole reel more than once.
+    // Plenty of ticks to run the whole (now longer) reel more than once.
     let sawLastStep = false;
-    for (let i = 0; i < 4000; i++) {
+    for (let i = 0; i < 12000; i++) {
       if (reel.snapshot().stepIdx === REEL.length - 1) sawLastStep = true;
       reel.tick();
     }
@@ -100,19 +108,26 @@ describe("DemoReel playback", () => {
     expect(reel.snapshot().stepIdx).toBeLessThan(REEL.length);
   });
 
-  it("clears the logical scrollback at each scene break", () => {
+  it("types `clear` as a real command, then wipes the scrollback", () => {
     const reel = new DemoReel(() => {});
-    // Advance until the first `clear` step is reached and consumed.
-    for (let i = 0; i < 400; i++) {
+    const host = document.createElement("div");
+    reel.mount(host);
+    // Advance until the first `clear` step is the current step.
+    for (let i = 0; i < 800; i++) {
+      if (REEL[reel.snapshot().stepIdx].kind === "clear") break;
       reel.tick();
-      const { stepIdx } = reel.snapshot();
-      if (REEL[stepIdx].kind === "clear") {
-        reel.tick(); // process the clear
-        expect(reel.snapshot().lines).toBe(0);
-        return;
-      }
     }
-    throw new Error("never reached a clear step");
+    expect(REEL[reel.snapshot().stepIdx].kind).toBe("clear");
+    // It should type the literal command `clear` onto a prompt line…
+    let typedClear = false;
+    for (let i = 0; i < 40; i++) {
+      reel.tick();
+      const lines = Array.from(host.querySelectorAll(".term-line"));
+      if (lines.some((l) => l.textContent?.includes("clear"))) typedClear = true;
+      if (reel.snapshot().lines === 0 && typedClear) break;
+    }
+    expect(typedClear).toBe(true); // not just an instant blank
+    expect(reel.snapshot().lines).toBe(0); // …and then the screen is cleared
   });
 
   it("renders into a mounted container", () => {
@@ -123,21 +138,26 @@ describe("DemoReel playback", () => {
     expect(host.querySelector(".demo-screen")?.querySelectorAll(".term-line").length).toBeGreaterThan(0);
   });
 
-  it("plays nano and the Python REPL as real full-screen scenes, then returns", () => {
+  it("plays nano, the checklist, and the Python REPL as real full-screen scenes, then returns", () => {
     const reel = new DemoReel(() => {});
     const host = document.createElement("div");
     reel.mount(host);
 
     let sawNote = false; // the note typed into the editor body
     let sawSaved = false; // the ^O save message
+    let sawTodoItem = false; // an item added in the checklist
+    let sawTodoDone = false; // an item ticked off
     let sawResult = false; // a Python result in the REPL log
     let stageAfterExit = true; // the stage must be gone once we're back in scrollback
 
-    for (let i = 0; i < 3000; i++) {
+    // Longer reel now (nano → todo → figlet → python), so allow more ticks.
+    for (let i = 0; i < 9000; i++) {
       reel.tick();
       const ed = host.querySelector(".ed-body");
       if (ed?.textContent?.includes("# PIA")) sawNote = true;
       if (host.querySelector(".ed-msg")?.textContent?.includes("saved notes.md")) sawSaved = true;
+      if (host.querySelector(".td-text")?.textContent?.includes("buy milk")) sawTodoItem = true;
+      if (host.querySelector(".td-check.done")) sawTodoDone = true;
       if (host.querySelector(".pyrepl-out")?.textContent?.includes("5050")) sawResult = true;
       // When scrollback is visible again, no stage should remain.
       if (reel.snapshot().phase !== "frames" && host.querySelector(".demo-stage")) {
@@ -147,6 +167,8 @@ describe("DemoReel playback", () => {
 
     expect(sawNote).toBe(true);
     expect(sawSaved).toBe(true);
+    expect(sawTodoItem).toBe(true);
+    expect(sawTodoDone).toBe(true);
     expect(sawResult).toBe(true);
     expect(stageAfterExit).toBe(true);
   });
