@@ -64,9 +64,53 @@ create trigger shared_list_invites_notify
 -- and shouldn't be callable via the REST API. (Flagged by the security linter.)
 revoke execute on function public.notify_on_invite() from public, anon, authenticated;
 
--- Follow-up (not built): "list updated" notifications. The todo app saves on
--- every toggle/add, so a naive AFTER UPDATE trigger would be chatty — it needs
--- coalescing (e.g. at most one per list, per member, per N minutes) first.
+-- ---- "list updated" notifications (coalesced) ------------------------------
+-- The todo app saves the whole list on every toggle/add, so a naive AFTER
+-- UPDATE → notify trigger would be chatty (several a second during an edit).
+-- Instead the trigger only *logs* one lightweight row per content change; the
+-- send-due Edge Function folds a settled burst into a single summary per member
+-- and enqueues it on the notifications queue above. The coalescing lives in
+-- supabase/functions/send-due/coalesce.ts (unit-tested), not in SQL.
+
+create table if not exists public.shared_list_activity (
+  id         uuid primary key default gen_random_uuid(),
+  list_id    uuid not null references public.shared_lists (id) on delete cascade,
+  actor_id   uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.shared_list_activity enable row level security;
+-- RLS on with *no* policies = deny-all for anon/authenticated. Only the
+-- SECURITY DEFINER trigger writes it and only the service-role Edge Function
+-- reads/clears it, so no client ever touches this table directly.
+create index if not exists shared_list_activity_list_idx
+  on public.shared_list_activity (list_id, created_at);
+
+-- Log one row per *content* edit to a shared list. Runs as the table owner
+-- (SECURITY DEFINER) so it can write the log whatever the editor's grants;
+-- auth.uid() is the editing member, preserved through the direct PostgREST
+-- update. No-op saves (unchanged content) are skipped so they don't inflate the
+-- count. The send-due tick does the coalescing and the actual notifying.
+create or replace function public.record_list_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.content is distinct from old.content then
+    insert into public.shared_list_activity (list_id, actor_id)
+      values (new.id, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists shared_lists_activity on public.shared_lists;
+create trigger shared_lists_activity
+  after update on public.shared_lists
+  for each row execute function public.record_list_activity();
+
+revoke execute on function public.record_list_activity() from public, anon, authenticated;
 
 -- ---- housekeeping ----------------------------------------------------------
 -- Drop delivered notifications and fired one-off reminders older than 30 days.
@@ -82,6 +126,10 @@ as $$
     where sent_at is not null and sent_at < now() - interval '30 days';
   delete from public.reminders
     where enabled = false and coalesce(last_sent, next_run) < now() - interval '30 days';
+  -- Safety net: send-due clears activity rows as it delivers, so this only ever
+  -- catches leftovers if the tick lagged for days.
+  delete from public.shared_list_activity
+    where created_at < now() - interval '7 days';
 $$;
 revoke execute on function public.prune_push_data() from public, anon, authenticated;
 

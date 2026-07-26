@@ -1,8 +1,8 @@
 ---
 title: '"Lista uppdaterad"-notiser (coalescade)'
-status: inbox
+status: done
 tags: [collaboration, push]
-updated: 2026-07-25
+updated: 2026-07-26
 ---
 
 ## Mål
@@ -25,9 +25,27 @@ Kräver **coalescing** först: max en notis per lista, per medlem, per N minuter
 - Prenumerationen är redan generell (per enhet, via `remind on`), så ingen ny
   opt-in behövs — men se `notify on`-idén i `reminder-push.md` för tydlighet.
 
-## Öppna frågor
-- Coalesce i DB (trigger + tidsstämpel) eller i `send-due` (gruppera köade rader)?
-- Notifiera vid varje ändringstyp, eller bara tillägg/klart (inte omordning)?
+## Levererat (2026-07-26)
+Byggt. Besvarade öppna frågor:
+- **Coalesce i `send-due`, inte i DB.** Triggern (`record_list_activity`) gör bara
+  det triviala: loggar en rad per *content*-ändring i `shared_list_activity`
+  (no-op-sparningar hoppas över via `is distinct from`). Själva coalescingen —
+  och beslutet om *när* en burst är klar — bor i
+  `supabase/functions/send-due/coalesce.ts`, ren och enhetstestad
+  (`src/pia/list-activity.test.ts`), samma extraktionsknep som `cron.ts`.
+- **Debounce + tak.** En lista levereras när den varit tyst i 3 min, men hålls
+  aldrig kvar längre än 15 min (annars skulle en oavbrutet redigerad lista aldrig
+  fyra). Efter leverans raderas radernas → färskt fönster nästa gång. Det ger
+  "max en notis per lista, per medlem, per burst".
+- **Inte till redigeraren.** `changesForRecipient` räknar bort mottagarens egna
+  ändringar; två som redigerar samtidigt notifieras korrekt om varandras.
+- **Text:** sammanfattning (`N updates to "Inköp"`), inte en rad per bock. Går via
+  samma `notifications`-kö → `send-due`, så leverans/prune återanvänds oförändrat.
+- **Ändringstyp:** varje content-ändring räknas (kan inte skilja omordning från
+  tillägg utan att parsa listan — medvetet enkelt för v1).
 
-_Utbruten från `reminder-push.md` när den pucken markerades done; det här är den
+Kvar (manuellt, kräver Supabase-åtkomst jag inte har i sessionen): applicera
+`supabase/notifications.sql` och deploya om `send-due` mot live-projektet.
+
+_Utbruten från `reminder-push.md` när den pucken markerades done; det här var den
 genuint obyggda svansen._
