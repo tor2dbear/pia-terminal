@@ -127,17 +127,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .eq("id", r.id);
   }
 
-  // 2) Queued collaboration notifications (e.g. "X shared a list with you").
+  // 2) Queued collaboration notifications (invites + coalesced list-updates).
+  //    Claim the batch atomically: stamp sent_at and get the rows back in one
+  //    UPDATE, so two overlapping ticks can't each grab the same still-unsent
+  //    row and double-deliver (row locks make the second UPDATE re-evaluate
+  //    `sent_at is null` and skip what the first claimed). Trade-off: a delivery
+  //    that then fails drops that one push rather than retrying — acceptable for
+  //    these non-critical pushes, the same way an expired subscription is
+  //    dropped, and the price of never sending a duplicate.
   const { data: notifs } = await supabase
     .from("notifications")
-    .select("id, user_id, title, body")
+    .update({ sent_at: now })
     .is("sent_at", null)
-    .limit(100);
+    .select("id, user_id, title, body");
   for (const n of notifs ?? []) {
     const c = await sendToUser(supabase, vapid, n.user_id, n.title, n.body);
     sent += c.sent;
     cleaned += c.cleaned;
-    await supabase.from("notifications").update({ sent_at: now }).eq("id", n.id);
   }
 
   return Response.json({
