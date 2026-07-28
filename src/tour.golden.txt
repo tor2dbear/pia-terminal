@@ -373,6 +373,7 @@ available commands:
   version      print the PIA version
   wc           count lines, words, and characters
   whoami       show who you are logged in as
+  whoareyou    ask the machine to introduce itself
   wordle       guess the hidden five-letter word in six tries
   xxd          make a hex dump of text
 

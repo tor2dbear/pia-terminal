@@ -26,6 +26,9 @@ concessions, not lingo.
 Idiom notes in force: editor is `nano` (alias `edit`), saves with `^O`
 (WriteOut) and exits with `^X`; account creation is `useradd` (alias
 `register`); the prompt is `user@pia:~$`; config lives in a `.pia/` dotfile.
+`whoareyou` (alias `whoru`) is a deliberate **coinage** — no Unix equivalent —
+accepted as *persona*, not utility: the little computer introducing itself (the
+line the `og.png` social preview shows), distinct from `whoami` (your login).
 
 ## Architecture (keep it this way)
 

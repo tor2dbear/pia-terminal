@@ -32,6 +32,19 @@ export const whoami: Command = {
   },
 };
 
+// The machine, not the user: `whoami` answers with your login (`guest`), while
+// `whoareyou` lets the little computer introduce itself. A deliberate coinage
+// (no Unix equivalent) — persona, not utility — and the line the social-preview
+// (og.png) image shows, kept honest: retype it and you get exactly this.
+export const whoareyou: Command = {
+  name: "whoareyou",
+  help: "ask the machine to introduce itself",
+  aliases: ["whoru"],
+  run(_args, ctx) {
+    ctx.print("a little computer in the browser", "dim");
+  },
+};
+
 export const echo: Command = {
   name: "echo",
   help: "print the arguments",
@@ -129,6 +142,7 @@ export const history: Command = {
 export const systemCommands: Command[] = [
   help,
   whoami,
+  whoareyou,
   echo,
   clear,
   neofetch,
