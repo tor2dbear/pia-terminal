@@ -217,6 +217,15 @@ describe("system commands", () => {
     expect(h.text()).toEqual(["guest"]);
   });
 
+  it("whoareyou introduces the machine (the og.png line), via its alias too", async () => {
+    const h = harness();
+    await h.run("whoareyou");
+    expect(h.text()).toEqual(["a little computer in the browser"]);
+    const a = harness();
+    await a.run("whoru");
+    expect(a.text()).toEqual(["a little computer in the browser"]);
+  });
+
   it("echo joins its arguments", async () => {
     const h = harness();
     await h.run("echo hi there");

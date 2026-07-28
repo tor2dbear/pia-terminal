@@ -12,6 +12,9 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`whoareyou`**: the little computer introduces itself (`a little computer in
+  the browser`) — a persona counterpart to `whoami` (your login), and the line
+  the social-preview image shows, so it now reflects a real command.
 - **"List updated" push**: when someone edits a shared checklist you're in, you
   get a push — coalesced to one summary per list (never for your own edits), so
   a flurry of ticks doesn't turn into a flurry of notifications.
