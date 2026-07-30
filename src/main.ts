@@ -10,6 +10,7 @@ import { piaExtendContext } from "./pia/context.js";
 import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { parseConfig } from "./pia/rc.js";
+import { appendHistory, hasSecret, parseHistory, serializeHistory } from "./pia/history.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
@@ -117,17 +118,133 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
+  // The window multiplexer — declared up here so the persist helpers below can
+  // reach a live window. Assigned once the spawn factory exists.
+  let tabs: TabManager | undefined;
+
+  // One shared debounced persist of the shared tree — NOT one timer per window,
+  // since every window writes to the same VFS. History writes to the VFS on each
+  // command (below); coalescing the save keeps a burst of read-only commands from
+  // hammering storage. The save runs through a live window's `flush()` — the
+  // terminal's conflict-reconciling persist — so a concurrent cloud write from
+  // another device is merged (keep-both), never clobbered. Flushed synchronously
+  // before an account swap and on dispose (via `flushPending`, injected into every
+  // window), and best-effort on unload.
+  const HISTORY_PERSIST_MS = 1500;
+  let persistTimer: ReturnType<typeof setTimeout> | undefined;
+  // Serialize saves onto a single chain so two never run concurrently (which
+  // would race the cloud adapter's shared base version / VFS reconciliation).
+  // Each `runPersist` appends to the tail; `flushPending` awaits the whole tail.
+  let persistChain: Promise<void> = Promise.resolve();
+  const runPersist = (): Promise<void> => {
+    // Best-effort: a transient (non-conflict) save failure is swallowed rather
+    // than retried — localStorage (guests, Hybrid's local half) is synchronous
+    // so it still lands; a dropped cloud write is re-attempted by the next
+    // command's save. (A documented v1 limit; see roadmap/history-persistence.md.)
+    persistChain = persistChain
+      .catch(() => {})
+      .then(() => (tabs?.idleWindow() ?? tabs?.current())?.flush() ?? Promise.resolve());
+    return persistChain;
+  };
+  const scheduleHistoryPersist = (): void => {
+    if (persistTimer !== undefined) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = undefined;
+      void runPersist().catch(() => {});
+    }, HISTORY_PERSIST_MS);
+  };
+  // Complete any pending *and* in-flight persist before returning. Awaiting the
+  // serialized tail matters at an account transition: the debounce may have fired
+  // (clearing the timer) but not settled, and the swap must not change identity /
+  // replace the VFS while a save is still running under the old routing. Loops so
+  // a persist chained during the await is awaited too.
+  const flushPending = async (): Promise<void> => {
+    let tail: Promise<void>;
+    do {
+      if (persistTimer !== undefined) {
+        clearTimeout(persistTimer);
+        persistTimer = undefined;
+        void runPersist().catch(() => {});
+      }
+      tail = persistChain;
+      await tail.catch(() => {});
+    } while (tail !== persistChain);
+  };
+  // Best-effort backstop for the last read-only command(s) if the tab closes
+  // inside the debounce window: localStorage (guests, and the Hybrid adapter's
+  // local half) writes synchronously, so those survive; a cloud-only save can't
+  // finish during unload — an accepted browser limit, since mutating commands and
+  // account switches already persist synchronously.
+  window.addEventListener("beforeunload", () => void flushPending());
+
+  // Per-window HISTFILE plumbing (`~/.pia/history`), behind the Terminal's
+  // load/save/clear history seam. Reading + appending to the on-disk file (rather
+  // than overwriting from memory) is bash's `histappend`, and it's what lets two
+  // windows share one file without clobbering each other's lines. Writing to the
+  // VFS is all these do; the Terminal owns persisting the tree.
+  const histPath = (): string => `${vfs.home}/.pia/history`;
+  const readHistFile = (): string[] => {
+    const node = vfs.getNode(histPath());
+    return node?.type === "file" ? parseHistory(vfs.readFile(histPath())) : [];
+  };
+  // Something other than a file sitting at the history path (e.g. a user did
+  // `mkdir ~/.pia/history`): don't try to write there — `writeFile` would throw
+  // "is a directory" on every command. Degrade to no persistence rather than
+  // clobber the node or brick the shell; history works again once it's gone.
+  const histPathBlocked = (): boolean => {
+    const node = vfs.getNode(histPath());
+    return node !== null && node.type !== "file";
+  };
+  const makeHistoryIO = () => {
+    // How many of this window's in-memory entries are already merged into the
+    // file — additions since then are what gets appended. Reset on (re)load.
+    let flushed = 0;
+    return {
+      load: (): string[] => {
+        const lines = readHistFile();
+        flushed = lines.length;
+        return lines;
+      },
+      save: (history: readonly string[]): void => {
+        const additions = history.slice(flushed);
+        if (additions.length === 0 || histPathBlocked()) return;
+        flushed = history.length;
+        vfs.mkdirp(`${vfs.home}/.pia`);
+        vfs.writeFile(histPath(), serializeHistory(appendHistory(readHistFile(), additions)));
+      },
+      clear: (): void => {
+        flushed = 0;
+        if (histPathBlocked()) return;
+        vfs.mkdirp(`${vfs.home}/.pia`);
+        vfs.writeFile(histPath(), "");
+      },
+    };
+  };
+
   // Windows (tmux-lite): every window is a Terminal built by this factory, all
   // sharing the one machine — the same VFS, adapter, registry and account. New
   // windows are spawned by `tmux` / Ctrl-B c; only the first one boots.
-  let tabs: TabManager | undefined;
-  const spawn = (pane: HTMLElement): Terminal<CommandContext> =>
-    new Terminal<CommandContext>(pane, {
+  const spawn = (pane: HTMLElement): Terminal<CommandContext> => {
+    const hist = makeHistoryIO();
+    return new Terminal<CommandContext>(pane, {
       vfs,
       adapter,
       registry,
       session,
       configure: () => loadTerminalConfig(vfs),
+      loadHistory: hist.load,
+      saveHistory: hist.save,
+      clearHistory: hist.clear,
+      // Keep secrets out of the persisted (and synced) history: `passwd`,
+      // `login`, `useradd`/`register` take a password inline, so their whole
+      // line is excluded — bash's HISTIGNORE, applied so a reload/up-arrow/`cat
+      // ~/.pia/history` can never surface a plaintext password.
+      histIgnore: hasSecret,
+      // Persist the shared tree after a history write (debounced), and let a
+      // window flush the one shared pending save before it swaps the account
+      // tree or is disposed.
+      onHistoryWrite: scheduleHistoryPersist,
+      flushPending,
       // Command-not-found → a `brew install` hint when the name is a known but
       // not-yet-installed package command (Debian's command-not-found idiom).
       // Names the package, which can differ from the command (`mines` →
@@ -146,6 +263,7 @@ async function main(): Promise<void> {
       // …and hold other windows from starting a command mid-transition.
       isLocked: () => tabs?.inTransition() ?? false,
     });
+  };
   tabs = new TabManager(root, spawn);
   const term = tabs.open(); // the first window — the one that boots below
   // Gate input from the moment the terminal exists: registering installed

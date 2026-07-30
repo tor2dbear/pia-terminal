@@ -328,7 +328,7 @@ available commands:
   grep         print lines matching a pattern (from files or piped input)
   head         print the first lines of a file (or piped input)
   help         show this help, or help for one command
-  history      show the commands you've run this session
+  history      list your command history (persists across sessions; -c to clear)
   invite       invite someone to PIA by email (sends them a sign-in link)
   json_pp      pretty-print and colourise a JSON file
   less         page through a file or piped input

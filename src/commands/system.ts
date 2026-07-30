@@ -124,7 +124,7 @@ export const date: Command = {
 
 export const history: Command = {
   name: "history",
-  help: "show the commands you've run this session",
+  help: "list your command history (persists across sessions; -c to clear)",
   usage: "history [-c]",
   run(args, ctx) {
     if (args.includes("-c")) {

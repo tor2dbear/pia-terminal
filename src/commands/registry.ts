@@ -55,6 +55,10 @@ export interface CoreCommandContext {
   persist(): Promise<void>;
   /** Reload the filesystem tree from storage (e.g. after a cloud login). */
   reloadFs?(): Promise<void>;
+  /** Persist any pending (debounced) history write now — called at the *start*
+   * of an account transition, while the current identity/storage routing is
+   * still in effect, before auth switches accounts and the tree is reloaded. */
+  flushHistory?(): Promise<void>;
   /** Re-read config and apply it (theme, prompt, aliases) live. */
   applyConfig?(): void;
   /** Signal that the shared account changed (login/logout/useradd/usermod), so a

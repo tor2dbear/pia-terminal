@@ -9,11 +9,37 @@ import {
   type PickResult,
   type Session,
 } from "../commands/registry.js";
-import { tokenize, parseSequence, type Pipeline } from "./parse.js";
+import { tokenize, parseSequence, type Pipeline, type SequenceResult, type Stage } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
 import { fillLinkified } from "./linkify.js";
 import { parsePromptSegments } from "./prompt.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
+
+/** Commands that carry another command line in their arguments (the scheduler's
+ * `at <time> <command…>`), so history's secret check must recurse into the
+ * payload — a password scheduled for later must not be persisted either. */
+const EMBEDS_COMMAND = new Set(["at"]);
+
+/** Parse an `alias` command's args into `[name, expansion]` (mirrors the `alias`
+ * command: `alias ll ls -la`, `alias ll = ls -la`, `alias ll=ls -la`), or null.
+ * Lets history's secret check honour an alias defined earlier in the same line. */
+function parseAliasDef(args: string[]): [name: string, value: string] | null {
+  let name: string;
+  let value: string;
+  if (args[1] === "=") {
+    name = args[0] ?? "";
+    value = args.slice(2).join(" ").trim();
+  } else if ((args[0] ?? "").includes("=")) {
+    const joined = args.join(" ");
+    const i = joined.indexOf("=");
+    name = joined.slice(0, i).trim();
+    value = joined.slice(i + 1).trim();
+  } else {
+    name = args[0] ?? "";
+    value = args.slice(1).join(" ").trim();
+  }
+  return name && !/[\s=]/.test(name) && value ? [name, value] : null;
+}
 
 /** A do-nothing storage adapter: the engine default when an app has no backend
  * (e.g. the adventure example). Nothing to load, saves are dropped. */
@@ -80,6 +106,38 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
    * never locked (single window).
    */
   isLocked?: () => boolean;
+  /**
+   * Persistent command history (the HISTFILE seam). `loadHistory` seeds up-arrow
+   * at boot; `saveHistory` is called after each command with the full list to
+   * persist; `clearHistory` wipes the store (`history -c`). All omitted → history
+   * is in-memory only, lost on reload (e.g. the adventure example).
+   */
+  loadHistory?: () => string[];
+  saveHistory?: (history: readonly string[]) => void;
+  clearHistory?: () => void;
+  /**
+   * Keep a command line out of history entirely (bash `HISTIGNORE`) — given the
+   * *resolved* command names in the line (every pipeline stage, aliases already
+   * expanded), returns true if the line shouldn't be recalled or persisted, e.g.
+   * one running a password-bearing command. Passing the resolved names (not the
+   * raw text) is what makes it robust to aliases and chaining. Applies to both
+   * in-memory up-arrow and the saved file.
+   */
+  histIgnore?: (commands: readonly string[]) => boolean;
+  /**
+   * Called after a history write (a recorded command, or `history -c`). The host
+   * uses it to schedule a debounced persist of the *shared* tree. Kept as a host
+   * seam — not a per-window timer — because every window shares one VFS, so there
+   * is a single pending-persist state, not one per window.
+   */
+  onHistoryWrite?: () => void;
+  /**
+   * Complete the host's pending debounced persist *now*, before this window
+   * swaps the account tree ({@link reloadFs}) or is disposed. Shared across
+   * windows, so switching accounts in one window still flushes another window's
+   * pending history (they share the tree). Awaited so the swap can't race it.
+   */
+  flushPending?: () => Promise<void>;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -147,6 +205,12 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly describeUnknownCommand?: (name: string) => string | null;
   private readonly onAccountChange?: () => void;
   private readonly isLocked?: () => boolean;
+  private readonly loadHistoryFn?: () => string[];
+  private readonly persistHistory?: (history: readonly string[]) => void;
+  private readonly clearHistoryStore?: () => void;
+  private readonly histIgnore?: (commands: readonly string[]) => boolean;
+  private readonly onHistoryWrite?: () => void;
+  private readonly flushPending?: () => Promise<void>;
   /** Called when this window's cwd changes, so a multiplexer can refresh its
    * tab label. Set via {@link setTitleListener}. */
   private titleListener?: () => void;
@@ -185,12 +249,23 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.describeUnknownCommand = opts.describeUnknownCommand;
     this.onAccountChange = opts.onAccountChange;
     this.isLocked = opts.isLocked;
+    this.loadHistoryFn = opts.loadHistory;
+    this.persistHistory = opts.saveHistory;
+    this.clearHistoryStore = opts.clearHistory;
+    this.histIgnore = opts.histIgnore;
+    this.onHistoryWrite = opts.onHistoryWrite;
+    this.flushPending = opts.flushPending;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
     this.vfs.mkdirp(home);
     this.vfs.home = home;
     this.cwd = home;
+
+    // Seed up-arrow from persisted history (HISTFILE) — after home is set, since
+    // it reads ~/.pia/history under the active home.
+    this.history = this.loadHistoryFn?.() ?? [];
+    this.historyIndex = this.history.length;
 
     // Pull the prompt + aliases (and apply any theme) via `configure` before
     // the first render.
@@ -245,6 +320,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
   /** Tear the window down: stop any running command and app, then detach. */
   dispose(): void {
+    void this.flushPending?.().catch(() => {}); // persist pending history before the window goes away
     this.running?.abort(); // an in-flight command must not keep running unseen
     // Settle any open app the same way its own exit would: unmount it *and*
     // resolve the runApp promise, so the launching command's cleanup runs (e.g.
@@ -308,6 +384,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.vfs.home = home;
     this.cwd = home;
     this.loadConfig();
+    // Re-point up-arrow at the new account's HISTFILE (each account has its own
+    // ~/.pia/history). Every command is flushed to the file synchronously, so
+    // reloading here loses nothing from the old account.
+    if (this.loadHistoryFn) {
+      this.history = this.loadHistoryFn();
+      this.historyIndex = this.history.length;
+    }
     if (!this.busy && !this.activeApp) this.renderInput();
     this.titleListener?.();
   }
@@ -1000,12 +1083,24 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
-    if (this.history[this.history.length - 1] !== trimmed) {
-      this.history.push(trimmed);
+    const parsed = parseSequence(trimmed);
+
+    // Skip secret-bearing lines (HISTIGNORE) entirely, and collapse an adjacent
+    // duplicate. The secret check runs on the *resolved* command names — every
+    // stage, aliases expanded — so `alias p passwd; p pw` is caught too.
+    const secret = this.histIgnore?.(this.resolvedCommandNames(trimmed, parsed)) ?? false;
+    if (!secret && this.history[this.history.length - 1] !== trimmed) {
+      this.history.push(trimmed); // in-memory first, so up-arrow works even if the write fails
+      try {
+        this.persistHistory?.(this.history); // write ~/.pia/history…
+        this.onHistoryWrite?.(); // …and let the host persist the tree (debounced)
+      } catch {
+        // History persistence is best-effort — a failed write (e.g. something
+        // occupying the history path) must never block the command being run.
+      }
     }
     this.historyIndex = this.history.length;
 
-    const parsed = parseSequence(trimmed);
     if (!parsed.ok) {
       this.print(parsed.error, "error");
       this.renderInput();
@@ -1111,12 +1206,85 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   }
 
   /**
-   * Persist the tree, reconciling a concurrent cloud write rather than clobbering
-   * it. On a {@link StorageConflictError} the newer remote tree is adopted and
-   * the local (un-synced) version is set aside as a snapshot — git's "keep both,
-   * mark clearly", never a silent overwrite. The re-save lands because the
-   * adapter has adopted the remote version as its new base.
+   * The command names a line will actually run — every pipeline stage, aliases
+   * expanded exactly as {@link executePipeline} does — so a secret hidden behind
+   * an alias, inside a `&&`/`|` chain, or scheduled via `at <time> <command>` is
+   * still visible to {@link histIgnore}. Handles an alias *defined earlier in the
+   * same line* (`alias p passwd; p pw`) by tracking definitions as it walks the
+   * stages left-to-right.
    */
+  private resolvedCommandNames(line: string, parsed: SequenceResult): string[] {
+    // Each nested `at` payload strips at least its own token, so nesting can't
+    // exceed the token count — use that as the recursion budget: high enough to
+    // never drop a real embedded command (`at … at … passwd`), finite so it
+    // always terminates.
+    const budget = line.split(/\s+/).length;
+    return this.collectCommandNames(this.stagesOf(line, parsed), new Map(this.aliases), budget);
+  }
+
+  /** Pipeline stages of a line — from the parse, or best-effort from the raw
+   * segments' first words if it didn't parse (a malformed line still shouldn't
+   * smuggle a password past the secret check). */
+  private stagesOf(line: string, parsed: SequenceResult): Pick<Stage, "name" | "args">[] {
+    const stages: Pick<Stage, "name" | "args">[] = [];
+    if (parsed.ok) {
+      for (const item of parsed.items) stages.push(...item.pipeline.stages);
+    } else {
+      for (const seg of line.split(/\s*(?:\|\||&&|;|\|)\s*/)) {
+        const words = seg.trim().split(/\s+/).filter(Boolean);
+        if (words.length) stages.push({ name: words[0], args: words.slice(1) });
+      }
+    }
+    return stages;
+  }
+
+  /** Resolve each stage's effective command name against `aliases` (expanding a
+   * stage's args the same way the runtime does), learning same-line `alias`
+   * definitions as it goes and recursing into an `at` payload. */
+  private collectCommandNames(
+    stages: Pick<Stage, "name" | "args">[],
+    aliases: Map<string, string>,
+    budget: number,
+  ): string[] {
+    const names: string[] = [];
+    for (const stage of stages) {
+      let name = stage.name;
+      let args = stage.args;
+      const expansion = aliases.get(name);
+      if (expansion) {
+        const words = tokenize(expansion);
+        if (words.length > 0) {
+          name = words[0];
+          args = [...words.slice(1), ...stage.args]; // alias words prepended, like the runtime
+        }
+      }
+      names.push(name);
+      if (name === "alias") {
+        const def = parseAliasDef(args); // a definition earlier in the line applies to later stages
+        if (def) aliases.set(def[0], def[1]);
+      } else if (budget > 0 && EMBEDS_COMMAND.has(name)) {
+        const payload = args.slice(1).join(" ").trim(); // `at <time> <command…>`, however deeply nested
+        if (payload) {
+          names.push(...this.collectCommandNames(this.stagesOf(payload, parseSequence(payload)), aliases, budget - 1));
+        }
+      }
+    }
+    return names;
+  }
+
+  /**
+   * Persist the tree now, reconciling a concurrent cloud write rather than
+   * clobbering it — the host's debounced history persist and its boundary
+   * flushes (account swap, dispose, page unload) all land here. On a
+   * {@link StorageConflictError} the newer remote tree is adopted and the local
+   * (un-synced) version is set aside as a snapshot — git's "keep both, mark
+   * clearly", never a silent overwrite. The re-save lands because the adapter has
+   * adopted the remote version as its new base.
+   */
+  flush(): Promise<void> {
+    return this.persistTree();
+  }
+
   private async persistTree(): Promise<void> {
     try {
       await this.adapter.save(this.vfs.root);
@@ -1191,6 +1359,12 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         const root = await this.adapter.load();
         if (root) this.vfs.root = root;
       },
+      // Persist any window's pending history *before* an account transition
+      // switches identity — the acting command calls this at the transition's
+      // start, while the current account's storage routing is still in effect,
+      // so a read-only command run just before login/logout isn't dropped and,
+      // crucially, isn't saved under the *new* account's identity.
+      flushHistory: () => this.flushPending?.() ?? Promise.resolve(),
       applyConfig: () => this.loadConfig(),
       // Account changed (login/logout/useradd/usermod) — let a multiplexer
       // re-home the *other* windows, which share this session and VFS.
@@ -1201,6 +1375,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       clearHistory: () => {
         this.history.length = 0;
         this.historyIndex = 0;
+        this.clearHistoryStore?.(); // also wipe the persisted ~/.pia/history
+        this.onHistoryWrite?.(); // persist the now-empty file (debounced by the host)
       },
       runApp: capture
         ? () => {

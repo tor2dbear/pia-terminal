@@ -29,6 +29,11 @@ function accountBlocked(ctx: CommandContext): string | null {
 async function withTransition(ctx: CommandContext, body: () => Promise<void>): Promise<void> {
   ctx.tabs?.beginTransition();
   try {
+    // Persist any pending history to the *current* account before we switch
+    // identity — otherwise the deferred save would route the old tree through
+    // the new account's storage (saving guest files to a cloud account on login,
+    // or the user's tree to guest localStorage on logout).
+    await ctx.flushHistory?.();
     await body();
   } finally {
     ctx.tabs?.endTransition();

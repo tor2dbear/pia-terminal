@@ -91,6 +91,218 @@ describe("Terminal (driven via keyboard)", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$");
   });
 
+  it("seeds up-arrow from persisted history (the HISTFILE load seam)", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      loadHistory: () => ["ls", "pwd"], // as if read from ~/.pia/history at boot
+    });
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe("pwd"); // most recent first
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe("ls"); // reaches an earlier session's command
+  });
+
+  it("persists each command through the saveHistory seam", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+    });
+    await runLine(root, "pwd");
+    await runLine(root, "whoami");
+    expect(saved.at(-1)).toEqual(["pwd", "whoami"]);
+  });
+
+  it("wipes the store when `history -c` clears history", async () => {
+    let cleared = false;
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      loadHistory: () => ["ls"],
+      clearHistory: () => (cleared = true),
+    });
+    await runLine(root, "history -c");
+    expect(cleared).toBe(true);
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe(""); // nothing left to recall
+  });
+
+  it("keeps a histIgnore'd (secret-bearing) command out of history entirely", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "pwd");
+    await runLine(root, "passwd hunter2"); // a secret — must not be recorded
+    await runLine(root, "whoami");
+    // Never persisted, and up-arrow can't recall it either.
+    expect(saved.flat()).not.toContain("passwd hunter2");
+    expect(saved.at(-1)).toEqual(["pwd", "whoami"]);
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe("whoami"); // skips straight past the secret
+  });
+
+  it("resolves aliases before the secret check (so `alias p passwd; p pw` is caught)", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      configure: () => ({ aliases: { p: "passwd" } }), // `p` is an alias for passwd
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "p hunter2"); // expands to `passwd hunter2` — still a secret
+    await runLine(root, "cat passwd"); // `passwd` here is a filename, not the command
+    expect(saved.flat()).not.toContain("p hunter2"); // the aliased secret was excluded
+    expect(saved.flat()).toContain("cat passwd"); // …but an ordinary line is kept
+  });
+
+  it("recurses into an `at` payload so a scheduled secret isn't persisted", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.some((c) => c === "passwd" || c === "login"),
+    });
+    await runLine(root, "at now+5m ls"); // a harmless scheduled command — kept
+    await runLine(root, "at now+5m login me secret"); // a scheduled secret — excluded
+    expect(saved.flat()).toContain("at now+5m ls");
+    expect(saved.flat()).not.toContain("at now+5m login me secret");
+  });
+
+  it("catches a secret behind an alias defined earlier in the same line", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "alias p passwd; p hunter2"); // defines p, then uses it — must be excluded
+    expect(saved.flat()).not.toContain("alias p passwd; p hunter2");
+  });
+
+  it("recurses through deeply-nested `at` payloads to find a buried secret", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    // Four nested `at`s — each schedules the next; the buried passwd must be found.
+    await runLine(root, "at now+5m at now+5m at now+5m at now+5m passwd hunter2");
+    expect(saved.flat()).not.toContain("at now+5m at now+5m at now+5m at now+5m passwd hunter2");
+  });
+
+  it("expands alias args when inspecting an embedded `at` payload", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      configure: () => ({ aliases: { later: "at now+5m passwd" } }),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "later hunter2"); // → at now+5m passwd hunter2 — the secret must be caught
+    expect(saved.flat()).not.toContain("later hunter2");
+  });
+
+  it("never lets a failing history write block the command", async () => {
+    const vfs = VFS.seed();
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: () => {
+        throw new Error("history path is a directory"); // e.g. `mkdir ~/.pia/history`
+      },
+    });
+    await runLine(root, "mkdir foo");
+    expect(vfs.getNode("/home/guest/foo")).not.toBeNull(); // the command still ran
+  });
+
+  it("flushes pending history BEFORE an account change switches identity", async () => {
+    // The flush must run while the *old* account's storage routing is still in
+    // effect — otherwise the deferred save lands under the new identity.
+    const order: string[] = [];
+    const auth = new MemoryAuthAdapter();
+    const realLogin = auth.login.bind(auth);
+    auth.login = ((...a: Parameters<typeof auth.login>) => {
+      order.push("login");
+      return realLogin(...a);
+    }) as typeof auth.login;
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(auth),
+      flushPending: async () => {
+        order.push("flush");
+      },
+    });
+    await runLine(root, "login alice");
+    expect(order).toEqual(["flush", "login"]); // flushed first, then identity switched
+  });
+
   it("refuses to start a command while another window is mid account-change", async () => {
     const vfs = VFS.seed();
     let locked = true;

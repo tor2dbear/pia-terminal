@@ -94,4 +94,32 @@ describe("cloud conflict reconcile", () => {
     expect(names).toContain("local.txt"); // our pre-existing local file
     expect(names).toContain("note.txt"); // …and the one the command just made
   });
+
+  it("reconciles on the debounced history persist too, not just command saves", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+
+    const remoteVfs = VFS.seed();
+    remoteVfs.writeFile("/home/guest/remote.txt", "from-another-device");
+
+    const adapter = new ConflictOnceAdapter(remoteVfs.root);
+    const saveHistory = (): void => {}; // the VFS write is stubbed; we only care about persist
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter,
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory,
+    });
+
+    await runLine(root, "pwd"); // read-only: schedules a debounced persist, no sync save
+    expect(adapter.saved).toBeNull(); // nothing written yet — it's deferred
+
+    await term.flush(); // fire the pending history persist now → must reconcile, not swallow
+    expect(root.textContent).toContain("changed on another device");
+    const saved = new VFS(adapter.saved!);
+    expect(saved.getNode("/home/guest/remote.txt")).not.toBeNull(); // remote kept
+    expect(saved.getNode("/home/guest/.pia/conflicts")?.type).toBe("dir"); // local set aside
+  });
 });
