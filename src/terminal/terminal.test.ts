@@ -187,6 +187,43 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).toContain("cat passwd"); // …but an ordinary line is kept
   });
 
+  it("recurses into an `at` payload so a scheduled secret isn't persisted", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.some((c) => c === "passwd" || c === "login"),
+    });
+    await runLine(root, "at now+5m ls"); // a harmless scheduled command — kept
+    await runLine(root, "at now+5m login me secret"); // a scheduled secret — excluded
+    expect(saved.flat()).toContain("at now+5m ls");
+    expect(saved.flat()).not.toContain("at now+5m login me secret");
+  });
+
+  it("flushes the shared pending persist before an account change swaps the tree", async () => {
+    let flushed = 0;
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      flushPending: async () => {
+        flushed++;
+      },
+    });
+    await runLine(root, "login alice"); // login reloads the tree → must flush first
+    expect(flushed).toBeGreaterThan(0);
+  });
+
   it("refuses to start a command while another window is mid account-change", async () => {
     const vfs = VFS.seed();
     let locked = true;

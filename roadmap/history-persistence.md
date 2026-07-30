@@ -36,18 +36,19 @@ in-session och försvann vid reload.
 - **Inga hemligheter i history (HISTIGNORE).** `passwd`/`login`/`useradd`/`register`
   tar lösenordet som ett argument; hela raden hålls utanför history (både pil-upp
   och filen) via en `histIgnore`-söm på `Terminal`. Checken körs på de *resolvade*
-  kommando-namnen — varje pipeline-steg, alias expanderade — så även
-  `alias p passwd; p pw` och `x && login a b` fångas (annars hade ett synkat
-  `~/.pia/history` läckt klartext-lösenord). `Terminal` äger parsningen; `main.ts`
-  bidrar bara med namn-listan (`hasSecret`).
-- **Konflikt-reconcile för bakgrunds-sparningen.** Den debouncade sparningen låg
-  först i `main.ts` och gick direkt mot `adapter.save` — svalde
+  kommando-namnen — varje pipeline-steg, alias expanderade, och **rekursivt in i
+  `at`:s payload** (`at now+5m login u pw` schemalägger en hemlighet) — så även
+  `alias p passwd; p pw`, `x && login a b` och den schemalagda varianten fångas.
+  `Terminal` äger parsningen; `main.ts` bidrar bara med namn-listan (`hasSecret`).
+- **Konflikt-reconcile för bakgrunds-sparningen, delad över fönster.** Den
+  debouncade sparningen gick först direkt mot `adapter.save` och svalde
   `StorageConflictError` → nästa spar kunde skriva över en samtidig moln-ändring.
-  Debouncen flyttades in i `Terminal`, går genom `persistTree()`-reconcilen
-  (keep-both, stash under `~/.pia/conflicts/`), och **flushas synkront vid
-  livscykel-gränser**: före att ett konto­byte byter ut trädet (`reloadFs`), vid
-  `dispose()` (stängt fönster), och av värden på `beforeunload`. Så en läsande
-  rad precis före login/logout tappas inte med det gamla trädet.
+  Nu går den genom `Terminal.flush()` → `persistTree()`-reconcilen (keep-both,
+  stash under `~/.pia/conflicts/`). Eftersom alla fönster delar *ett* VFS finns
+  **en enda delad pending-persist** (i `main.ts`), inte en timer per fönster —
+  annars kunde ett konto­byte i fönster A missa fönster B:s väntande skrivning.
+  Den flushas synkront vid livscykel-gränser via en injicerad `flushPending`:
+  före `reloadFs` byter träd, vid `dispose()`, och av värden på `beforeunload`.
 
 ## Kända v1-begränsningar (medvetet dragen gräns)
 - **`beforeunload` mot molnet är best-effort.** En mutation och ett konto­byte

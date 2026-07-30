@@ -118,20 +118,41 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
-  // The window multiplexer — declared up here so the unload flush below can reach
-  // a live window. Assigned once the spawn factory exists.
+  // The window multiplexer — declared up here so the persist helpers below can
+  // reach a live window. Assigned once the spawn factory exists.
   let tabs: TabManager | undefined;
 
-  // The terminal coalesces + persists history writes itself (debounced, flushed
-  // at account swaps and dispose). This is only a best-effort backstop for the
-  // last read-only command(s) if the tab is closed inside that debounce window:
-  // localStorage (guests, and the Hybrid adapter's local half) writes
-  // synchronously, so those survive; a cloud-only save can't finish during
-  // unload — an accepted browser limitation, since mutating commands and account
-  // switches already persist synchronously.
-  window.addEventListener("beforeunload", () => {
-    void (tabs?.current() ?? tabs?.idleWindow())?.flush().catch(() => {});
-  });
+  // One shared debounced persist of the shared tree — NOT one timer per window,
+  // since every window writes to the same VFS. History writes to the VFS on each
+  // command (below); coalescing the save keeps a burst of read-only commands from
+  // hammering storage. The save runs through a live window's `flush()` — the
+  // terminal's conflict-reconciling persist — so a concurrent cloud write from
+  // another device is merged (keep-both), never clobbered. Flushed synchronously
+  // before an account swap and on dispose (via `flushPending`, injected into every
+  // window), and best-effort on unload.
+  const HISTORY_PERSIST_MS = 1500;
+  let persistTimer: ReturnType<typeof setTimeout> | undefined;
+  const runPersist = (): Promise<void> =>
+    (tabs?.idleWindow() ?? tabs?.current())?.flush() ?? Promise.resolve();
+  const scheduleHistoryPersist = (): void => {
+    if (persistTimer !== undefined) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = undefined;
+      void runPersist().catch(() => {});
+    }, HISTORY_PERSIST_MS);
+  };
+  const flushPending = async (): Promise<void> => {
+    if (persistTimer === undefined) return;
+    clearTimeout(persistTimer);
+    persistTimer = undefined;
+    await runPersist();
+  };
+  // Best-effort backstop for the last read-only command(s) if the tab closes
+  // inside the debounce window: localStorage (guests, and the Hybrid adapter's
+  // local half) writes synchronously, so those survive; a cloud-only save can't
+  // finish during unload — an accepted browser limit, since mutating commands and
+  // account switches already persist synchronously.
+  window.addEventListener("beforeunload", () => void flushPending());
 
   // Per-window HISTFILE plumbing (`~/.pia/history`), behind the Terminal's
   // load/save/clear history seam. Reading + appending to the on-disk file (rather
@@ -187,6 +208,11 @@ async function main(): Promise<void> {
       // line is excluded — bash's HISTIGNORE, applied so a reload/up-arrow/`cat
       // ~/.pia/history` can never surface a plaintext password.
       histIgnore: hasSecret,
+      // Persist the shared tree after a history write (debounced), and let a
+      // window flush the one shared pending save before it swaps the account
+      // tree or is disposed.
+      onHistoryWrite: scheduleHistoryPersist,
+      flushPending,
       // Command-not-found → a `brew install` hint when the name is a known but
       // not-yet-installed package command (Debian's command-not-found idiom).
       // Names the package, which can differ from the command (`mines` →
