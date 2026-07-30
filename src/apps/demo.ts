@@ -414,6 +414,11 @@ export class DemoReel implements ScreenApp {
   private stageEl?: HTMLDivElement;
   private typedEl?: Text;
   private cursorEl?: HTMLSpanElement;
+  private promptEl?: HTMLSpanElement;
+  // After `clear` wipes the screen it leaves a fresh prompt waiting (like a real
+  // terminal); the next command types into that very line instead of adding a
+  // new one, so the prompt never disappears into a black screen.
+  private freshPromptReady = false;
 
   private timer: ReturnType<typeof setTimeout> | undefined;
   private stopped = false;
@@ -499,10 +504,16 @@ export class DemoReel implements ScreenApp {
     if (this.phase === "output") {
       const out = this.cmdOut;
       if (this.outIdx >= out.length) {
-        // A `clear` command finishes by wiping the screen; a normal command
-        // just sits on its output before the next step.
+        // A `clear` command finishes by wiping the scrollback — but, like a real
+        // terminal, it leaves a fresh prompt behind rather than a black screen.
+        // The next command types into this line (see beginStep), so the prompt
+        // stays put across the scene break. A normal command just sits on its
+        // output before the next step.
         if (this.clearAfter) {
           this.clearScreen();
+          this.beginCmdLine(this.lastPrompt); // fresh prompt, cwd unchanged
+          this.lineCount = 0; // an empty waiting prompt isn't scrollback
+          this.freshPromptReady = true;
           this.phase = "next";
           return TIMING.clearPause;
         }
@@ -531,10 +542,12 @@ export class DemoReel implements ScreenApp {
   private beginStep(step: Step): number {
     if (step.kind === "clear") {
       // Play `clear` as a real command: type it at the prompt, then wipe.
+      this.freshPromptReady = false;
       this.beginCmdLine(this.lastPrompt);
       return this.beginCmd("clear", [], true);
     }
     if (step.kind === "nano" || step.kind === "todo" || step.kind === "repl") {
+      this.freshPromptReady = false;
       this.enterStage();
       this.frames =
         step.kind === "nano"
@@ -550,8 +563,16 @@ export class DemoReel implements ScreenApp {
       if (this.stageEl && first) first.render(this.stageEl);
       return first ? first.delay : 0;
     }
-    // cmd
-    this.beginCmdLine(step.prompt ?? PROMPT);
+    // cmd — reuse the fresh prompt `clear` left behind (so the prompt stays put
+    // across the scene break), otherwise open a new command line.
+    const prompt = step.prompt ?? PROMPT;
+    if (this.freshPromptReady) {
+      this.freshPromptReady = false;
+      this.lastPrompt = prompt;
+      if (this.promptEl) this.promptEl.textContent = prompt; // cwd is continuous, but stay exact
+    } else {
+      this.beginCmdLine(prompt);
+    }
     return this.beginCmd(step.text, step.out ?? [], false);
   }
 
@@ -588,6 +609,7 @@ export class DemoReel implements ScreenApp {
     const promptEl = document.createElement("span");
     promptEl.className = "term-echo-prompt";
     promptEl.textContent = prompt;
+    this.promptEl = promptEl;
     this.typedEl = document.createTextNode(" ");
     this.cursorEl = document.createElement("span");
     this.cursorEl.className = "term-cursor";
