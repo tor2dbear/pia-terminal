@@ -132,37 +132,43 @@ async function main(): Promise<void> {
   // window), and best-effort on unload.
   const HISTORY_PERSIST_MS = 1500;
   let persistTimer: ReturnType<typeof setTimeout> | undefined;
-  let inFlight: Promise<void> | undefined; // a persist that has started but not settled
+  // Serialize saves onto a single chain so two never run concurrently (which
+  // would race the cloud adapter's shared base version / VFS reconciliation).
+  // Each `runPersist` appends to the tail; `flushPending` awaits the whole tail.
+  let persistChain: Promise<void> = Promise.resolve();
   const runPersist = (): Promise<void> => {
-    const p = ((tabs?.idleWindow() ?? tabs?.current())?.flush() ?? Promise.resolve())
+    // Best-effort: a transient (non-conflict) save failure is swallowed rather
+    // than retried — localStorage (guests, Hybrid's local half) is synchronous
+    // so it still lands; a dropped cloud write is re-attempted by the next
+    // command's save. (A documented v1 limit; see roadmap/history-persistence.md.)
+    persistChain = persistChain
       .catch(() => {})
-      .finally(() => {
-        if (inFlight === p) inFlight = undefined;
-      });
-    inFlight = p;
-    return p;
+      .then(() => (tabs?.idleWindow() ?? tabs?.current())?.flush() ?? Promise.resolve());
+    return persistChain;
   };
   const scheduleHistoryPersist = (): void => {
     if (persistTimer !== undefined) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
       persistTimer = undefined;
-      void runPersist();
+      void runPersist().catch(() => {});
     }, HISTORY_PERSIST_MS);
   };
   // Complete any pending *and* in-flight persist before returning. Awaiting the
-  // in-flight promise matters at an account transition: the debounce may have
-  // fired (clearing the timer) but not settled, and the swap must not change
-  // identity / replace the VFS while that save is still running under the old
-  // routing. Loops so a persist that starts during the await is caught too.
+  // serialized tail matters at an account transition: the debounce may have fired
+  // (clearing the timer) but not settled, and the swap must not change identity /
+  // replace the VFS while a save is still running under the old routing. Loops so
+  // a persist chained during the await is awaited too.
   const flushPending = async (): Promise<void> => {
-    while (persistTimer !== undefined || inFlight !== undefined) {
+    let tail: Promise<void>;
+    do {
       if (persistTimer !== undefined) {
         clearTimeout(persistTimer);
         persistTimer = undefined;
-        void runPersist();
+        void runPersist().catch(() => {});
       }
-      await inFlight;
-    }
+      tail = persistChain;
+      await tail.catch(() => {});
+    } while (tail !== persistChain);
   };
   // Best-effort backstop for the last read-only command(s) if the tab closes
   // inside the debounce window: localStorage (guests, and the Hybrid adapter's

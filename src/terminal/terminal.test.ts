@@ -223,6 +223,24 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("alias p passwd; p hunter2");
   });
 
+  it("recurses through deeply-nested `at` payloads to find a buried secret", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    // Four nested `at`s — each schedules the next; the buried passwd must be found.
+    await runLine(root, "at now+5m at now+5m at now+5m at now+5m passwd hunter2");
+    expect(saved.flat()).not.toContain("at now+5m at now+5m at now+5m at now+5m passwd hunter2");
+  });
+
   it("expands alias args when inspecting an embedded `at` payload", async () => {
     const saved: string[][] = [];
     const root = document.createElement("div");

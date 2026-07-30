@@ -54,17 +54,34 @@ in-session och försvann vid reload.
   en konto-transition** (`withTransition` → `ctx.flushHistory`), *innan* auth
   byter identitet. Annars hade den uppskjutna sparningen routats genom fel konto
   (gäst-träd till moln-kontot vid login, användarens träd till gäst-localStorage
-  vid logout). `flushPending` väntar dessutom in en redan *pågående* sparning
-  (inte bara en väntande timer), så en transition inte byter identitet mitt i en
-  save som ännu inte hunnit landa.
+  vid logout). Sparningarna **serialiseras på en kedja** (aldrig två `flush()`
+  samtidigt, som annars racade molnets base-version), och `flushPending` väntar
+  in hela kedjan — inte bara en väntande timer — så en transition inte byter
+  identitet mitt i en save som ännu inte hunnit landa.
+- **Hemligheter, godtyckligt djupt.** Secret-checken rekurserar in i `at`:s
+  payload med en budget = radens token-antal (som strikt minskar per nivå), så
+  även absurt nästlade `at now+5m at now+5m … passwd pw` fångas — ingen godtycklig
+  djup-cap som kan kringgås.
 
 ## Kända v1-begränsningar (medvetet dragen gräns)
-- **`beforeunload` mot molnet är best-effort.** En mutation och ett konto­byte
-  sparas synkront, och localStorage (gäster + Hybrid-adapterns lokala hälft)
-  hinner skriva under unload. Men en *ren läskommando-rad* som körs <1.5 s innan
-  fliken hårt-stängs på ett moln-konto kan tappas — browsern väntar inte in det
-  async nätverks-anropet. Accepterad browser-begränsning (samma som att en
-  hård-dödad bash tappar osparad history).
+Bara history är best-effort här — VFS-mutationer och konto­byten sparas fortfarande
+synkront och reconcilas som förut. De kvarvarande kanterna gäller enbart *ren
+läskommando-historik* (raderna som bara finns för pil-upp), och stänga dem kräver
+en oproportionerlig retry-/omkö-mekanik för en portfolio-v1:
+- **`beforeunload` mot molnet är best-effort.** localStorage (gäster +
+  Hybrid-adapterns lokala hälft) hinner skriva under unload, men en läskommando-rad
+  <1.5 s innan fliken hårt-stängs på ett moln-konto kan tappas — browsern väntar
+  inte in det async nätverks-anropet. (Samma som att en hård-dödad bash tappar
+  osparad history.)
+- **Transient spar-fel retrias inte.** Ett icke-konflikt-fel (nätglapp) från en
+  bakgrunds-`flush()` sväljs; de senaste läskommando-raderna ligger kvar i minnet
+  och skrivs vid nästa spar, men går man reload/konto­byte dessförinnan tappas de.
+  Konflikter (den farliga varianten) reconcilas dock alltid (keep-both).
+- **History vid en samtidig-enhet-konflikt.** Om en bakgrunds-spar krockar med en
+  annan enhet adopteras fjärrträdet (vars history-fil saknar de allra senaste
+  lokala raderna); de raderna finns då kvar i konflikt-snapshoten under
+  `~/.pia/conflicts/` men inte i den primära historiken efter reload. Filerna
+  tappas inte (keep-both) — bara de sista pil-upp-raderna.
 
 Täckt av 6 enhetstester (`history.ts`: parse/serialize/append, ignoredups, cap,
 två-fönster-interleave) + 3 end-to-end (seedar pil-upp, sparar per kommando,

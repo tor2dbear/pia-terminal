@@ -1209,7 +1209,12 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
    * stages left-to-right.
    */
   private resolvedCommandNames(line: string, parsed: SequenceResult): string[] {
-    return this.collectCommandNames(this.stagesOf(line, parsed), new Map(this.aliases), 0);
+    // Each nested `at` payload strips at least its own token, so nesting can't
+    // exceed the token count — use that as the recursion budget: high enough to
+    // never drop a real embedded command (`at … at … passwd`), finite so it
+    // always terminates.
+    const budget = line.split(/\s+/).length;
+    return this.collectCommandNames(this.stagesOf(line, parsed), new Map(this.aliases), budget);
   }
 
   /** Pipeline stages of a line — from the parse, or best-effort from the raw
@@ -1234,7 +1239,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private collectCommandNames(
     stages: Pick<Stage, "name" | "args">[],
     aliases: Map<string, string>,
-    depth: number,
+    budget: number,
   ): string[] {
     const names: string[] = [];
     for (const stage of stages) {
@@ -1252,10 +1257,10 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       if (name === "alias") {
         const def = parseAliasDef(args); // a definition earlier in the line applies to later stages
         if (def) aliases.set(def[0], def[1]);
-      } else if (depth < 3 && EMBEDS_COMMAND.has(name)) {
-        const payload = args.slice(1).join(" ").trim(); // `at <time> <command…>`
+      } else if (budget > 0 && EMBEDS_COMMAND.has(name)) {
+        const payload = args.slice(1).join(" ").trim(); // `at <time> <command…>`, however deeply nested
         if (payload) {
-          names.push(...this.collectCommandNames(this.stagesOf(payload, parseSequence(payload)), aliases, depth + 1));
+          names.push(...this.collectCommandNames(this.stagesOf(payload, parseSequence(payload)), aliases, budget - 1));
         }
       }
     }
