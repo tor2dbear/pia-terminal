@@ -33,11 +33,37 @@ Byggt som **tmux-lite**. Beslut:
 - **Layout:** `#screen` blev en flex-kolumn; varje `.term-pane` ärver det gamla
   `#screen`:s scroll + safe-area-padding (terminalen scrollar sin root).
 
+## Härdat (Codex-rundor)
+Multi-fönster reste flera verkliga kanter som åtgärdades: re-home av alla
+fönster vid konto­byte (delad session/VFS), `dispose()` avbryter kommando + löser
+`runApp`-löftet (så command-cleanup körs), stäng-vakt mot att stänga ett fönster
+mitt i ett kommando (utom `tmux kill` som stänger sitt eget), schemaläggning till
+ett *ledigt* fönster, och ett **cross-window transition-lås**: konto­byten vägrar
+om ett annat fönster är upptaget och blockar nya kommandon i andra fönster medan
+login/logout pågår — så inget kommando skriver in i fel konto under VFS-swappen.
+Tab-strippen är tangentbords­manövrerbar (riktiga `<button>` + `click`).
+
+## Kända v1-begränsningar (medvetet dragen gräns)
+Kvar finns bara ultra-sällsynta concurrency-kanter som kräver *avsiktliga,
+nästintill samtidiga* motstridiga handlingar i två fönster. Bedömdes som
+oproportionerligt att stänga för en portfolio-v1 (kräver schemaläggar-omskrivning
+resp. app-intern async-avbrytning):
+- **Schemalagt jobb mitt i ett konto­byte:** ett `at`/cron-jobb som blir due exakt
+  medan ett annat fönster kör login/logout avvisas av låset och tappas (redan
+  borttaget ur kön).
+- **Python-REPL stängd mitt i en beräkning under ett konto­byte:** stäng ett
+  fönster vars Python fortfarande räknar, samtidigt som ett annat loggar in →
+  resultatet kan skrivas mot fel konto (app-intern async som `isRunningCommand`
+  inte ser).
+- **`asyncCmd; tmux kill` + fönsterbyte:** binder mot aktivt index, inte det
+  anropande fönstret, så fel fönster kan stängas om man byter mitt i kedjan.
+- **Mobil viewport med strip + tangentbord:** panens höjd sätts till hela
+  visual-viewporten fastän strippen ligger ovanför (kan skjuta botten under
+  key-baren i det ovanliga multi-fönster-på-mobil-läget).
+
 ## Uppskjutet (medvetet)
 - **Paner/splits** — ett helt annat layoutproblem.
 - **Persistera layouten** i `.pia/` (detach/attach-känsla).
-- **Flik-etikett följer cwd live** — just nu uppdateras den vid fönsterbyte, inte
-  mitt i en `cd` (kosmetiskt; tmux döper inte heller om fönster automatiskt).
 - **Pausa bakgrundsappar** (t.ex. snake-timer i inaktiv flik).
 
 _Ny puck den här sessionen; byggd direkt. Följer `roadmap/README.md`-konventionen._

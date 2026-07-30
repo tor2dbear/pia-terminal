@@ -139,6 +139,14 @@ describe("TabManager", () => {
     expect(paneCount(root)).toBe(1);
   });
 
+  it("activates a window on tab click (so Enter/Space on a focused tab work)", () => {
+    const { root, mgr } = setup();
+    mgr.open();
+    mgr.newWindow(); // active index 1
+    root.querySelector(".term-tab")?.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(activeIndex(mgr)).toBe(0); // clicked the first tab
+  });
+
   it("keeps the same window selected when a tab to its left is closed", () => {
     const { root, mgr, terms } = setup();
     mgr.open();
@@ -149,8 +157,8 @@ describe("TabManager", () => {
     terms[2].setTitle("C");
     mgr.select(2); // B active (index 1)
     // Close A via its tab's × control.
-    const closeA = root.querySelectorAll<HTMLElement>(".term-tab .term-tab-x")[0];
-    closeA.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    const closeA = root.querySelectorAll<HTMLElement>(".term-tab-x")[0];
+    closeA.dispatchEvent(new Event("click", { bubbles: true }));
     // B is still the active window (now at index 0), not C.
     expect(terms[0].dispose).toHaveBeenCalled(); // A was disposed
     const active = mgr.list().find((w) => w.active);
@@ -245,7 +253,7 @@ describe("TabManager", () => {
     mgr.newWindow(); // window 2 active
     terms[1].setTitle("~/notes");
     terms[1].fireTitle(); // a `cd` in the active window
-    const activeTab = root.querySelector(".term-tab.active");
+    const activeTab = root.querySelector(".term-tab-item.active");
     expect(activeTab?.textContent).toContain("~/notes");
   });
 

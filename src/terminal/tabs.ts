@@ -188,36 +188,37 @@ export class TabManager implements TabControl {
     this.root.classList.toggle("has-tabs", this.wins.length > 1);
     this.stripEl.replaceChildren();
     this.wins.forEach((w, i) => {
+      // A tab and its close control are sibling <button>s in a wrapper (not
+      // nested — that's invalid HTML), both keyboard-operable via `click`, which
+      // Enter/Space on a focused button also fire.
+      const item = document.createElement("div");
+      item.className = i === this.active ? "term-tab-item active" : "term-tab-item";
       const tab = document.createElement("button");
       tab.type = "button";
-      tab.className = i === this.active ? "term-tab active" : "term-tab";
-      tab.append(document.createTextNode(`${i + 1}:${w.term.title()}`));
-      tab.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        this.activate(i);
-      });
+      tab.className = "term-tab";
+      tab.setAttribute("aria-label", `window ${i + 1}: ${w.term.title()}`);
+      tab.setAttribute("aria-current", i === this.active ? "true" : "false");
+      tab.textContent = `${i + 1}:${w.term.title()}`;
+      tab.addEventListener("click", () => this.activate(i));
+      item.append(tab);
       if (this.wins.length > 1) {
-        const close = document.createElement("span");
+        const close = document.createElement("button");
+        close.type = "button";
         close.className = "term-tab-x";
         close.textContent = "×";
-        close.addEventListener("pointerdown", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this.close(i);
-        });
-        tab.append(close);
+        close.setAttribute("aria-label", `close window ${i + 1}`);
+        close.addEventListener("click", () => this.close(i));
+        item.append(close);
       }
-      this.stripEl.append(tab);
+      this.stripEl.append(item);
     });
     const add = document.createElement("button");
     add.type = "button";
     add.className = "term-tab-add";
     add.textContent = "+";
     add.title = "new window (Ctrl-B c)";
-    add.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      this.newWindow();
-    });
+    add.setAttribute("aria-label", "new window");
+    add.addEventListener("click", () => this.newWindow());
     this.stripEl.append(add);
   }
 
