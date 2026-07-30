@@ -12,6 +12,12 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`tmux` (window tabs)**: run several terminals in one page — a tmux-lite
+  multiplexer. Open a window with `tmux new` or Ctrl-B c, switch with the tab
+  strip or Ctrl-B n/p/1-9, close with Ctrl-B x. Windows share one machine (the
+  same filesystem and account), each with its own working directory, history and
+  scrollback. Windows only for now (no panes); the strip shows once you have more
+  than one.
 - **`whoareyou`**: the little computer introduces itself (`a little computer in
   the browser`) — a persona counterpart to `whoami` (your login), and the line
   the social-preview image shows, so it now reflects a real command.

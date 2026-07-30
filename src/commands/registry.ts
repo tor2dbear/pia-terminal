@@ -3,6 +3,7 @@ import type { ScreenAppFactory } from "../terminal/screen.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
 import type { ReminderStore } from "../pia/reminders.js";
+import type { TabControl } from "../terminal/tabcontrol.js";
 
 export type { Session };
 
@@ -56,6 +57,9 @@ export interface CoreCommandContext {
   reloadFs?(): Promise<void>;
   /** Re-read config and apply it (theme, prompt, aliases) live. */
   applyConfig?(): void;
+  /** Signal that the shared account changed (login/logout/useradd/usermod), so a
+   * window multiplexer can re-home its other windows. No-op without one. */
+  broadcastAccount?(): void;
   /**
    * Web bridges (no terminal equivalent — accepted divergences, like share→URL):
    * open the OS file picker, resolving to the chosen text file (or null if
@@ -89,6 +93,8 @@ export interface CommandContext extends CoreCommandContext {
   share?: ShareStore;
   /** Push-reminder backend (absent → reminders are off, i.e. no cloud). */
   reminders?: ReminderStore;
+  /** Window multiplexer, for `tmux` (absent → single window, e.g. in tests). */
+  tabs?: TabControl;
 }
 
 /**

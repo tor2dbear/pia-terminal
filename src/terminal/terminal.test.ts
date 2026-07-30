@@ -65,6 +65,88 @@ describe("Terminal (driven via keyboard)", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 
+  it("re-homes onto the current account (for a multiplexer's other windows)", async () => {
+    const vfs = VFS.seed();
+    const session = { user: "guest" };
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session,
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    vfs.mkdirp("/home/guest/sub");
+    await runLine(root, "cd sub");
+    expect(term.title()).toBe("~/sub"); // this window is deep in the old home
+
+    // Another window logged into a different account: shared session + vfs.home
+    // moved. rehome() catches this window up.
+    session.user = "alice";
+    vfs.mkdirp("/home/alice");
+    vfs.home = "/home/alice";
+    term.rehome();
+    expect(term.title()).toBe("~"); // back at the new account's home
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$");
+  });
+
+  it("refuses to start a command while another window is mid account-change", async () => {
+    const vfs = VFS.seed();
+    let locked = true;
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      isLocked: () => locked,
+    });
+    await runLine(root, "mkdir foo");
+    expect(vfs.getNode("/home/guest/foo")).toBeNull(); // locked → didn't run
+    expect(root.textContent).toContain("account change");
+    locked = false;
+    await runLine(root, "mkdir foo");
+    expect(vfs.getNode("/home/guest/foo")).not.toBeNull(); // unlocked → runs
+  });
+
+  it("settles an open app's command on dispose, so its cleanup runs", async () => {
+    const registry = buildRegistry();
+    let cleanedUp = false;
+    registry.register({
+      name: "holdapp",
+      help: "opens an app that never exits on its own",
+      run: async (_args, ctx) => {
+        try {
+          await ctx.runApp(() => ({
+            mount() {},
+            onKey() {},
+            onText() {},
+            unmount() {},
+          }));
+        } finally {
+          cleanedUp = true; // e.g. a shared checklist unsubscribing
+        }
+      },
+    });
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry,
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    await runLine(root, "holdapp"); // opens the app; the command awaits runApp
+    expect(cleanedUp).toBe(false);
+    term.dispose();
+    await flush();
+    expect(cleanedUp).toBe(true); // dispose settled the promise → the finally ran
+  });
+
   it("exposes a hidden field to capture the soft keyboard", () => {
     const root = mount();
     expect(kbd(root)).toBeInstanceOf(HTMLInputElement);

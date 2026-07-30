@@ -53,7 +53,24 @@ body {
   font-family: var(--font);
 }
 
+/* #screen holds the window multiplexer: a (usually hidden) tab strip above a
+   panes area. Each pane is a full terminal and its own scroll container — the
+   terminal scrolls its root, so the pane, not #screen, must scroll. */
 #screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.term-panes {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* A single window (a Terminal). Inherits what #screen used to own: the scroll,
+   the safe-area padding, the font size, the key-bar clearance. */
+.term-pane {
   height: 100%;
   overflow-y: auto;
   /* Respect the notch / rounded corners on installed iOS PWAs. */
@@ -69,6 +86,68 @@ body {
   /* Default touch behaviour so long-press text selection (copy) works; the
      cursor-scrub swipe is driven by pointer deltas, not by owning the gesture. */
   touch-action: auto;
+}
+
+/* The window strip (tmux-style status line). Hidden until there's more than one
+   window, so a single-window session has no extra chrome. */
+.term-tabs {
+  display: none;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  align-items: stretch;
+  padding: max(0.35rem, env(safe-area-inset-top)) 0.5rem 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 15%, transparent);
+  font-size: 0.8rem;
+}
+#screen.has-tabs .term-tabs {
+  display: flex;
+}
+#screen.has-tabs .term-pane {
+  /* The strip already carries the notch inset. */
+  padding-top: 0.5rem;
+}
+.term-tabs::-webkit-scrollbar {
+  display: none;
+}
+.term-tab-item {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.term-tab-item.active {
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fg) 22%, transparent);
+}
+.term-tab,
+.term-tab-add,
+.term-tab-x {
+  font: inherit;
+  font-family: var(--font);
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.term-tab-item.active .term-tab {
+  color: var(--fg);
+}
+.term-tab-x {
+  padding-left: 0.35rem;
+  padding-right: 0.5rem;
+  opacity: 0.6;
+}
+.term-tab-x:hover,
+.term-tab-x:focus-visible {
+  opacity: 1;
+}
+.term-tab-add {
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
 }
 
 /* The capture field: a transparent overlay sitting on top of the visible input
@@ -483,7 +562,7 @@ body {
   .term-keybar {
     display: none;
   }
-  #screen {
+  .term-pane {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }

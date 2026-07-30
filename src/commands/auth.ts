@@ -8,6 +8,33 @@ function invalidName(verb: string): string {
   return `${verb}: username may use letters, digits, - and _ only`;
 }
 
+/**
+ * Refuse an account change while another window is busy (a command mid-flight or
+ * an app open). Switching accounts reloads the shared filesystem, so a command
+ * running elsewhere would resolve its paths against the wrong account. Returns an
+ * error message, or null if it's safe. (Single-window / no multiplexer → safe.)
+ */
+function accountBlocked(ctx: CommandContext): string | null {
+  return ctx.tabs?.otherWindowsBusy()
+    ? "another window is busy — let it finish (or close it) first; switching accounts reloads the filesystem"
+    : null;
+}
+
+/**
+ * Run an account transition under a cross-window lock, so no *other* window can
+ * start a command while our awaits (auth, cloud reload) are in flight and the
+ * shared VFS is about to be replaced. Pairs with the up-front `accountBlocked`
+ * check, which rules out a command already running when we begin.
+ */
+async function withTransition(ctx: CommandContext, body: () => Promise<void>): Promise<void> {
+  ctx.tabs?.beginTransition();
+  try {
+    await body();
+  } finally {
+    ctx.tabs?.endTransition();
+  }
+}
+
 /** Point the session, home directory, and cwd at `user`, creating the home. */
 async function enter(ctx: CommandContext, user: string): Promise<void> {
   const home = `/home/${user}`;
@@ -22,6 +49,8 @@ async function enter(ctx: CommandContext, user: string): Promise<void> {
   // …and its brew packages: drop the previous account's, register this one's, so
   // the live commands match `brew list` for the account you're now in.
   await reconcilePackages(ctx.vfs, ctx.vfs.home, ctx.registry);
+  // Other windows share this session/VFS — re-home them onto the new account too.
+  ctx.broadcastAccount?.();
 }
 
 export const login: Command = {
@@ -29,28 +58,32 @@ export const login: Command = {
   help: "log in (a username locally; email + password with a backend)",
   usage: "login <user> [password]",
   async run(args, ctx) {
-    let session: Session;
-    try {
-      if (ctx.auth.requiresPassword) {
-        const [email, password] = args;
-        if (!email) return ctx.error("login: specify an email");
-        if (!password) {
-          return ctx.error("login: password required — login <email> <password>");
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`login: ${blocked}`);
+    return withTransition(ctx, async () => {
+      let session: Session;
+      try {
+        if (ctx.auth.requiresPassword) {
+          const [email, password] = args;
+          if (!email) return ctx.error("login: specify an email");
+          if (!password) {
+            return ctx.error("login: password required — login <email> <password>");
+          }
+          session = await ctx.auth.login(email, password);
+        } else {
+          const user = args[0];
+          if (!user) return ctx.error("login: specify a username");
+          if (!VALID_USER.test(user)) return ctx.error(invalidName("login"));
+          session = await ctx.auth.login(user);
         }
-        session = await ctx.auth.login(email, password);
-      } else {
-        const user = args[0];
-        if (!user) return ctx.error("login: specify a username");
-        if (!VALID_USER.test(user)) return ctx.error(invalidName("login"));
-        session = await ctx.auth.login(user);
+      } catch (err) {
+        return ctx.error(err instanceof Error ? err.message : String(err));
       }
-    } catch (err) {
-      return ctx.error(err instanceof Error ? err.message : String(err));
-    }
 
-    await ctx.reloadFs?.(); // adopt the user's cloud tree, if any
-    await enter(ctx, session.user);
-    ctx.print(`logged in as ${session.user}`, "accent");
+      await ctx.reloadFs?.(); // adopt the user's cloud tree, if any
+      await enter(ctx, session.user);
+      ctx.print(`logged in as ${session.user}`, "accent");
+    });
   },
 };
 
@@ -60,30 +93,34 @@ export const useradd: Command = {
   usage: "useradd <username> [email] [password]",
   aliases: ["register"],
   async run(args, ctx) {
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`useradd: ${blocked}`);
     const username = args[0];
     if (!username) return ctx.error("useradd: specify a username");
     if (!VALID_USER.test(username)) return ctx.error(invalidName("useradd"));
 
-    let session: Session;
-    try {
-      if (ctx.auth.requiresPassword) {
-        const [, email, password] = args;
-        if (!email || !password) {
-          return ctx.error(
-            "useradd: email and password required — useradd <username> <email> <password>",
-          );
+    return withTransition(ctx, async () => {
+      let session: Session;
+      try {
+        if (ctx.auth.requiresPassword) {
+          const [, email, password] = args;
+          if (!email || !password) {
+            return ctx.error(
+              "useradd: email and password required — useradd <username> <email> <password>",
+            );
+          }
+          session = await ctx.auth.register(username, email, password);
+        } else {
+          session = await ctx.auth.register(username);
         }
-        session = await ctx.auth.register(username, email, password);
-      } else {
-        session = await ctx.auth.register(username);
+      } catch (err) {
+        return ctx.error(err instanceof Error ? err.message : String(err));
       }
-    } catch (err) {
-      return ctx.error(err instanceof Error ? err.message : String(err));
-    }
 
-    await ctx.reloadFs?.();
-    await enter(ctx, session.user);
-    ctx.print(`account created — logged in as ${session.user}`, "accent");
+      await ctx.reloadFs?.();
+      await enter(ctx, session.user);
+      ctx.print(`account created — logged in as ${session.user}`, "accent");
+    });
   },
 };
 
@@ -92,32 +129,37 @@ export const usermod: Command = {
   help: "rename the current user (home directory and files follow)",
   usage: "usermod <username>",
   async run(args, ctx) {
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`usermod: ${blocked}`);
     const name = args[0];
     if (!name) return ctx.error("usermod: specify a username");
     if (!VALID_USER.test(name)) return ctx.error(invalidName("usermod"));
     if (ctx.session.user === GUEST) return ctx.error("usermod: log in first");
     if (name === ctx.session.user) return;
 
-    try {
-      await ctx.auth.rename(name);
-    } catch (err) {
-      return ctx.error(err instanceof Error ? err.message : String(err));
-    }
+    return withTransition(ctx, async () => {
+      try {
+        await ctx.auth.rename(name);
+      } catch (err) {
+        return ctx.error(err instanceof Error ? err.message : String(err));
+      }
 
-    // Rename the home directory so the user's files follow the new name.
-    const oldHome = `/home/${ctx.session.user}`;
-    const newHome = `/home/${name}`;
-    if (ctx.vfs.getNode(oldHome) && !ctx.vfs.getNode(newHome)) {
-      ctx.vfs.move(oldHome, newHome);
-    } else {
-      ctx.vfs.mkdirp(newHome);
-    }
-    ctx.vfs.home = newHome;
-    ctx.session.user = name;
-    ctx.setCwd(newHome);
-    await ctx.persist();
-    ctx.applyConfig?.(); // the config moved with the home; re-read from the new path
-    ctx.print(`renamed to ${name}`, "accent");
+      // Rename the home directory so the user's files follow the new name.
+      const oldHome = `/home/${ctx.session.user}`;
+      const newHome = `/home/${name}`;
+      if (ctx.vfs.getNode(oldHome) && !ctx.vfs.getNode(newHome)) {
+        ctx.vfs.move(oldHome, newHome);
+      } else {
+        ctx.vfs.mkdirp(newHome);
+      }
+      ctx.vfs.home = newHome;
+      ctx.session.user = name;
+      ctx.setCwd(newHome);
+      await ctx.persist();
+      ctx.applyConfig?.(); // the config moved with the home; re-read from the new path
+      ctx.broadcastAccount?.(); // re-home other windows onto the renamed account
+      ctx.print(`renamed to ${name}`, "accent");
+    });
   },
 };
 
@@ -172,10 +214,14 @@ export const logout: Command = {
     if (ctx.session.user === GUEST) {
       return ctx.error("logout: already guest");
     }
-    await ctx.auth.logout();
-    await ctx.reloadFs?.(); // back to the guest's local tree
-    await enter(ctx, GUEST);
-    ctx.print("logged out");
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`logout: ${blocked}`);
+    return withTransition(ctx, async () => {
+      await ctx.auth.logout();
+      await ctx.reloadFs?.(); // back to the guest's local tree
+      await enter(ctx, GUEST);
+      ctx.print("logged out");
+    });
   },
 };
 

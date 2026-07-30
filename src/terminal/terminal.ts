@@ -66,6 +66,20 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
    * back to the generic message. Keeps the engine unaware of the package catalog.
    */
   describeUnknownCommand?: (name: string) => string | null;
+  /**
+   * Called when a command changes the shared account (login / logout / useradd /
+   * usermod). With a multiplexer, every window shares the one session and VFS, so
+   * this lets the manager re-home the *other* windows too (their cwd/config still
+   * point at the previous account). Omitted → single-window, nothing to notify.
+   */
+  onAccountChange?: () => void;
+  /**
+   * Whether the app is mid account-transition in *another* window. When true the
+   * terminal refuses to start a new command, so a concurrent login/logout can't
+   * replace the shared VFS out from under a command running here. Omitted →
+   * never locked (single window).
+   */
+  isLocked?: () => boolean;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -131,6 +145,14 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly extendContext?: (core: CoreCommandContext) => Ctx;
   private readonly configure?: () => TerminalConfig;
   private readonly describeUnknownCommand?: (name: string) => string | null;
+  private readonly onAccountChange?: () => void;
+  private readonly isLocked?: () => boolean;
+  /** Called when this window's cwd changes, so a multiplexer can refresh its
+   * tab label. Set via {@link setTitleListener}. */
+  private titleListener?: () => void;
+  /** Resolves the current {@link runApp} promise (and unmounts its app); set
+   * while a full-screen app is open, so `dispose()` can settle it. */
+  private appExit?: () => void;
 
   private cwd = HOME;
   private buffer = "";
@@ -161,6 +183,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.extendContext = opts.extendContext;
     this.configure = opts.configure;
     this.describeUnknownCommand = opts.describeUnknownCommand;
+    this.onAccountChange = opts.onAccountChange;
+    this.isLocked = opts.isLocked;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -219,8 +243,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.renderKeybar();
   }
 
-  /** Detach listeners. */
+  /** Tear the window down: stop any running command and app, then detach. */
   dispose(): void {
+    this.running?.abort(); // an in-flight command must not keep running unseen
+    // Settle any open app the same way its own exit would: unmount it *and*
+    // resolve the runApp promise, so the launching command's cleanup runs (e.g.
+    // a shared checklist unsubscribing from cloud updates) instead of hanging.
+    this.appExit?.();
     this.kbd.removeEventListener("keydown", this.onKeyDown);
     this.kbd.removeEventListener("input", this.onInput);
     this.kbd.removeEventListener("compositionend", this.flushKbd);
@@ -229,6 +258,58 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.root.removeEventListener("pointerup", this.onGestureEnd);
     window.visualViewport?.removeEventListener("resize", this.syncViewport);
     window.visualViewport?.removeEventListener("scroll", this.syncViewport);
+  }
+
+  /** Focus this terminal's input — used when a multiplexer switches to it. */
+  focus(): void {
+    this.focusKbd();
+  }
+
+  /** Short label for a window strip / `tmux` list: the cwd, home-relative. */
+  title(): string {
+    return this.cwd === this.vfs.home ? "~" : this.cwd.replace(this.vfs.home, "~");
+  }
+
+  /** Watch for cwd changes (a multiplexer refreshes its tab label from this). */
+  setTitleListener(fn: (() => void) | undefined): void {
+    this.titleListener = fn;
+  }
+
+  /** A full-screen app (editor, game, …) is open here. */
+  hasApp(): boolean {
+    return this.activeApp !== undefined;
+  }
+
+  /** Anything running here — a command or an open app (both set `busy`). */
+  isBusy(): boolean {
+    return this.busy;
+  }
+
+  /** Free to accept a scheduled job: no command running and no app open. */
+  isIdle(): boolean {
+    return !this.busy && this.activeApp === undefined;
+  }
+
+  /** A shell command is mid-flight (but not a full-screen app, which a window can
+   * be closed out of). Used to refuse closing a window while work is running. */
+  isRunningCommand(): boolean {
+    return this.busy && this.activeApp === undefined;
+  }
+
+  /**
+   * Re-home this window to the current account: adopt the shared `vfs.home`, move
+   * cwd there, and reload config (prompt/aliases/theme). A multiplexer calls this
+   * on *every* window after login/logout/usermod, since they all share one
+   * session and VFS but only the acting window re-homed itself.
+   */
+  rehome(): void {
+    const home = `/home/${this.session.user}`;
+    this.vfs.mkdirp(home);
+    this.vfs.home = home;
+    this.cwd = home;
+    this.loadConfig();
+    if (!this.busy && !this.activeApp) this.renderInput();
+    this.titleListener?.();
   }
 
   /** Focus the hidden field so a soft keyboard appears (needs a user gesture). */
@@ -910,6 +991,15 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
+    // Another window is mid account-transition (login/logout replacing the
+    // shared VFS) — don't start a command whose paths would land in the wrong
+    // account. It's brief; the prompt returns once the transition finishes.
+    if (this.isLocked?.()) {
+      this.print("hold on — finishing an account change in another window…", "dim");
+      this.renderInput();
+      return;
+    }
+
     if (this.history[this.history.length - 1] !== trimmed) {
       this.history.push(trimmed);
     }
@@ -1087,6 +1177,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       cwd: this.cwd,
       setCwd: (path: string) => {
         this.cwd = path;
+        this.titleListener?.(); // keep a multiplexer's tab label in sync with cwd
       },
       // Captured stages collect stdout into a buffer; otherwise it hits the DOM.
       print: capture
@@ -1101,6 +1192,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         if (root) this.vfs.root = root;
       },
       applyConfig: () => this.loadConfig(),
+      // Account changed (login/logout/useradd/usermod) — let a multiplexer
+      // re-home the *other* windows, which share this session and VFS.
+      broadcastAccount: () => this.onAccountChange?.(),
       pickFile: () => this.pickFile(),
       saveFile: (name, content) => this.saveFile(name, content),
       history: () => [...this.history],
@@ -1124,6 +1218,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       const exit = (): void => {
         this.activeApp?.unmount();
         this.activeApp = undefined;
+        this.appExit = undefined;
         this.appEl.replaceChildren();
         this.appEl.style.display = "none";
         this.outputEl.style.display = "";
@@ -1132,6 +1227,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         this.focusKbd();
         resolve();
       };
+      this.appExit = exit; // so dispose() can settle this promise too
       const app = factory(exit);
       this.activeApp = app;
       this.outputEl.style.display = "none";
