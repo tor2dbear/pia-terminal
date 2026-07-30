@@ -8,6 +8,18 @@ function invalidName(verb: string): string {
   return `${verb}: username may use letters, digits, - and _ only`;
 }
 
+/**
+ * Refuse an account change while another window has a full-screen app open.
+ * Switching accounts reloads the shared filesystem, which would strand that
+ * editor/game on a tree that no longer holds its file. Returns an error message,
+ * or null if it's safe to proceed. (Single-window / no multiplexer → always safe.)
+ */
+function accountBlocked(ctx: CommandContext): string | null {
+  return ctx.tabs?.hasAppOpen()
+    ? "close the editor or app open in your other window first — switching accounts reloads the filesystem"
+    : null;
+}
+
 /** Point the session, home directory, and cwd at `user`, creating the home. */
 async function enter(ctx: CommandContext, user: string): Promise<void> {
   const home = `/home/${user}`;
@@ -31,6 +43,8 @@ export const login: Command = {
   help: "log in (a username locally; email + password with a backend)",
   usage: "login <user> [password]",
   async run(args, ctx) {
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`login: ${blocked}`);
     let session: Session;
     try {
       if (ctx.auth.requiresPassword) {
@@ -62,6 +76,8 @@ export const useradd: Command = {
   usage: "useradd <username> [email] [password]",
   aliases: ["register"],
   async run(args, ctx) {
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`useradd: ${blocked}`);
     const username = args[0];
     if (!username) return ctx.error("useradd: specify a username");
     if (!VALID_USER.test(username)) return ctx.error(invalidName("useradd"));
@@ -94,6 +110,8 @@ export const usermod: Command = {
   help: "rename the current user (home directory and files follow)",
   usage: "usermod <username>",
   async run(args, ctx) {
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`usermod: ${blocked}`);
     const name = args[0];
     if (!name) return ctx.error("usermod: specify a username");
     if (!VALID_USER.test(name)) return ctx.error(invalidName("usermod"));
@@ -175,6 +193,8 @@ export const logout: Command = {
     if (ctx.session.user === GUEST) {
       return ctx.error("logout: already guest");
     }
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`logout: ${blocked}`);
     await ctx.auth.logout();
     await ctx.reloadFs?.(); // back to the guest's local tree
     await enter(ctx, GUEST);

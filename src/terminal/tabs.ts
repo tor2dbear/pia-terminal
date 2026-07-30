@@ -32,6 +32,7 @@ export class TabManager implements TabControl {
   private readonly stripEl: HTMLElement;
   private readonly panesEl: HTMLElement;
   private prefixArmed = false;
+  private ready = false; // gates *new* windows until the first one finishes booting
 
   constructor(
     private readonly root: HTMLElement,
@@ -74,10 +75,21 @@ export class TabManager implements TabControl {
     return this.wins[this.active]?.term;
   }
 
+  /** Allow opening further windows — called once the first window has booted and
+   * post-boot setup (packages, account, shares) is done. */
+  markReady(): void {
+    this.ready = true;
+  }
+
   // ---- TabControl (also driven by the `tmux` command) ----------------------
 
   newWindow(): void {
+    if (!this.ready) return; // don't spawn windows mid-boot (shared setup incomplete)
     this.open();
+  }
+
+  hasAppOpen(): boolean {
+    return this.wins.some((w) => w.term.hasApp());
   }
 
   next(): void {
@@ -111,6 +123,10 @@ export class TabManager implements TabControl {
 
   private close(i: number): void {
     if (this.wins.length <= 1 || i < 0 || i >= this.wins.length) return; // keep the last
+    // Don't close a window mid-command — abort is cooperative, so its side
+    // effects (e.g. a login's account switch) would complete unseen. An open
+    // full-screen app is fine to close out of (dispose unmounts it).
+    if (this.wins[i].term.isRunningCommand()) return;
     const [w] = this.wins.splice(i, 1);
     w.term.dispose(); // stops the window's running command / app too
     w.pane.remove();

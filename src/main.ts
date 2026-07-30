@@ -220,6 +220,9 @@ async function main(): Promise<void> {
   // Drive `at`/`crontab` jobs while the tab is open. One-second tick; the
   // scheduler reads the jobs from ~/.pia and fires the due ones through the
   // terminal. (Firing only while open is the honest limit of the learning tool.)
+  // Boot and post-boot setup are done — now it's safe to open more windows.
+  tabs.markReady();
+
   const scheduler = createScheduler({
     vfs,
     // Fire into whichever window is live now — the first one may have been closed.

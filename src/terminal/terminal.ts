@@ -261,6 +261,17 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.titleListener = fn;
   }
 
+  /** A full-screen app (editor, game, …) is open here. */
+  hasApp(): boolean {
+    return this.activeApp !== undefined;
+  }
+
+  /** A shell command is mid-flight (but not a full-screen app, which a window can
+   * be closed out of). Used to refuse closing a window while work is running. */
+  isRunningCommand(): boolean {
+    return this.busy && this.activeApp === undefined;
+  }
+
   /**
    * Re-home this window to the current account: adopt the shared `vfs.home`, move
    * cwd there, and reload config (prompt/aliases/theme). A multiplexer calls this

@@ -9,24 +9,32 @@ type FakeTerm = Terminal & {
   rehome: ReturnType<typeof vi.fn>;
   setTitle: (t: string) => void;
   fireTitle: () => void;
+  setApp: (v: boolean) => void;
+  setRunning: (v: boolean) => void;
 };
 
 /** A stand-in Terminal — TabManager only calls a handful of methods on it. */
 function fakeTerm(): FakeTerm {
   let title = "~";
+  let app = false;
+  let running = false;
   let listener: (() => void) | undefined;
   return {
     focus: vi.fn(),
     dispose: vi.fn(),
     rehome: vi.fn(),
     title: () => title,
+    hasApp: () => app,
+    isRunningCommand: () => running,
     setTitleListener: (fn: (() => void) | undefined) => (listener = fn),
     setTitle: (t: string) => (title = t),
     fireTitle: () => listener?.(),
+    setApp: (v: boolean) => (app = v),
+    setRunning: (v: boolean) => (running = v),
   } as unknown as FakeTerm;
 }
 
-function setup() {
+function setup(opts: { ready?: boolean } = {}) {
   const root = document.createElement("div");
   document.body.append(root);
   const terms: FakeTerm[] = [];
@@ -35,6 +43,7 @@ function setup() {
     terms.push(t);
     return t;
   });
+  if (opts.ready !== false) mgr.markReady(); // most tests exercise the post-boot state
   return { root, mgr, terms };
 }
 
@@ -144,6 +153,38 @@ describe("TabManager", () => {
     expect(terms[0].dispose).toHaveBeenCalled(); // A was disposed
     const active = mgr.list().find((w) => w.active);
     expect(active?.title).toBe("B");
+  });
+
+  it("won't open new windows until it's marked ready (mid-boot gate)", () => {
+    const { root, mgr } = setup({ ready: false });
+    mgr.open(); // the first window always opens (it's the one that boots)
+    mgr.newWindow(); // gated — nothing yet
+    expect(paneCount(root)).toBe(1);
+    mgr.markReady();
+    mgr.newWindow();
+    expect(paneCount(root)).toBe(2);
+  });
+
+  it("won't close a window while a command is mid-flight", () => {
+    const { root, mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow(); // 2 windows, active index 1
+    terms[1].setRunning(true); // a command is running in the active window
+    mgr.kill();
+    expect(paneCount(root)).toBe(2); // refused
+    expect(terms[1].dispose).not.toHaveBeenCalled();
+    terms[1].setRunning(false);
+    mgr.kill();
+    expect(paneCount(root)).toBe(1); // now it closes
+  });
+
+  it("reports when any window has a full-screen app open", () => {
+    const { mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow();
+    expect(mgr.hasAppOpen()).toBe(false);
+    terms[0].setApp(true);
+    expect(mgr.hasAppOpen()).toBe(true);
   });
 
   it("re-homes every window when the account changes (rehomeAll)", () => {

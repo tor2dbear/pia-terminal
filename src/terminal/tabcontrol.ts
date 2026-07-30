@@ -25,4 +25,7 @@ export interface TabControl {
   kill(): void;
   /** Snapshot of the open windows, for `tmux` with no args. */
   list(): TabInfo[];
+  /** Any window has a full-screen app open — so an account change (which
+   * replaces the shared VFS) would strand that editor/game on a stale tree. */
+  hasAppOpen(): boolean;
 }
