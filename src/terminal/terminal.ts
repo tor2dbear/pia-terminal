@@ -9,11 +9,16 @@ import {
   type PickResult,
   type Session,
 } from "../commands/registry.js";
-import { tokenize, parseSequence, type Pipeline } from "./parse.js";
+import { tokenize, parseSequence, type Pipeline, type SequenceResult } from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
 import { fillLinkified } from "./linkify.js";
 import { parsePromptSegments } from "./prompt.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
+
+/** Coalesce a burst of read-only commands (each now touches ~/.pia/history) into
+ * one persist, instead of a full-tree save per line. Flushed synchronously at
+ * lifecycle boundaries (account swap, dispose, page unload). */
+const HISTORY_PERSIST_MS = 1500;
 
 /** A do-nothing storage adapter: the engine default when an app has no backend
  * (e.g. the adventure example). Nothing to load, saves are dropped. */
@@ -90,11 +95,14 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
   saveHistory?: (history: readonly string[]) => void;
   clearHistory?: () => void;
   /**
-   * Keep a command line out of history entirely (bash `HISTIGNORE`) — returns
-   * true for lines that shouldn't be recalled or persisted, e.g. ones carrying a
-   * plaintext password. Applies to both in-memory up-arrow and the saved file.
+   * Keep a command line out of history entirely (bash `HISTIGNORE`) — given the
+   * *resolved* command names in the line (every pipeline stage, aliases already
+   * expanded), returns true if the line shouldn't be recalled or persisted, e.g.
+   * one running a password-bearing command. Passing the resolved names (not the
+   * raw text) is what makes it robust to aliases and chaining. Applies to both
+   * in-memory up-arrow and the saved file.
    */
-  histIgnore?: (command: string) => boolean;
+  histIgnore?: (commands: readonly string[]) => boolean;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -165,7 +173,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly loadHistoryFn?: () => string[];
   private readonly persistHistory?: (history: readonly string[]) => void;
   private readonly clearHistoryStore?: () => void;
-  private readonly histIgnore?: (command: string) => boolean;
+  private readonly histIgnore?: (commands: readonly string[]) => boolean;
+  /** Pending debounced persist after a history write (see scheduleHistoryPersist). */
+  private historyPersistTimer?: ReturnType<typeof setTimeout>;
   /** Called when this window's cwd changes, so a multiplexer can refresh its
    * tab label. Set via {@link setTitleListener}. */
   private titleListener?: () => void;
@@ -273,6 +283,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
   /** Tear the window down: stop any running command and app, then detach. */
   dispose(): void {
+    void this.flush().catch(() => {}); // persist any pending history before the window goes away
     this.running?.abort(); // an in-flight command must not keep running unseen
     // Settle any open app the same way its own exit would: unmount it *and*
     // resolve the runApp promise, so the launching command's cleanup runs (e.g.
@@ -1035,15 +1046,19 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
+    const parsed = parseSequence(trimmed);
+
     // Skip secret-bearing lines (HISTIGNORE) entirely, and collapse an adjacent
-    // duplicate. Everything else is recorded and persisted.
-    if (!this.histIgnore?.(trimmed) && this.history[this.history.length - 1] !== trimmed) {
+    // duplicate. The secret check runs on the *resolved* command names — every
+    // stage, aliases expanded — so `alias p passwd; p pw` is caught too.
+    const secret = this.histIgnore?.(this.resolvedCommandNames(trimmed, parsed)) ?? false;
+    if (!secret && this.history[this.history.length - 1] !== trimmed) {
       this.history.push(trimmed);
-      this.persistHistory?.(this.history); // append to ~/.pia/history (debounced by the host)
+      this.persistHistory?.(this.history); // write ~/.pia/history…
+      this.scheduleHistoryPersist(); // …and persist the tree (debounced)
     }
     this.historyIndex = this.history.length;
 
-    const parsed = parseSequence(trimmed);
     if (!parsed.ok) {
       this.print(parsed.error, "error");
       this.renderInput();
@@ -1149,13 +1164,47 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   }
 
   /**
-   * Persist the shared tree through the conflict-reconciling path — for the
-   * host's debounced / `beforeunload` history save. Exposed so a background,
-   * non-command-driven save reuses the same reconciliation as command-driven
-   * ones (see {@link persistTree}) instead of clobbering a concurrent cloud
-   * write from another device.
+   * The command names a line will actually run — every pipeline stage, each with
+   * one level of alias expansion applied — so a secret hidden behind an alias
+   * (`alias p passwd; p pw`) or inside a `&&`/`|` chain is still visible to
+   * {@link histIgnore}. Falls back to the raw segments' first words if the line
+   * didn't parse (a malformed line still shouldn't smuggle a password in).
+   */
+  private resolvedCommandNames(line: string, parsed: SequenceResult): string[] {
+    const raw: string[] = [];
+    if (parsed.ok) {
+      for (const item of parsed.items)
+        for (const stage of item.pipeline.stages) raw.push(stage.name);
+    } else {
+      for (const seg of line.split(/\s*(?:\|\||&&|;|\|)\s*/)) {
+        const first = seg.trim().split(/\s+/)[0];
+        if (first) raw.push(first);
+      }
+    }
+    return raw.map((name) => {
+      const alias = this.aliases.get(name);
+      return alias ? (tokenize(alias)[0] ?? name) : name;
+    });
+  }
+
+  /** Debounced tree persist after a history write (see {@link HISTORY_PERSIST_MS}). */
+  private scheduleHistoryPersist(): void {
+    if (this.historyPersistTimer !== undefined) clearTimeout(this.historyPersistTimer);
+    this.historyPersistTimer = setTimeout(() => {
+      this.historyPersistTimer = undefined;
+      void this.persistTree().catch(() => {});
+    }, HISTORY_PERSIST_MS);
+  }
+
+  /**
+   * Complete any pending debounced history persist now — called before the
+   * account tree is swapped ({@link reloadFs}), when the window is disposed, and
+   * by the host on page unload. A no-op when nothing is pending. Goes through the
+   * conflict-reconciling {@link persistTree}, so a background/boundary save never
+   * clobbers a concurrent write from another device.
    */
   flush(): Promise<void> {
+    if (this.historyPersistTimer === undefined) return Promise.resolve();
     return this.persistTree();
   }
 
@@ -1167,6 +1216,12 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
    * adapter has adopted the remote version as its new base.
    */
   private async persistTree(): Promise<void> {
+    // Any persist satisfies a pending history save — cancel it so a mutating
+    // command's own persist doesn't leave a redundant timer to re-save later.
+    if (this.historyPersistTimer !== undefined) {
+      clearTimeout(this.historyPersistTimer);
+      this.historyPersistTimer = undefined;
+    }
     try {
       await this.adapter.save(this.vfs.root);
     } catch (err) {
@@ -1237,6 +1292,11 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       clear: () => this.clear(),
       persist: () => this.persistTree(),
       reloadFs: async () => {
+        // Persist pending history to the *current* account before its tree is
+        // replaced by the one we're switching to — otherwise a read-only command
+        // run just before login/logout (still inside the debounce window) would
+        // be dropped with the old tree.
+        await this.flush();
         const root = await this.adapter.load();
         if (root) this.vfs.root = root;
       },
@@ -1251,6 +1311,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         this.history.length = 0;
         this.historyIndex = 0;
         this.clearHistoryStore?.(); // also wipe the persisted ~/.pia/history
+        this.scheduleHistoryPersist(); // persist the now-empty file
       },
       runApp: capture
         ? () => {

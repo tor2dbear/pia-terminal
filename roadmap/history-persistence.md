@@ -35,13 +35,27 @@ in-session och försvann vid reload.
 ## Härdat (Codex-rundor)
 - **Inga hemligheter i history (HISTIGNORE).** `passwd`/`login`/`useradd`/`register`
   tar lösenordet som ett argument; hela raden hålls utanför history (både pil-upp
-  och filen) via en `histIgnore`-predikat-söm på `Terminal`, matchad i `main.ts`
-  (`hasSecret`). Annars hade ett synkat `~/.pia/history` läckt klartext-lösenord.
-- **Konflikt-reconcile även för bakgrunds-sparningen.** Den debouncade sparningen
-  gick först direkt mot `adapter.save` och svalde `StorageConflictError` → nästa
-  spar hade kunnat skriva över en samtidig moln-ändring från en annan enhet. Nu
-  går den genom `Terminal.flush()` → samma `persistTree()`-reconcile (keep-both,
-  stash under `~/.pia/conflicts/`) som alla kommando-drivna sparningar.
+  och filen) via en `histIgnore`-söm på `Terminal`. Checken körs på de *resolvade*
+  kommando-namnen — varje pipeline-steg, alias expanderade — så även
+  `alias p passwd; p pw` och `x && login a b` fångas (annars hade ett synkat
+  `~/.pia/history` läckt klartext-lösenord). `Terminal` äger parsningen; `main.ts`
+  bidrar bara med namn-listan (`hasSecret`).
+- **Konflikt-reconcile för bakgrunds-sparningen.** Den debouncade sparningen låg
+  först i `main.ts` och gick direkt mot `adapter.save` — svalde
+  `StorageConflictError` → nästa spar kunde skriva över en samtidig moln-ändring.
+  Debouncen flyttades in i `Terminal`, går genom `persistTree()`-reconcilen
+  (keep-both, stash under `~/.pia/conflicts/`), och **flushas synkront vid
+  livscykel-gränser**: före att ett konto­byte byter ut trädet (`reloadFs`), vid
+  `dispose()` (stängt fönster), och av värden på `beforeunload`. Så en läsande
+  rad precis före login/logout tappas inte med det gamla trädet.
+
+## Kända v1-begränsningar (medvetet dragen gräns)
+- **`beforeunload` mot molnet är best-effort.** En mutation och ett konto­byte
+  sparas synkront, och localStorage (gäster + Hybrid-adapterns lokala hälft)
+  hinner skriva under unload. Men en *ren läskommando-rad* som körs <1.5 s innan
+  fliken hårt-stängs på ett moln-konto kan tappas — browsern väntar inte in det
+  async nätverks-anropet. Accepterad browser-begränsning (samma som att en
+  hård-dödad bash tappar osparad history).
 
 Täckt av 6 enhetstester (`history.ts`: parse/serialize/append, ignoredups, cap,
 två-fönster-interleave) + 3 end-to-end (seedar pil-upp, sparar per kommando,

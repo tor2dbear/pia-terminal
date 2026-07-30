@@ -40,24 +40,19 @@ describe("history file helpers", () => {
   });
 });
 
-describe("hasSecret (HISTIGNORE for password-bearing commands)", () => {
-  it("flags the auth commands that take a secret inline", () => {
-    expect(hasSecret("passwd hunter2")).toBe(true);
-    expect(hasSecret("login me@example.com hunter2")).toBe(true);
-    expect(hasSecret("useradd bob bob@example.com hunter2")).toBe(true);
-    expect(hasSecret("register bob bob@example.com hunter2")).toBe(true);
+describe("hasSecret (HISTIGNORE membership test over resolved command names)", () => {
+  it("flags a line whose commands include a password-bearing one", () => {
+    expect(hasSecret(["passwd"])).toBe(true);
+    expect(hasSecret(["login"])).toBe(true);
+    expect(hasSecret(["echo", "passwd"])).toBe(true); // a secret command anywhere in a chain
+    expect(hasSecret(["useradd"])).toBe(true);
+    expect(hasSecret(["register"])).toBe(true);
   });
 
-  it("catches a secret command hidden in a chained/piped line", () => {
-    expect(hasSecret("login a b && ls")).toBe(true);
-    expect(hasSecret("echo hi; passwd s3cret")).toBe(true);
-    expect(hasSecret("ls || login a b")).toBe(true);
-  });
-
-  it("leaves ordinary lines (incl. a file merely named `passwd`) alone", () => {
-    expect(hasSecret("ls -la")).toBe(false);
-    expect(hasSecret("cat passwd")).toBe(false); // `passwd` is an argument, not the command
-    expect(hasSecret("grep login notes.md")).toBe(false);
-    expect(hasSecret("")).toBe(false);
+  it("leaves ordinary command sets alone (a `passwd` argument isn't a command)", () => {
+    expect(hasSecret(["ls"])).toBe(false);
+    expect(hasSecret(["cat"])).toBe(false); // `cat passwd` resolves to just ["cat"]
+    expect(hasSecret(["grep", "echo"])).toBe(false);
+    expect(hasSecret([])).toBe(false);
   });
 });

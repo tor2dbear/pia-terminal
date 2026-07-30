@@ -155,7 +155,7 @@ describe("Terminal (driven via keyboard)", () => {
       session: { user: "guest" },
       extendContext: piaExtendContext(new MemoryAuthAdapter()),
       saveHistory: (history) => saved.push([...history]),
-      histIgnore: (cmd) => cmd.startsWith("passwd "),
+      histIgnore: (cmds) => cmds.includes("passwd"),
     });
     await runLine(root, "pwd");
     await runLine(root, "passwd hunter2"); // a secret — must not be recorded
@@ -165,6 +165,26 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.at(-1)).toEqual(["pwd", "whoami"]);
     press(root, "ArrowUp");
     expect(typed(root).trim()).toBe("whoami"); // skips straight past the secret
+  });
+
+  it("resolves aliases before the secret check (so `alias p passwd; p pw` is caught)", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      configure: () => ({ aliases: { p: "passwd" } }), // `p` is an alias for passwd
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "p hunter2"); // expands to `passwd hunter2` — still a secret
+    await runLine(root, "cat passwd"); // `passwd` here is a filename, not the command
+    expect(saved.flat()).not.toContain("p hunter2"); // the aliased secret was excluded
+    expect(saved.flat()).toContain("cat passwd"); // …but an ordinary line is kept
   });
 
   it("refuses to start a command while another window is mid account-change", async () => {

@@ -118,40 +118,26 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
-  // The window multiplexer — declared up here so the debounced persist below can
-  // reach a live window to save through. Assigned once the spawn factory exists.
+  // The window multiplexer — declared up here so the unload flush below can reach
+  // a live window. Assigned once the spawn factory exists.
   let tabs: TabManager | undefined;
 
-  // Debounced whole-tree save, shared by every window. Command history writes to
-  // the VFS on each command (below); coalescing the save keeps a burst of
-  // commands from hammering storage. A `beforeunload` flush makes the last few
-  // commands durable if the tab closes before the timer fires. Crucially the save
-  // goes through a window's `flush()` — the terminal's conflict-reconciling
-  // persist — not a bare `adapter.save`, so a concurrent cloud write from another
-  // device is merged (keep-both), never silently clobbered.
-  let persistTimer: ReturnType<typeof setTimeout> | undefined;
-  const flushTree = (): void => {
-    const window = tabs?.idleWindow() ?? tabs?.current();
-    void window?.flush().catch(() => {});
-  };
-  const schedulePersist = (): void => {
-    if (persistTimer !== undefined) clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => {
-      persistTimer = undefined;
-      flushTree();
-    }, 1500);
-  };
+  // The terminal coalesces + persists history writes itself (debounced, flushed
+  // at account swaps and dispose). This is only a best-effort backstop for the
+  // last read-only command(s) if the tab is closed inside that debounce window:
+  // localStorage (guests, and the Hybrid adapter's local half) writes
+  // synchronously, so those survive; a cloud-only save can't finish during
+  // unload — an accepted browser limitation, since mutating commands and account
+  // switches already persist synchronously.
   window.addEventListener("beforeunload", () => {
-    if (persistTimer === undefined) return;
-    clearTimeout(persistTimer);
-    persistTimer = undefined;
-    flushTree();
+    void (tabs?.current() ?? tabs?.idleWindow())?.flush().catch(() => {});
   });
 
   // Per-window HISTFILE plumbing (`~/.pia/history`), behind the Terminal's
   // load/save/clear history seam. Reading + appending to the on-disk file (rather
   // than overwriting from memory) is bash's `histappend`, and it's what lets two
-  // windows share one file without clobbering each other's lines.
+  // windows share one file without clobbering each other's lines. Writing to the
+  // VFS is all these do; the Terminal owns persisting the tree.
   const histPath = (): string => `${vfs.home}/.pia/history`;
   const readHistFile = (): string[] => {
     const node = vfs.getNode(histPath());
@@ -173,13 +159,11 @@ async function main(): Promise<void> {
         flushed = history.length;
         vfs.mkdirp(`${vfs.home}/.pia`);
         vfs.writeFile(histPath(), serializeHistory(appendHistory(readHistFile(), additions)));
-        schedulePersist();
       },
       clear: (): void => {
         flushed = 0;
         vfs.mkdirp(`${vfs.home}/.pia`);
         vfs.writeFile(histPath(), "");
-        schedulePersist();
       },
     };
   };

@@ -42,15 +42,14 @@ export function appendHistory(existing: string[], additions: string[], cap = HIS
 export const SECRET_COMMANDS = ["passwd", "login", "useradd", "register"];
 
 /**
- * True if a command line invokes a secret-bearing command (bash `HISTIGNORE` for
- * the auth commands). Split on the shell separators (`;`, `|`, `&&`, `||`) so
- * `login a b && ls` and `x; passwd y` are caught, while an unrelated
- * `cat passwd` (a file so named) is not — the secret command is only ever a
- * segment's *first* word.
+ * True if any of the commands a line runs is secret-bearing (bash `HISTIGNORE`
+ * for the auth commands) — used to keep passwords out of persistent history. The
+ * caller passes the *resolved* command names (every pipeline stage, aliases
+ * expanded), so this is just a membership test; the parsing/alias work that
+ * makes `login a b && ls` or `alias p passwd; p pw` catchable lives in the
+ * terminal, which already parses the line.
  */
-export function hasSecret(line: string): boolean {
+export function hasSecret(commands: readonly string[]): boolean {
   const secrets = new Set(SECRET_COMMANDS);
-  return line
-    .split(/\s*(?:\|\||&&|;|\|)\s*/)
-    .some((seg) => secrets.has(seg.trim().split(/\s+/)[0] ?? ""));
+  return commands.some((c) => secrets.has(c));
 }
