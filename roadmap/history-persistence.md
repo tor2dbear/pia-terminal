@@ -32,6 +32,17 @@ in-session och försvann vid reload.
   följer med in-/utloggning (varje konto har sin egen `~/.pia/history`). Inget
   läcker mellan konton — varje kommando är redan flushat till filen.
 
+## Härdat (Codex-rundor)
+- **Inga hemligheter i history (HISTIGNORE).** `passwd`/`login`/`useradd`/`register`
+  tar lösenordet som ett argument; hela raden hålls utanför history (både pil-upp
+  och filen) via en `histIgnore`-predikat-söm på `Terminal`, matchad i `main.ts`
+  (`hasSecret`). Annars hade ett synkat `~/.pia/history` läckt klartext-lösenord.
+- **Konflikt-reconcile även för bakgrunds-sparningen.** Den debouncade sparningen
+  gick först direkt mot `adapter.save` och svalde `StorageConflictError` → nästa
+  spar hade kunnat skriva över en samtidig moln-ändring från en annan enhet. Nu
+  går den genom `Terminal.flush()` → samma `persistTree()`-reconcile (keep-both,
+  stash under `~/.pia/conflicts/`) som alla kommando-drivna sparningar.
+
 Täckt av 6 enhetstester (`history.ts`: parse/serialize/append, ignoredups, cap,
 två-fönster-interleave) + 3 end-to-end (seedar pil-upp, sparar per kommando,
 `-c` tömmer). Tour-golden uppdaterad (hjälptexten). typecheck + test + build gröna.

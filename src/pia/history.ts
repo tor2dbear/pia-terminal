@@ -34,3 +34,23 @@ export function appendHistory(existing: string[], additions: string[], cap = HIS
   }
   return merged.length > cap ? merged.slice(merged.length - cap) : merged;
 }
+
+/**
+ * Auth commands that take a password (or other secret) as a plain argument.
+ * Their command line must never reach the persisted, synced history file.
+ */
+export const SECRET_COMMANDS = ["passwd", "login", "useradd", "register"];
+
+/**
+ * True if a command line invokes a secret-bearing command (bash `HISTIGNORE` for
+ * the auth commands). Split on the shell separators (`;`, `|`, `&&`, `||`) so
+ * `login a b && ls` and `x; passwd y` are caught, while an unrelated
+ * `cat passwd` (a file so named) is not — the secret command is only ever a
+ * segment's *first* word.
+ */
+export function hasSecret(line: string): boolean {
+  const secrets = new Set(SECRET_COMMANDS);
+  return line
+    .split(/\s*(?:\|\||&&|;|\|)\s*/)
+    .some((seg) => secrets.has(seg.trim().split(/\s+/)[0] ?? ""));
+}

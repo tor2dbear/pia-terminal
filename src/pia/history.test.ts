@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendHistory, parseHistory, serializeHistory, HISTSIZE } from "./history.js";
+import { appendHistory, hasSecret, parseHistory, serializeHistory, HISTSIZE } from "./history.js";
 
 describe("history file helpers", () => {
   it("parses lines and drops blanks", () => {
@@ -37,5 +37,27 @@ describe("history file helpers", () => {
     file = appendHistory(file, ["B1"]); // window B
     file = appendHistory(file, ["A2"]); // window A again
     expect(file).toEqual(["boot", "A1", "B1", "A2"]);
+  });
+});
+
+describe("hasSecret (HISTIGNORE for password-bearing commands)", () => {
+  it("flags the auth commands that take a secret inline", () => {
+    expect(hasSecret("passwd hunter2")).toBe(true);
+    expect(hasSecret("login me@example.com hunter2")).toBe(true);
+    expect(hasSecret("useradd bob bob@example.com hunter2")).toBe(true);
+    expect(hasSecret("register bob bob@example.com hunter2")).toBe(true);
+  });
+
+  it("catches a secret command hidden in a chained/piped line", () => {
+    expect(hasSecret("login a b && ls")).toBe(true);
+    expect(hasSecret("echo hi; passwd s3cret")).toBe(true);
+    expect(hasSecret("ls || login a b")).toBe(true);
+  });
+
+  it("leaves ordinary lines (incl. a file merely named `passwd`) alone", () => {
+    expect(hasSecret("ls -la")).toBe(false);
+    expect(hasSecret("cat passwd")).toBe(false); // `passwd` is an argument, not the command
+    expect(hasSecret("grep login notes.md")).toBe(false);
+    expect(hasSecret("")).toBe(false);
   });
 });

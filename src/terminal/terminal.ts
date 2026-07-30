@@ -89,6 +89,12 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
   loadHistory?: () => string[];
   saveHistory?: (history: readonly string[]) => void;
   clearHistory?: () => void;
+  /**
+   * Keep a command line out of history entirely (bash `HISTIGNORE`) — returns
+   * true for lines that shouldn't be recalled or persisted, e.g. ones carrying a
+   * plaintext password. Applies to both in-memory up-arrow and the saved file.
+   */
+  histIgnore?: (command: string) => boolean;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -159,6 +165,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly loadHistoryFn?: () => string[];
   private readonly persistHistory?: (history: readonly string[]) => void;
   private readonly clearHistoryStore?: () => void;
+  private readonly histIgnore?: (command: string) => boolean;
   /** Called when this window's cwd changes, so a multiplexer can refresh its
    * tab label. Set via {@link setTitleListener}. */
   private titleListener?: () => void;
@@ -200,6 +207,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.loadHistoryFn = opts.loadHistory;
     this.persistHistory = opts.saveHistory;
     this.clearHistoryStore = opts.clearHistory;
+    this.histIgnore = opts.histIgnore;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -1027,7 +1035,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
-    if (this.history[this.history.length - 1] !== trimmed) {
+    // Skip secret-bearing lines (HISTIGNORE) entirely, and collapse an adjacent
+    // duplicate. Everything else is recorded and persisted.
+    if (!this.histIgnore?.(trimmed) && this.history[this.history.length - 1] !== trimmed) {
       this.history.push(trimmed);
       this.persistHistory?.(this.history); // append to ~/.pia/history (debounced by the host)
     }
@@ -1136,6 +1146,17 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return false;
     }
     return !status.failed;
+  }
+
+  /**
+   * Persist the shared tree through the conflict-reconciling path — for the
+   * host's debounced / `beforeunload` history save. Exposed so a background,
+   * non-command-driven save reuses the same reconciliation as command-driven
+   * ones (see {@link persistTree}) instead of clobbering a concurrent cloud
+   * write from another device.
+   */
+  flush(): Promise<void> {
+    return this.persistTree();
   }
 
   /**

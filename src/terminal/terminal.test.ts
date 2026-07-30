@@ -144,6 +144,29 @@ describe("Terminal (driven via keyboard)", () => {
     expect(typed(root).trim()).toBe(""); // nothing left to recall
   });
 
+  it("keeps a histIgnore'd (secret-bearing) command out of history entirely", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmd) => cmd.startsWith("passwd "),
+    });
+    await runLine(root, "pwd");
+    await runLine(root, "passwd hunter2"); // a secret — must not be recorded
+    await runLine(root, "whoami");
+    // Never persisted, and up-arrow can't recall it either.
+    expect(saved.flat()).not.toContain("passwd hunter2");
+    expect(saved.at(-1)).toEqual(["pwd", "whoami"]);
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe("whoami"); // skips straight past the secret
+  });
+
   it("refuses to start a command while another window is mid account-change", async () => {
     const vfs = VFS.seed();
     let locked = true;
