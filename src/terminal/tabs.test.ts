@@ -3,19 +3,33 @@ import { describe, expect, it, vi } from "vitest";
 import { TabManager } from "./tabs.js";
 import type { Terminal } from "./terminal.js";
 
-/** A stand-in Terminal — TabManager only calls dispose/focus/title on it. */
-function fakeTerm(title = "~"): Terminal & { focus: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> } {
+type FakeTerm = Terminal & {
+  focus: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+  rehome: ReturnType<typeof vi.fn>;
+  setTitle: (t: string) => void;
+  fireTitle: () => void;
+};
+
+/** A stand-in Terminal — TabManager only calls a handful of methods on it. */
+function fakeTerm(): FakeTerm {
+  let title = "~";
+  let listener: (() => void) | undefined;
   return {
     focus: vi.fn(),
     dispose: vi.fn(),
+    rehome: vi.fn(),
     title: () => title,
-  } as unknown as Terminal & { focus: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> };
+    setTitleListener: (fn: (() => void) | undefined) => (listener = fn),
+    setTitle: (t: string) => (title = t),
+    fireTitle: () => listener?.(),
+  } as unknown as FakeTerm;
 }
 
 function setup() {
   const root = document.createElement("div");
   document.body.append(root);
-  const terms: ReturnType<typeof fakeTerm>[] = [];
+  const terms: FakeTerm[] = [];
   const mgr = new TabManager(root, () => {
     const t = fakeTerm();
     terms.push(t);
@@ -112,6 +126,43 @@ describe("TabManager", () => {
     press("b", true);
     press("x"); // kill
     expect(paneCount(root)).toBe(1);
+  });
+
+  it("keeps the same window selected when a tab to its left is closed", () => {
+    const { root, mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow();
+    mgr.newWindow(); // 3 windows A,B,C
+    terms[0].setTitle("A");
+    terms[1].setTitle("B");
+    terms[2].setTitle("C");
+    mgr.select(2); // B active (index 1)
+    // Close A via its tab's × control.
+    const closeA = root.querySelectorAll<HTMLElement>(".term-tab .term-tab-x")[0];
+    closeA.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    // B is still the active window (now at index 0), not C.
+    expect(terms[0].dispose).toHaveBeenCalled(); // A was disposed
+    const active = mgr.list().find((w) => w.active);
+    expect(active?.title).toBe("B");
+  });
+
+  it("re-homes every window when the account changes (rehomeAll)", () => {
+    const { mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow();
+    mgr.rehomeAll();
+    expect(terms[0].rehome).toHaveBeenCalledTimes(1);
+    expect(terms[1].rehome).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes the active tab label when its cwd changes", () => {
+    const { root, mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow(); // window 2 active
+    terms[1].setTitle("~/notes");
+    terms[1].fireTitle(); // a `cd` in the active window
+    const activeTab = root.querySelector(".term-tab.active");
+    expect(activeTab?.textContent).toContain("~/notes");
   });
 
   it("passes a bare Ctrl-B follow-key through when it isn't a window command", () => {

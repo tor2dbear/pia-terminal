@@ -65,6 +65,32 @@ describe("Terminal (driven via keyboard)", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 
+  it("re-homes onto the current account (for a multiplexer's other windows)", async () => {
+    const vfs = VFS.seed();
+    const session = { user: "guest" };
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session,
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    vfs.mkdirp("/home/guest/sub");
+    await runLine(root, "cd sub");
+    expect(term.title()).toBe("~/sub"); // this window is deep in the old home
+
+    // Another window logged into a different account: shared session + vfs.home
+    // moved. rehome() catches this window up.
+    session.user = "alice";
+    vfs.mkdirp("/home/alice");
+    vfs.home = "/home/alice";
+    term.rehome();
+    expect(term.title()).toBe("~"); // back at the new account's home
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$");
+  });
+
   it("exposes a hidden field to capture the soft keyboard", () => {
     const root = mount();
     expect(kbd(root)).toBeInstanceOf(HTMLInputElement);

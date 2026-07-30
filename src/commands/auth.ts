@@ -22,6 +22,8 @@ async function enter(ctx: CommandContext, user: string): Promise<void> {
   // …and its brew packages: drop the previous account's, register this one's, so
   // the live commands match `brew list` for the account you're now in.
   await reconcilePackages(ctx.vfs, ctx.vfs.home, ctx.registry);
+  // Other windows share this session/VFS — re-home them onto the new account too.
+  ctx.broadcastAccount?.();
 }
 
 export const login: Command = {
@@ -117,6 +119,7 @@ export const usermod: Command = {
     ctx.setCwd(newHome);
     await ctx.persist();
     ctx.applyConfig?.(); // the config moved with the home; re-read from the new path
+    ctx.broadcastAccount?.(); // re-home other windows onto the renamed account
     ctx.print(`renamed to ${name}`, "accent");
   },
 };

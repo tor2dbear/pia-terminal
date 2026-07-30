@@ -66,6 +66,13 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
    * back to the generic message. Keeps the engine unaware of the package catalog.
    */
   describeUnknownCommand?: (name: string) => string | null;
+  /**
+   * Called when a command changes the shared account (login / logout / useradd /
+   * usermod). With a multiplexer, every window shares the one session and VFS, so
+   * this lets the manager re-home the *other* windows too (their cwd/config still
+   * point at the previous account). Omitted → single-window, nothing to notify.
+   */
+  onAccountChange?: () => void;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -131,6 +138,10 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly extendContext?: (core: CoreCommandContext) => Ctx;
   private readonly configure?: () => TerminalConfig;
   private readonly describeUnknownCommand?: (name: string) => string | null;
+  private readonly onAccountChange?: () => void;
+  /** Called when this window's cwd changes, so a multiplexer can refresh its
+   * tab label. Set via {@link setTitleListener}. */
+  private titleListener?: () => void;
 
   private cwd = HOME;
   private buffer = "";
@@ -161,6 +172,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.extendContext = opts.extendContext;
     this.configure = opts.configure;
     this.describeUnknownCommand = opts.describeUnknownCommand;
+    this.onAccountChange = opts.onAccountChange;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -219,8 +231,11 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.renderKeybar();
   }
 
-  /** Detach listeners. */
+  /** Tear the window down: stop any running command and app, then detach. */
   dispose(): void {
+    this.running?.abort(); // an in-flight command must not keep running unseen
+    this.activeApp?.unmount(); // and a full-screen app (e.g. a game's timer) must stop
+    this.activeApp = undefined;
     this.kbd.removeEventListener("keydown", this.onKeyDown);
     this.kbd.removeEventListener("input", this.onInput);
     this.kbd.removeEventListener("compositionend", this.flushKbd);
@@ -239,6 +254,27 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   /** Short label for a window strip / `tmux` list: the cwd, home-relative. */
   title(): string {
     return this.cwd === this.vfs.home ? "~" : this.cwd.replace(this.vfs.home, "~");
+  }
+
+  /** Watch for cwd changes (a multiplexer refreshes its tab label from this). */
+  setTitleListener(fn: (() => void) | undefined): void {
+    this.titleListener = fn;
+  }
+
+  /**
+   * Re-home this window to the current account: adopt the shared `vfs.home`, move
+   * cwd there, and reload config (prompt/aliases/theme). A multiplexer calls this
+   * on *every* window after login/logout/usermod, since they all share one
+   * session and VFS but only the acting window re-homed itself.
+   */
+  rehome(): void {
+    const home = `/home/${this.session.user}`;
+    this.vfs.mkdirp(home);
+    this.vfs.home = home;
+    this.cwd = home;
+    this.loadConfig();
+    if (!this.busy && !this.activeApp) this.renderInput();
+    this.titleListener?.();
   }
 
   /** Focus the hidden field so a soft keyboard appears (needs a user gesture). */
@@ -1097,6 +1133,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       cwd: this.cwd,
       setCwd: (path: string) => {
         this.cwd = path;
+        this.titleListener?.(); // keep a multiplexer's tab label in sync with cwd
       },
       // Captured stages collect stdout into a buffer; otherwise it hits the DOM.
       print: capture
@@ -1111,6 +1148,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         if (root) this.vfs.root = root;
       },
       applyConfig: () => this.loadConfig(),
+      // Account changed (login/logout/useradd/usermod) — let a multiplexer
+      // re-home the *other* windows, which share this session and VFS.
+      broadcastAccount: () => this.onAccountChange?.(),
       pickFile: () => this.pickFile(),
       saveFile: (name, content) => this.saveFile(name, content),
       history: () => [...this.history],

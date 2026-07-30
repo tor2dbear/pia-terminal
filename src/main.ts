@@ -140,6 +140,9 @@ async function main(): Promise<void> {
       // URL for share links, and the window multiplexer (for `tmux`). The engine
       // supplies the core (fs, io, config, file bridges); this adds PIA's fields.
       extendContext: piaExtendContext(auth, share, undefined, reminders, tabs),
+      // login/logout/usermod mutate the shared session + VFS; re-home the other
+      // windows so their cwd/config follow the account too.
+      onAccountChange: () => tabs?.rehomeAll(),
     });
   tabs = new TabManager(root, spawn);
   const term = tabs.open(); // the first window — the one that boots below
@@ -219,7 +222,8 @@ async function main(): Promise<void> {
   // terminal. (Firing only while open is the honest limit of the learning tool.)
   const scheduler = createScheduler({
     vfs,
-    run: (command) => term.fireScheduled(command),
+    // Fire into whichever window is live now — the first one may have been closed.
+    run: (command) => (tabs?.current() ?? term).fireScheduled(command),
     persist: () => adapter.save(vfs.root),
   });
   setInterval(() => void scheduler.tick(new Date()), 1000);

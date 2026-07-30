@@ -59,6 +59,11 @@ export class TabManager implements TabControl {
     pane.className = "term-pane";
     this.panesEl.append(pane);
     const term = this.spawn(pane);
+    // Keep this window's tab label in step with its cwd (only the active
+    // window's cwd change need repaint the strip).
+    term.setTitleListener(() => {
+      if (this.wins[this.active]?.term === term) this.renderStrip();
+    });
     this.wins.push({ pane, term });
     this.activate(this.wins.length - 1);
     return term;
@@ -107,10 +112,24 @@ export class TabManager implements TabControl {
   private close(i: number): void {
     if (this.wins.length <= 1 || i < 0 || i >= this.wins.length) return; // keep the last
     const [w] = this.wins.splice(i, 1);
-    w.term.dispose();
+    w.term.dispose(); // stops the window's running command / app too
     w.pane.remove();
-    if (this.active >= this.wins.length) this.active = this.wins.length - 1;
+    // Keep the same window selected when a *preceding* one is removed; clamp when
+    // the active (or a following) window shifted off the end.
+    if (i < this.active) this.active--;
+    else if (this.active >= this.wins.length) this.active = this.wins.length - 1;
     this.activate(this.active);
+  }
+
+  /**
+   * Re-home every window onto the current account. All windows share one session
+   * and VFS, but login/logout/usermod only re-home the window that ran them —
+   * this catches the rest up (cwd → new home, config reloaded). Wired from
+   * main.ts via the Terminal's onAccountChange.
+   */
+  rehomeAll(): void {
+    for (const w of this.wins) w.term.rehome();
+    this.renderStrip();
   }
 
   private activate(i: number): void {

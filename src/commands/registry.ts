@@ -57,6 +57,9 @@ export interface CoreCommandContext {
   reloadFs?(): Promise<void>;
   /** Re-read config and apply it (theme, prompt, aliases) live. */
   applyConfig?(): void;
+  /** Signal that the shared account changed (login/logout/useradd/usermod), so a
+   * window multiplexer can re-home its other windows. No-op without one. */
+  broadcastAccount?(): void;
   /**
    * Web bridges (no terminal equivalent — accepted divergences, like share→URL):
    * open the OS file picker, resolving to the chosen text file (or null if
