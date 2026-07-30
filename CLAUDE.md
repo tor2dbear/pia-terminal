@@ -29,6 +29,11 @@ Idiom notes in force: editor is `nano` (alias `edit`), saves with `^O`
 `whoareyou` (alias `whoru`) is a deliberate **coinage** — no Unix equivalent —
 accepted as *persona*, not utility: the little computer introducing itself (the
 line the `og.png` social preview shows), distinct from `whoami` (your login).
+Window tabs are a **tmux-lite** multiplexer (`tmux`, alias `tab`): one machine
+(shared VFS + account), several *windows* — the Unix idiom is tmux, driven by the
+`Ctrl-B` prefix. The visible tab strip is an intentional GUI/emulator concession
+(an accepted web divergence, like the on-screen key bar), not lingo; it's also the
+touch path. Windows only — panes/splits are deliberately out of scope for now.
 
 ## Architecture (keep it this way)
 

@@ -3,6 +3,7 @@ import type { ScreenAppFactory } from "../terminal/screen.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
 import type { ReminderStore } from "../pia/reminders.js";
+import type { TabControl } from "../terminal/tabcontrol.js";
 
 export type { Session };
 
@@ -89,6 +90,8 @@ export interface CommandContext extends CoreCommandContext {
   share?: ShareStore;
   /** Push-reminder backend (absent → reminders are off, i.e. no cloud). */
   reminders?: ReminderStore;
+  /** Window multiplexer, for `tmux` (absent → single window, e.g. in tests). */
+  tabs?: TabControl;
 }
 
 /**

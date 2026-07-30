@@ -4,6 +4,7 @@ import { LocalStorageAdapter } from "./storage/localStorage.js";
 import { FakeAuthAdapter } from "./auth/fakeAuth.js";
 import { buildRegistry } from "./commands/index.js";
 import { Terminal } from "./terminal/terminal.js";
+import { TabManager } from "./terminal/tabs.js";
 import type { CommandContext } from "./commands/registry.js";
 import { piaExtendContext } from "./pia/context.js";
 import { boot } from "./boot.js";
@@ -116,25 +117,32 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
-  const term = new Terminal<CommandContext>(root, {
-    vfs,
-    adapter,
-    registry,
-    session,
-    configure: () => loadTerminalConfig(vfs),
-    // Command-not-found → a `brew install` hint when the name is a known but
-    // not-yet-installed package command (Debian's command-not-found idiom).
-    // Names the package, which can differ from the command (`mines` →
-    // minesweeper). Unknown names fall through to the generic message.
-    describeUnknownCommand: (name) => {
-      const pkg = commandPackage(name);
-      return pkg ? `${name}: not installed — run \`brew install ${pkg}\`` : null;
-    },
-    // PIA's half of the command context — the auth backend, share store and app
-    // URL for share links. The engine supplies the core (fs, io, config, file
-    // bridges); this adds the PIA-specific fields.
-    extendContext: piaExtendContext(auth, share, undefined, reminders),
-  });
+  // Windows (tmux-lite): every window is a Terminal built by this factory, all
+  // sharing the one machine — the same VFS, adapter, registry and account. New
+  // windows are spawned by `tmux` / Ctrl-B c; only the first one boots.
+  let tabs: TabManager | undefined;
+  const spawn = (pane: HTMLElement): Terminal<CommandContext> =>
+    new Terminal<CommandContext>(pane, {
+      vfs,
+      adapter,
+      registry,
+      session,
+      configure: () => loadTerminalConfig(vfs),
+      // Command-not-found → a `brew install` hint when the name is a known but
+      // not-yet-installed package command (Debian's command-not-found idiom).
+      // Names the package, which can differ from the command (`mines` →
+      // minesweeper). Unknown names fall through to the generic message.
+      describeUnknownCommand: (name) => {
+        const pkg = commandPackage(name);
+        return pkg ? `${name}: not installed — run \`brew install ${pkg}\`` : null;
+      },
+      // PIA's half of the command context — the auth backend, share store, app
+      // URL for share links, and the window multiplexer (for `tmux`). The engine
+      // supplies the core (fs, io, config, file bridges); this adds PIA's fields.
+      extendContext: piaExtendContext(auth, share, undefined, reminders, tabs),
+    });
+  tabs = new TabManager(root, spawn);
+  const term = tabs.open(); // the first window — the one that boots below
   // Gate input from the moment the terminal exists: registering installed
   // packages below does async work (dynamic imports), and boot should own the
   // prompt that whole time — not only once it starts printing.

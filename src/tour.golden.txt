@@ -361,6 +361,7 @@ available commands:
   tail         print the last lines of a file (or piped input)
   tetris       play Tetris (arrows move/rotate, space hard-drop, ^X exit)
   theme        switch colour theme (theme <name>, or list them)
+  tmux         manage terminal windows (new, next, prev, kill, or a number)
   todo         manage checklists (in ~/todo/); share them to collaborate
   touch        create an empty file (leaving an existing one untouched)
   tree         show the directory tree (shared files marked @)

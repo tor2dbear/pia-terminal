@@ -231,6 +231,16 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     window.visualViewport?.removeEventListener("scroll", this.syncViewport);
   }
 
+  /** Focus this terminal's input — used when a multiplexer switches to it. */
+  focus(): void {
+    this.focusKbd();
+  }
+
+  /** Short label for a window strip / `tmux` list: the cwd, home-relative. */
+  title(): string {
+    return this.cwd === this.vfs.home ? "~" : this.cwd.replace(this.vfs.home, "~");
+  }
+
   /** Focus the hidden field so a soft keyboard appears (needs a user gesture). */
   private focusKbd = (): void => {
     this.kbd.focus({ preventScroll: true });

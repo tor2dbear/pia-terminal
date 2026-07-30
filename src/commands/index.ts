@@ -17,6 +17,7 @@ import { pagerCommands } from "./pager.js";
 import { remindCommands } from "./remind.js";
 import { notifyCommands } from "./notify.js";
 import { metaCommands } from "./changelog.js";
+import { tmuxCommands } from "./tmux.js";
 import { demoCommands } from "./demo.js";
 import { aboutCommands } from "./about.js";
 import { pingCommands } from "./ping.js";
@@ -46,6 +47,7 @@ export function buildRegistry(): CommandRegistry {
     ...demoCommands,
     ...aboutCommands,
     ...pingCommands,
+    ...tmuxCommands,
   ]) {
     registry.register(cmd);
   }
