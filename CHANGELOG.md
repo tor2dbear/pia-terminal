@@ -12,6 +12,10 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **Persistent command history**: up-arrow now reaches commands from earlier
+  sessions, not just the current one. History is saved to `~/.pia/history` (the
+  bash HISTFILE idiom) — so it survives a reload, syncs across your devices when
+  logged in, and is shared live between `tmux` windows. `history -c` clears it.
 - **`tmux` (window tabs)**: run several terminals in one page — a tmux-lite
   multiplexer. Open a window with `tmux new` or Ctrl-B c, switch with the tab
   strip or Ctrl-B n/p/1-9, close with Ctrl-B x. Windows share one machine (the

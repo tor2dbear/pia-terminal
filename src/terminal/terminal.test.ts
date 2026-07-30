@@ -91,6 +91,59 @@ describe("Terminal (driven via keyboard)", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$");
   });
 
+  it("seeds up-arrow from persisted history (the HISTFILE load seam)", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      loadHistory: () => ["ls", "pwd"], // as if read from ~/.pia/history at boot
+    });
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe("pwd"); // most recent first
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe("ls"); // reaches an earlier session's command
+  });
+
+  it("persists each command through the saveHistory seam", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+    });
+    await runLine(root, "pwd");
+    await runLine(root, "whoami");
+    expect(saved.at(-1)).toEqual(["pwd", "whoami"]);
+  });
+
+  it("wipes the store when `history -c` clears history", async () => {
+    let cleared = false;
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      loadHistory: () => ["ls"],
+      clearHistory: () => (cleared = true),
+    });
+    await runLine(root, "history -c");
+    expect(cleared).toBe(true);
+    press(root, "ArrowUp");
+    expect(typed(root).trim()).toBe(""); // nothing left to recall
+  });
+
   it("refuses to start a command while another window is mid account-change", async () => {
     const vfs = VFS.seed();
     let locked = true;

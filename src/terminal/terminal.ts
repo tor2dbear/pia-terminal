@@ -80,6 +80,15 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
    * never locked (single window).
    */
   isLocked?: () => boolean;
+  /**
+   * Persistent command history (the HISTFILE seam). `loadHistory` seeds up-arrow
+   * at boot; `saveHistory` is called after each command with the full list to
+   * persist; `clearHistory` wipes the store (`history -c`). All omitted → history
+   * is in-memory only, lost on reload (e.g. the adventure example).
+   */
+  loadHistory?: () => string[];
+  saveHistory?: (history: readonly string[]) => void;
+  clearHistory?: () => void;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -147,6 +156,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly describeUnknownCommand?: (name: string) => string | null;
   private readonly onAccountChange?: () => void;
   private readonly isLocked?: () => boolean;
+  private readonly loadHistoryFn?: () => string[];
+  private readonly persistHistory?: (history: readonly string[]) => void;
+  private readonly clearHistoryStore?: () => void;
   /** Called when this window's cwd changes, so a multiplexer can refresh its
    * tab label. Set via {@link setTitleListener}. */
   private titleListener?: () => void;
@@ -185,12 +197,20 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.describeUnknownCommand = opts.describeUnknownCommand;
     this.onAccountChange = opts.onAccountChange;
     this.isLocked = opts.isLocked;
+    this.loadHistoryFn = opts.loadHistory;
+    this.persistHistory = opts.saveHistory;
+    this.clearHistoryStore = opts.clearHistory;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
     this.vfs.mkdirp(home);
     this.vfs.home = home;
     this.cwd = home;
+
+    // Seed up-arrow from persisted history (HISTFILE) — after home is set, since
+    // it reads ~/.pia/history under the active home.
+    this.history = this.loadHistoryFn?.() ?? [];
+    this.historyIndex = this.history.length;
 
     // Pull the prompt + aliases (and apply any theme) via `configure` before
     // the first render.
@@ -308,6 +328,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.vfs.home = home;
     this.cwd = home;
     this.loadConfig();
+    // Re-point up-arrow at the new account's HISTFILE (each account has its own
+    // ~/.pia/history). Every command is flushed to the file synchronously, so
+    // reloading here loses nothing from the old account.
+    if (this.loadHistoryFn) {
+      this.history = this.loadHistoryFn();
+      this.historyIndex = this.history.length;
+    }
     if (!this.busy && !this.activeApp) this.renderInput();
     this.titleListener?.();
   }
@@ -1002,6 +1029,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
 
     if (this.history[this.history.length - 1] !== trimmed) {
       this.history.push(trimmed);
+      this.persistHistory?.(this.history); // append to ~/.pia/history (debounced by the host)
     }
     this.historyIndex = this.history.length;
 
@@ -1201,6 +1229,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       clearHistory: () => {
         this.history.length = 0;
         this.historyIndex = 0;
+        this.clearHistoryStore?.(); // also wipe the persisted ~/.pia/history
       },
       runApp: capture
         ? () => {

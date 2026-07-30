@@ -10,6 +10,7 @@ import { piaExtendContext } from "./pia/context.js";
 import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { parseConfig } from "./pia/rc.js";
+import { appendHistory, parseHistory, serializeHistory } from "./pia/history.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
@@ -117,17 +118,76 @@ async function main(): Promise<void> {
 
   const registry = buildRegistry();
 
+  // Debounced whole-tree save, shared by every window. Command history writes to
+  // the VFS on each command (below); coalescing the adapter.save keeps a burst of
+  // commands from hammering storage. A `beforeunload` flush makes the last few
+  // commands durable if the tab closes before the timer fires.
+  let persistTimer: ReturnType<typeof setTimeout> | undefined;
+  const schedulePersist = (): void => {
+    if (persistTimer !== undefined) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = undefined;
+      void adapter.save(vfs.root).catch(() => {});
+    }, 1500);
+  };
+  window.addEventListener("beforeunload", () => {
+    if (persistTimer === undefined) return;
+    clearTimeout(persistTimer);
+    persistTimer = undefined;
+    void adapter.save(vfs.root).catch(() => {});
+  });
+
+  // Per-window HISTFILE plumbing (`~/.pia/history`), behind the Terminal's
+  // load/save/clear history seam. Reading + appending to the on-disk file (rather
+  // than overwriting from memory) is bash's `histappend`, and it's what lets two
+  // windows share one file without clobbering each other's lines.
+  const histPath = (): string => `${vfs.home}/.pia/history`;
+  const readHistFile = (): string[] => {
+    const node = vfs.getNode(histPath());
+    return node?.type === "file" ? parseHistory(vfs.readFile(histPath())) : [];
+  };
+  const makeHistoryIO = () => {
+    // How many of this window's in-memory entries are already merged into the
+    // file — additions since then are what gets appended. Reset on (re)load.
+    let flushed = 0;
+    return {
+      load: (): string[] => {
+        const lines = readHistFile();
+        flushed = lines.length;
+        return lines;
+      },
+      save: (history: readonly string[]): void => {
+        const additions = history.slice(flushed);
+        if (additions.length === 0) return;
+        flushed = history.length;
+        vfs.mkdirp(`${vfs.home}/.pia`);
+        vfs.writeFile(histPath(), serializeHistory(appendHistory(readHistFile(), additions)));
+        schedulePersist();
+      },
+      clear: (): void => {
+        flushed = 0;
+        vfs.mkdirp(`${vfs.home}/.pia`);
+        vfs.writeFile(histPath(), "");
+        schedulePersist();
+      },
+    };
+  };
+
   // Windows (tmux-lite): every window is a Terminal built by this factory, all
   // sharing the one machine — the same VFS, adapter, registry and account. New
   // windows are spawned by `tmux` / Ctrl-B c; only the first one boots.
   let tabs: TabManager | undefined;
-  const spawn = (pane: HTMLElement): Terminal<CommandContext> =>
-    new Terminal<CommandContext>(pane, {
+  const spawn = (pane: HTMLElement): Terminal<CommandContext> => {
+    const hist = makeHistoryIO();
+    return new Terminal<CommandContext>(pane, {
       vfs,
       adapter,
       registry,
       session,
       configure: () => loadTerminalConfig(vfs),
+      loadHistory: hist.load,
+      saveHistory: hist.save,
+      clearHistory: hist.clear,
       // Command-not-found → a `brew install` hint when the name is a known but
       // not-yet-installed package command (Debian's command-not-found idiom).
       // Names the package, which can differ from the command (`mines` →
@@ -146,6 +206,7 @@ async function main(): Promise<void> {
       // …and hold other windows from starting a command mid-transition.
       isLocked: () => tabs?.inTransition() ?? false,
     });
+  };
   tabs = new TabManager(root, spawn);
   const term = tabs.open(); // the first window — the one that boots below
   // Gate input from the moment the terminal exists: registering installed
