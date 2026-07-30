@@ -1090,9 +1090,14 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     // stage, aliases expanded — so `alias p passwd; p pw` is caught too.
     const secret = this.histIgnore?.(this.resolvedCommandNames(trimmed, parsed)) ?? false;
     if (!secret && this.history[this.history.length - 1] !== trimmed) {
-      this.history.push(trimmed);
-      this.persistHistory?.(this.history); // write ~/.pia/history…
-      this.onHistoryWrite?.(); // …and let the host persist the tree (debounced)
+      this.history.push(trimmed); // in-memory first, so up-arrow works even if the write fails
+      try {
+        this.persistHistory?.(this.history); // write ~/.pia/history…
+        this.onHistoryWrite?.(); // …and let the host persist the tree (debounced)
+      } catch {
+        // History persistence is best-effort — a failed write (e.g. something
+        // occupying the history path) must never block the command being run.
+      }
     }
     this.historyIndex = this.history.length;
 

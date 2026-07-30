@@ -187,6 +187,14 @@ async function main(): Promise<void> {
     const node = vfs.getNode(histPath());
     return node?.type === "file" ? parseHistory(vfs.readFile(histPath())) : [];
   };
+  // Something other than a file sitting at the history path (e.g. a user did
+  // `mkdir ~/.pia/history`): don't try to write there — `writeFile` would throw
+  // "is a directory" on every command. Degrade to no persistence rather than
+  // clobber the node or brick the shell; history works again once it's gone.
+  const histPathBlocked = (): boolean => {
+    const node = vfs.getNode(histPath());
+    return node !== null && node.type !== "file";
+  };
   const makeHistoryIO = () => {
     // How many of this window's in-memory entries are already merged into the
     // file — additions since then are what gets appended. Reset on (re)load.
@@ -199,13 +207,14 @@ async function main(): Promise<void> {
       },
       save: (history: readonly string[]): void => {
         const additions = history.slice(flushed);
-        if (additions.length === 0) return;
+        if (additions.length === 0 || histPathBlocked()) return;
         flushed = history.length;
         vfs.mkdirp(`${vfs.home}/.pia`);
         vfs.writeFile(histPath(), serializeHistory(appendHistory(readHistFile(), additions)));
       },
       clear: (): void => {
         flushed = 0;
+        if (histPathBlocked()) return;
         vfs.mkdirp(`${vfs.home}/.pia`);
         vfs.writeFile(histPath(), "");
       },

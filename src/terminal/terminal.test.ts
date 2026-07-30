@@ -259,6 +259,24 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("later hunter2");
   });
 
+  it("never lets a failing history write block the command", async () => {
+    const vfs = VFS.seed();
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: () => {
+        throw new Error("history path is a directory"); // e.g. `mkdir ~/.pia/history`
+      },
+    });
+    await runLine(root, "mkdir foo");
+    expect(vfs.getNode("/home/guest/foo")).not.toBeNull(); // the command still ran
+  });
+
   it("flushes pending history BEFORE an account change switches identity", async () => {
     // The flush must run while the *old* account's storage routing is still in
     // effect — otherwise the deferred save lands under the new identity.

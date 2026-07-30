@@ -82,6 +82,14 @@ en oproportionerlig retry-/omkö-mekanik för en portfolio-v1:
   lokala raderna); de raderna finns då kvar i konflikt-snapshoten under
   `~/.pia/conflicts/` men inte i den primära historiken efter reload. Filerna
   tappas inte (keep-both) — bara de sista pil-upp-raderna.
+- **Bakgrunds- och förgrunds-spar är inte korsserialiserade.** Kedjan
+  serialiserar bakgrunds-history-sparningarna sinsemellan, men ett *muterande*
+  kommando sparar via `ctx.persist()` direkt. Kör man ett sådant medan en
+  debouncad history-flush väntar på molnet kan de två racea adapterns base-version
+  → en behandlas som en (falsk) samtidig-enhet-konflikt och läggs keep-both i en
+  snapshot. Inget tappas (reconcile), men kommandots träd kan hamna "konfliktat".
+  Att korsserialisera *alla* sparningar app-brett bedömdes oproportionerligt för
+  v1 (rör kärnans persist-väg för varje kommando).
 
 Täckt av 6 enhetstester (`history.ts`: parse/serialize/append, ignoredups, cap,
 två-fönster-interleave) + 3 end-to-end (seedar pil-upp, sparar per kommando,
