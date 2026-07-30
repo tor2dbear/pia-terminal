@@ -130,7 +130,10 @@ export class TabManager implements TabControl {
   }
 
   kill(): void {
-    this.close(this.active);
+    // `tmux kill` runs *in* the window it closes, so that window is "busy" with
+    // the kill command itself — force past the running-command guard (there's
+    // nothing else to lose; you can't type it while another command runs).
+    this.close(this.active, true);
   }
 
   list(): TabInfo[] {
@@ -143,12 +146,13 @@ export class TabManager implements TabControl {
 
   // ---- internals -----------------------------------------------------------
 
-  private close(i: number): void {
+  private close(i: number, force = false): void {
     if (this.wins.length <= 1 || i < 0 || i >= this.wins.length) return; // keep the last
     // Don't close a window mid-command — abort is cooperative, so its side
     // effects (e.g. a login's account switch) would complete unseen. An open
-    // full-screen app is fine to close out of (dispose unmounts it).
-    if (this.wins[i].term.isRunningCommand()) return;
+    // full-screen app is fine to close out of (dispose unmounts it). `force`
+    // skips this for `tmux kill`, whose own command is the only thing running.
+    if (!force && this.wins[i].term.isRunningCommand()) return;
     const [w] = this.wins.splice(i, 1);
     w.term.dispose(); // stops the window's running command / app too
     w.pane.remove();
@@ -225,7 +229,7 @@ export class TabManager implements TabControl {
       if (k === "c") this.newWindow();
       else if (k === "n") this.next();
       else if (k === "p") this.prev();
-      else if (k === "x" || k === "&") this.kill();
+      else if (k === "x" || k === "&") this.close(this.active); // guarded (unlike `tmux kill`)
       else if (/^[1-9]$/.test(k)) this.select(Number(k));
       else handled = false; // not a window command — let it fall through
       if (handled) {

@@ -167,17 +167,31 @@ describe("TabManager", () => {
     expect(paneCount(root)).toBe(2);
   });
 
-  it("won't close a window while a command is mid-flight", () => {
+  it("won't close the active window via Ctrl-B x while a command is mid-flight", () => {
     const { root, mgr, terms } = setup();
     mgr.open();
     mgr.newWindow(); // 2 windows, active index 1
+    const ctrlBx = () => {
+      root.dispatchEvent(new KeyboardEvent("keydown", { key: "b", ctrlKey: true, bubbles: true }));
+      root.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
+    };
     terms[1].setBusy(true); // a command is running in the active window
-    mgr.kill();
+    ctrlBx();
     expect(paneCount(root)).toBe(2); // refused
     expect(terms[1].dispose).not.toHaveBeenCalled();
     terms[1].setBusy(false);
-    mgr.kill();
+    ctrlBx();
     expect(paneCount(root)).toBe(1); // now it closes
+  });
+
+  it("`tmux kill` force-closes its own window even though it's 'busy' with tmux", () => {
+    const { root, mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow(); // active index 1
+    terms[1].setBusy(true); // the invoking tmux command itself
+    mgr.kill();
+    expect(paneCount(root)).toBe(1); // closed despite being busy
+    expect(terms[1].dispose).toHaveBeenCalled();
   });
 
   it("reports when a window *other than the active one* is busy", () => {
