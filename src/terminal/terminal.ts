@@ -73,6 +73,13 @@ export interface TerminalOptions<Ctx extends CoreCommandContext = CommandContext
    * point at the previous account). Omitted → single-window, nothing to notify.
    */
   onAccountChange?: () => void;
+  /**
+   * Whether the app is mid account-transition in *another* window. When true the
+   * terminal refuses to start a new command, so a concurrent login/logout can't
+   * replace the shared VFS out from under a command running here. Omitted →
+   * never locked (single window).
+   */
+  isLocked?: () => boolean;
 }
 
 /** Longest common prefix of a list of strings. */
@@ -139,9 +146,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private readonly configure?: () => TerminalConfig;
   private readonly describeUnknownCommand?: (name: string) => string | null;
   private readonly onAccountChange?: () => void;
+  private readonly isLocked?: () => boolean;
   /** Called when this window's cwd changes, so a multiplexer can refresh its
    * tab label. Set via {@link setTitleListener}. */
   private titleListener?: () => void;
+  /** Resolves the current {@link runApp} promise (and unmounts its app); set
+   * while a full-screen app is open, so `dispose()` can settle it. */
+  private appExit?: () => void;
 
   private cwd = HOME;
   private buffer = "";
@@ -173,6 +184,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.configure = opts.configure;
     this.describeUnknownCommand = opts.describeUnknownCommand;
     this.onAccountChange = opts.onAccountChange;
+    this.isLocked = opts.isLocked;
 
     // Point home and cwd at whoever is logged in, creating the home if needed.
     const home = `/home/${this.session.user}`;
@@ -234,8 +246,10 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   /** Tear the window down: stop any running command and app, then detach. */
   dispose(): void {
     this.running?.abort(); // an in-flight command must not keep running unseen
-    this.activeApp?.unmount(); // and a full-screen app (e.g. a game's timer) must stop
-    this.activeApp = undefined;
+    // Settle any open app the same way its own exit would: unmount it *and*
+    // resolve the runApp promise, so the launching command's cleanup runs (e.g.
+    // a shared checklist unsubscribing from cloud updates) instead of hanging.
+    this.appExit?.();
     this.kbd.removeEventListener("keydown", this.onKeyDown);
     this.kbd.removeEventListener("input", this.onInput);
     this.kbd.removeEventListener("compositionend", this.flushKbd);
@@ -264,6 +278,16 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   /** A full-screen app (editor, game, …) is open here. */
   hasApp(): boolean {
     return this.activeApp !== undefined;
+  }
+
+  /** Anything running here — a command or an open app (both set `busy`). */
+  isBusy(): boolean {
+    return this.busy;
+  }
+
+  /** Free to accept a scheduled job: no command running and no app open. */
+  isIdle(): boolean {
+    return !this.busy && this.activeApp === undefined;
   }
 
   /** A shell command is mid-flight (but not a full-screen app, which a window can
@@ -967,6 +991,15 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
+    // Another window is mid account-transition (login/logout replacing the
+    // shared VFS) — don't start a command whose paths would land in the wrong
+    // account. It's brief; the prompt returns once the transition finishes.
+    if (this.isLocked?.()) {
+      this.print("hold on — finishing an account change in another window…", "dim");
+      this.renderInput();
+      return;
+    }
+
     if (this.history[this.history.length - 1] !== trimmed) {
       this.history.push(trimmed);
     }
@@ -1185,6 +1218,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       const exit = (): void => {
         this.activeApp?.unmount();
         this.activeApp = undefined;
+        this.appExit = undefined;
         this.appEl.replaceChildren();
         this.appEl.style.display = "none";
         this.outputEl.style.display = "";
@@ -1193,6 +1227,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         this.focusKbd();
         resolve();
       };
+      this.appExit = exit; // so dispose() can settle this promise too
       const app = factory(exit);
       this.activeApp = app;
       this.outputEl.style.display = "none";

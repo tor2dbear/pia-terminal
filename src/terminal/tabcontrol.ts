@@ -25,7 +25,12 @@ export interface TabControl {
   kill(): void;
   /** Snapshot of the open windows, for `tmux` with no args. */
   list(): TabInfo[];
-  /** Any window has a full-screen app open — so an account change (which
-   * replaces the shared VFS) would strand that editor/game on a stale tree. */
-  hasAppOpen(): boolean;
+  /** A window *other than the active one* is busy (a command or an app). An
+   * account change (which replaces the shared VFS) must refuse while so, or that
+   * command's paths would resolve against the wrong account. */
+  otherWindowsBusy(): boolean;
+  /** Bracket an account transition: while open, other windows refuse to start a
+   * new command (so nothing new races the VFS swap through its awaits). */
+  beginTransition(): void;
+  endTransition(): void;
 }

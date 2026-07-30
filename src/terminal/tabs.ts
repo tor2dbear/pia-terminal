@@ -33,6 +33,7 @@ export class TabManager implements TabControl {
   private readonly panesEl: HTMLElement;
   private prefixArmed = false;
   private ready = false; // gates *new* windows until the first one finishes booting
+  private transitions = 0; // >0 while an account change is in flight (login/logout)
 
   constructor(
     private readonly root: HTMLElement,
@@ -88,8 +89,29 @@ export class TabManager implements TabControl {
     this.open();
   }
 
-  hasAppOpen(): boolean {
-    return this.wins.some((w) => w.term.hasApp());
+  otherWindowsBusy(): boolean {
+    return this.wins.some((w, i) => i !== this.active && w.term.isBusy());
+  }
+
+  beginTransition(): void {
+    this.transitions++;
+  }
+
+  endTransition(): void {
+    this.transitions = Math.max(0, this.transitions - 1);
+  }
+
+  /** True while an account change is in flight — the terminal's lock predicate. */
+  inTransition(): boolean {
+    return this.transitions > 0;
+  }
+
+  /** A window free to run a scheduled job (prefer the active one), or undefined
+   * if every window is busy. */
+  idleWindow(): Terminal | undefined {
+    const active = this.wins[this.active];
+    if (active?.term.isIdle()) return active.term;
+    return this.wins.find((w) => w.term.isIdle())?.term;
   }
 
   next(): void {

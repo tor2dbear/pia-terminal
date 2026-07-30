@@ -143,6 +143,8 @@ async function main(): Promise<void> {
       // login/logout/usermod mutate the shared session + VFS; re-home the other
       // windows so their cwd/config follow the account too.
       onAccountChange: () => tabs?.rehomeAll(),
+      // …and hold other windows from starting a command mid-transition.
+      isLocked: () => tabs?.inTransition() ?? false,
     });
   tabs = new TabManager(root, spawn);
   const term = tabs.open(); // the first window — the one that boots below
@@ -225,8 +227,9 @@ async function main(): Promise<void> {
 
   const scheduler = createScheduler({
     vfs,
-    // Fire into whichever window is live now — the first one may have been closed.
-    run: (command) => (tabs?.current() ?? term).fireScheduled(command),
+    // Fire into an *idle* window (a busy one would drop the job); fall back to
+    // the current/first window if every window is busy.
+    run: (command) => (tabs?.idleWindow() ?? tabs?.current() ?? term).fireScheduled(command),
     persist: () => adapter.save(vfs.root),
   });
   setInterval(() => void scheduler.tick(new Date()), 1000);

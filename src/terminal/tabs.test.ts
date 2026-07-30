@@ -10,14 +10,14 @@ type FakeTerm = Terminal & {
   setTitle: (t: string) => void;
   fireTitle: () => void;
   setApp: (v: boolean) => void;
-  setRunning: (v: boolean) => void;
+  setBusy: (v: boolean) => void;
 };
 
 /** A stand-in Terminal — TabManager only calls a handful of methods on it. */
 function fakeTerm(): FakeTerm {
   let title = "~";
   let app = false;
-  let running = false;
+  let busy = false;
   let listener: (() => void) | undefined;
   return {
     focus: vi.fn(),
@@ -25,12 +25,14 @@ function fakeTerm(): FakeTerm {
     rehome: vi.fn(),
     title: () => title,
     hasApp: () => app,
-    isRunningCommand: () => running,
+    isBusy: () => busy || app,
+    isIdle: () => !busy && !app,
+    isRunningCommand: () => busy && !app,
     setTitleListener: (fn: (() => void) | undefined) => (listener = fn),
     setTitle: (t: string) => (title = t),
     fireTitle: () => listener?.(),
     setApp: (v: boolean) => (app = v),
-    setRunning: (v: boolean) => (running = v),
+    setBusy: (v: boolean) => (busy = v),
   } as unknown as FakeTerm;
 }
 
@@ -169,22 +171,49 @@ describe("TabManager", () => {
     const { root, mgr, terms } = setup();
     mgr.open();
     mgr.newWindow(); // 2 windows, active index 1
-    terms[1].setRunning(true); // a command is running in the active window
+    terms[1].setBusy(true); // a command is running in the active window
     mgr.kill();
     expect(paneCount(root)).toBe(2); // refused
     expect(terms[1].dispose).not.toHaveBeenCalled();
-    terms[1].setRunning(false);
+    terms[1].setBusy(false);
     mgr.kill();
     expect(paneCount(root)).toBe(1); // now it closes
   });
 
-  it("reports when any window has a full-screen app open", () => {
+  it("reports when a window *other than the active one* is busy", () => {
     const { mgr, terms } = setup();
     mgr.open();
-    mgr.newWindow();
-    expect(mgr.hasAppOpen()).toBe(false);
+    mgr.newWindow(); // window 2 active (index 1)
+    expect(mgr.otherWindowsBusy()).toBe(false);
+    terms[0].setBusy(true); // an inactive window is busy → blocks account changes
+    expect(mgr.otherWindowsBusy()).toBe(true);
+    terms[0].setBusy(false);
+    terms[1].setApp(true); // the *active* window's own busyness doesn't count
+    expect(mgr.otherWindowsBusy()).toBe(false);
+  });
+
+  it("brackets an account transition (nesting-safe)", () => {
+    const { mgr } = setup();
+    mgr.open();
+    expect(mgr.inTransition()).toBe(false);
+    mgr.beginTransition();
+    mgr.beginTransition();
+    expect(mgr.inTransition()).toBe(true);
+    mgr.endTransition();
+    expect(mgr.inTransition()).toBe(true); // still one outstanding
+    mgr.endTransition();
+    expect(mgr.inTransition()).toBe(false);
+  });
+
+  it("routes a scheduled job to an idle window", () => {
+    const { mgr, terms } = setup();
+    mgr.open();
+    mgr.newWindow(); // active index 1
+    expect(mgr.idleWindow()).toBe(terms[1]); // prefers the active window when idle
+    terms[1].setBusy(true);
+    expect(mgr.idleWindow()).toBe(terms[0]); // else the first idle one
     terms[0].setApp(true);
-    expect(mgr.hasAppOpen()).toBe(true);
+    expect(mgr.idleWindow()).toBeUndefined(); // none idle
   });
 
   it("re-homes every window when the account changes (rehomeAll)", () => {
