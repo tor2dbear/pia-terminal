@@ -206,8 +206,8 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("at now+5m login me secret");
   });
 
-  it("flushes the shared pending persist before an account change swaps the tree", async () => {
-    let flushed = 0;
+  it("catches a secret behind an alias defined earlier in the same line", async () => {
+    const saved: string[][] = [];
     const root = document.createElement("div");
     document.body.append(root);
     term = new Terminal(root, {
@@ -216,12 +216,55 @@ describe("Terminal (driven via keyboard)", () => {
       registry: buildRegistry(),
       session: { user: "guest" },
       extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "alias p passwd; p hunter2"); // defines p, then uses it — must be excluded
+    expect(saved.flat()).not.toContain("alias p passwd; p hunter2");
+  });
+
+  it("expands alias args when inspecting an embedded `at` payload", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      configure: () => ({ aliases: { later: "at now+5m passwd" } }),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "later hunter2"); // → at now+5m passwd hunter2 — the secret must be caught
+    expect(saved.flat()).not.toContain("later hunter2");
+  });
+
+  it("flushes pending history BEFORE an account change switches identity", async () => {
+    // The flush must run while the *old* account's storage routing is still in
+    // effect — otherwise the deferred save lands under the new identity.
+    const order: string[] = [];
+    const auth = new MemoryAuthAdapter();
+    const realLogin = auth.login.bind(auth);
+    auth.login = ((...a: Parameters<typeof auth.login>) => {
+      order.push("login");
+      return realLogin(...a);
+    }) as typeof auth.login;
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(auth),
       flushPending: async () => {
-        flushed++;
+        order.push("flush");
       },
     });
-    await runLine(root, "login alice"); // login reloads the tree → must flush first
-    expect(flushed).toBeGreaterThan(0);
+    await runLine(root, "login alice");
+    expect(order).toEqual(["flush", "login"]); // flushed first, then identity switched
   });
 
   it("refuses to start a command while another window is mid account-change", async () => {

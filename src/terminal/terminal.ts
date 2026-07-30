@@ -20,6 +20,27 @@ import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
  * payload — a password scheduled for later must not be persisted either. */
 const EMBEDS_COMMAND = new Set(["at"]);
 
+/** Parse an `alias` command's args into `[name, expansion]` (mirrors the `alias`
+ * command: `alias ll ls -la`, `alias ll = ls -la`, `alias ll=ls -la`), or null.
+ * Lets history's secret check honour an alias defined earlier in the same line. */
+function parseAliasDef(args: string[]): [name: string, value: string] | null {
+  let name: string;
+  let value: string;
+  if (args[1] === "=") {
+    name = args[0] ?? "";
+    value = args.slice(2).join(" ").trim();
+  } else if ((args[0] ?? "").includes("=")) {
+    const joined = args.join(" ");
+    const i = joined.indexOf("=");
+    name = joined.slice(0, i).trim();
+    value = joined.slice(i + 1).trim();
+  } else {
+    name = args[0] ?? "";
+    value = args.slice(1).join(" ").trim();
+  }
+  return name && !/[\s=]/.test(name) && value ? [name, value] : null;
+}
+
 /** A do-nothing storage adapter: the engine default when an app has no backend
  * (e.g. the adventure example). Nothing to load, saves are dropped. */
 const NULL_ADAPTER: StorageAdapter = {
@@ -1180,14 +1201,21 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   }
 
   /**
-   * The command names a line will actually run — every pipeline stage, each with
-   * one level of alias expansion applied — so a secret hidden behind an alias
-   * (`alias p passwd; p pw`), inside a `&&`/`|` chain, or scheduled via
-   * `at <time> <command>` is still visible to {@link histIgnore}. Falls back to
-   * the raw segments' first words if the line didn't parse (a malformed line
-   * still shouldn't smuggle a password in).
+   * The command names a line will actually run — every pipeline stage, aliases
+   * expanded exactly as {@link executePipeline} does — so a secret hidden behind
+   * an alias, inside a `&&`/`|` chain, or scheduled via `at <time> <command>` is
+   * still visible to {@link histIgnore}. Handles an alias *defined earlier in the
+   * same line* (`alias p passwd; p pw`) by tracking definitions as it walks the
+   * stages left-to-right.
    */
-  private resolvedCommandNames(line: string, parsed: SequenceResult, depth = 0): string[] {
+  private resolvedCommandNames(line: string, parsed: SequenceResult): string[] {
+    return this.collectCommandNames(this.stagesOf(line, parsed), new Map(this.aliases), 0);
+  }
+
+  /** Pipeline stages of a line — from the parse, or best-effort from the raw
+   * segments' first words if it didn't parse (a malformed line still shouldn't
+   * smuggle a password past the secret check). */
+  private stagesOf(line: string, parsed: SequenceResult): Pick<Stage, "name" | "args">[] {
     const stages: Pick<Stage, "name" | "args">[] = [];
     if (parsed.ok) {
       for (const item of parsed.items) stages.push(...item.pipeline.stages);
@@ -1197,16 +1225,38 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         if (words.length) stages.push({ name: words[0], args: words.slice(1) });
       }
     }
+    return stages;
+  }
+
+  /** Resolve each stage's effective command name against `aliases` (expanding a
+   * stage's args the same way the runtime does), learning same-line `alias`
+   * definitions as it goes and recursing into an `at` payload. */
+  private collectCommandNames(
+    stages: Pick<Stage, "name" | "args">[],
+    aliases: Map<string, string>,
+    depth: number,
+  ): string[] {
     const names: string[] = [];
     for (const stage of stages) {
-      const alias = this.aliases.get(stage.name);
-      const name = alias ? (tokenize(alias)[0] ?? stage.name) : stage.name;
+      let name = stage.name;
+      let args = stage.args;
+      const expansion = aliases.get(name);
+      if (expansion) {
+        const words = tokenize(expansion);
+        if (words.length > 0) {
+          name = words[0];
+          args = [...words.slice(1), ...stage.args]; // alias words prepended, like the runtime
+        }
+      }
       names.push(name);
-      // Recurse into a command that embeds another (the scheduler's
-      // `at <time> <command…>`), so a password scheduled for later is caught.
-      if (depth < 3 && EMBEDS_COMMAND.has(name)) {
-        const payload = stage.args.slice(1).join(" ").trim();
-        if (payload) names.push(...this.resolvedCommandNames(payload, parseSequence(payload), depth + 1));
+      if (name === "alias") {
+        const def = parseAliasDef(args); // a definition earlier in the line applies to later stages
+        if (def) aliases.set(def[0], def[1]);
+      } else if (depth < 3 && EMBEDS_COMMAND.has(name)) {
+        const payload = args.slice(1).join(" ").trim(); // `at <time> <command…>`
+        if (payload) {
+          names.push(...this.collectCommandNames(this.stagesOf(payload, parseSequence(payload)), aliases, depth + 1));
+        }
       }
     }
     return names;
@@ -1296,15 +1346,15 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       clear: () => this.clear(),
       persist: () => this.persistTree(),
       reloadFs: async () => {
-        // Persist any window's pending history to the *current* account before
-        // its tree is replaced by the one we're switching to — otherwise a
-        // read-only command run just before login/logout (still inside the
-        // debounce window, possibly in another window on the shared tree) would
-        // be dropped with the old tree.
-        await this.flushPending?.();
         const root = await this.adapter.load();
         if (root) this.vfs.root = root;
       },
+      // Persist any window's pending history *before* an account transition
+      // switches identity — the acting command calls this at the transition's
+      // start, while the current account's storage routing is still in effect,
+      // so a read-only command run just before login/logout isn't dropped and,
+      // crucially, isn't saved under the *new* account's identity.
+      flushHistory: () => this.flushPending?.() ?? Promise.resolve(),
       applyConfig: () => this.loadConfig(),
       // Account changed (login/logout/useradd/usermod) — let a multiplexer
       // re-home the *other* windows, which share this session and VFS.

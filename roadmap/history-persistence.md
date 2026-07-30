@@ -36,10 +36,12 @@ in-session och försvann vid reload.
 - **Inga hemligheter i history (HISTIGNORE).** `passwd`/`login`/`useradd`/`register`
   tar lösenordet som ett argument; hela raden hålls utanför history (både pil-upp
   och filen) via en `histIgnore`-söm på `Terminal`. Checken körs på de *resolvade*
-  kommando-namnen — varje pipeline-steg, alias expanderade, och **rekursivt in i
-  `at`:s payload** (`at now+5m login u pw` schemalägger en hemlighet) — så även
-  `alias p passwd; p pw`, `x && login a b` och den schemalagda varianten fångas.
-  `Terminal` äger parsningen; `main.ts` bidrar bara med namn-listan (`hasSecret`).
+  kommando-namnen — den går igenom pipeline-stegen vänster-till-höger, expanderar
+  alias precis som körningen (inkl. alias-args), lär sig alias *definierade
+  tidigare på samma rad* (`alias p passwd; p pw`), och rekurserar in i `at`:s
+  payload (`at now+5m login u pw`, även via alias `later hunter2`). Så direkt,
+  aliasad, kedjad och schemalagd variant fångas alla. `Terminal` äger parsningen;
+  `main.ts` bidrar bara med namn-listan (`hasSecret`).
 - **Konflikt-reconcile för bakgrunds-sparningen, delad över fönster.** Den
   debouncade sparningen gick först direkt mot `adapter.save` och svalde
   `StorageConflictError` → nästa spar kunde skriva över en samtidig moln-ändring.
@@ -48,7 +50,11 @@ in-session och försvann vid reload.
   **en enda delad pending-persist** (i `main.ts`), inte en timer per fönster —
   annars kunde ett konto­byte i fönster A missa fönster B:s väntande skrivning.
   Den flushas synkront vid livscykel-gränser via en injicerad `flushPending`:
-  före `reloadFs` byter träd, vid `dispose()`, och av värden på `beforeunload`.
+  vid `dispose()`, av värden på `beforeunload`, och — viktigast — i **början av
+  en konto-transition** (`withTransition` → `ctx.flushHistory`), *innan* auth
+  byter identitet. Annars hade den uppskjutna sparningen routats genom fel konto
+  (gäst-träd till moln-kontot vid login, användarens träd till gäst-localStorage
+  vid logout).
 
 ## Kända v1-begränsningar (medvetet dragen gräns)
 - **`beforeunload` mot molnet är best-effort.** En mutation och ett konto­byte
