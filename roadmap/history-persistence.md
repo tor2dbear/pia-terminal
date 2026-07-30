@@ -54,7 +54,9 @@ in-session och försvann vid reload.
   en konto-transition** (`withTransition` → `ctx.flushHistory`), *innan* auth
   byter identitet. Annars hade den uppskjutna sparningen routats genom fel konto
   (gäst-träd till moln-kontot vid login, användarens träd till gäst-localStorage
-  vid logout).
+  vid logout). `flushPending` väntar dessutom in en redan *pågående* sparning
+  (inte bara en väntande timer), så en transition inte byter identitet mitt i en
+  save som ännu inte hunnit landa.
 
 ## Kända v1-begränsningar (medvetet dragen gräns)
 - **`beforeunload` mot molnet är best-effort.** En mutation och ett konto­byte

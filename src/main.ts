@@ -132,20 +132,37 @@ async function main(): Promise<void> {
   // window), and best-effort on unload.
   const HISTORY_PERSIST_MS = 1500;
   let persistTimer: ReturnType<typeof setTimeout> | undefined;
-  const runPersist = (): Promise<void> =>
-    (tabs?.idleWindow() ?? tabs?.current())?.flush() ?? Promise.resolve();
+  let inFlight: Promise<void> | undefined; // a persist that has started but not settled
+  const runPersist = (): Promise<void> => {
+    const p = ((tabs?.idleWindow() ?? tabs?.current())?.flush() ?? Promise.resolve())
+      .catch(() => {})
+      .finally(() => {
+        if (inFlight === p) inFlight = undefined;
+      });
+    inFlight = p;
+    return p;
+  };
   const scheduleHistoryPersist = (): void => {
     if (persistTimer !== undefined) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
       persistTimer = undefined;
-      void runPersist().catch(() => {});
+      void runPersist();
     }, HISTORY_PERSIST_MS);
   };
+  // Complete any pending *and* in-flight persist before returning. Awaiting the
+  // in-flight promise matters at an account transition: the debounce may have
+  // fired (clearing the timer) but not settled, and the swap must not change
+  // identity / replace the VFS while that save is still running under the old
+  // routing. Loops so a persist that starts during the await is caught too.
   const flushPending = async (): Promise<void> => {
-    if (persistTimer === undefined) return;
-    clearTimeout(persistTimer);
-    persistTimer = undefined;
-    await runPersist();
+    while (persistTimer !== undefined || inFlight !== undefined) {
+      if (persistTimer !== undefined) {
+        clearTimeout(persistTimer);
+        persistTimer = undefined;
+        void runPersist();
+      }
+      await inFlight;
+    }
   };
   // Best-effort backstop for the last read-only command(s) if the tab closes
   // inside the debounce window: localStorage (guests, and the Hybrid adapter's
