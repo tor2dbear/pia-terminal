@@ -22,8 +22,8 @@ log and grouped into milestones.
 ### Changed
 - **`demo`**: a longer, richer reel — adds a Unix search scene (`grep`/`find`), a
   full-screen `todo` checklist, and a `figlet` banner; types each command with a
-  human-like rhythm; and now types `clear` between scenes instead of blanking the
-  screen.
+  human-like rhythm; and types `clear` between scenes, leaving a fresh prompt
+  behind like a real terminal instead of blanking to a black screen.
 - **`changelog`**: hides Keep-a-Changelog link-reference plumbing in the terminal
   (it's GitHub-only), so the version list stays clean instead of trailing raw
   `[x]: url` lines.

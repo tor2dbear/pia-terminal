@@ -200,7 +200,14 @@ describe("DemoReel playback", () => {
       if (reel.snapshot().lines === 0 && typedClear) break;
     }
     expect(typedClear).toBe(true); // not just an instant blank
-    expect(reel.snapshot().lines).toBe(0); // …and then the screen is cleared
+    expect(reel.snapshot().lines).toBe(0); // …and then the scrollback is cleared
+
+    // …but a real `clear` leaves a fresh prompt, not a black screen: exactly one
+    // prompt line remains, showing the prompt and no leftover `clear` text.
+    const lines = Array.from(host.querySelectorAll(".term-line"));
+    expect(lines).toHaveLength(1);
+    expect(lines[0].querySelector(".term-echo-prompt")?.textContent).toContain("guest@pia");
+    expect(lines[0].textContent).not.toContain("clear");
   });
 
   it("renders into a mounted container", () => {
