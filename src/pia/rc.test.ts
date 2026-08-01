@@ -87,12 +87,14 @@ describe("parseConfig — colours, font, size", () => {
         "color.bg = #001018",
         'font = "Berkeley Mono", monospace',
         "font-size = 15",
+        "margin = 24",
       ].join("\n"),
     );
     expect(cfg.colors.accent).toBe("#ff8800");
     expect(cfg.colors.bg).toBe("#001018");
     expect(cfg.font).toBe('"Berkeley Mono", monospace');
     expect(cfg.fontSize).toBe(15);
+    expect(cfg.margin).toBe(24);
   });
 
   it("drops invalid values instead of applying them", () => {
@@ -102,12 +104,21 @@ describe("parseConfig — colours, font, size", () => {
         "color.bogus = #ffffff", // unknown token
         "font = bad;value{",
         "font-size = 999", // out of range
+        "margin = 200", // out of range
       ].join("\n"),
     );
     expect(cfg.colors.accent).toBeUndefined();
     expect(cfg.colors).toEqual({});
     expect(cfg.font).toBeUndefined();
     expect(cfg.fontSize).toBeUndefined();
+    expect(cfg.margin).toBeUndefined();
+  });
+
+  it("accepts a margin across its range, including 0, and rejects junk", () => {
+    expect(parseConfig("margin = 0").margin).toBe(0);
+    expect(parseConfig("margin = 80").margin).toBe(80);
+    expect(parseConfig("margin = -4").margin).toBeUndefined(); // below range
+    expect(parseConfig("margin = huge").margin).toBeUndefined(); // not a number
   });
 
   it("accepts 3-, 6- and 8-digit hex", () => {

@@ -22,7 +22,7 @@ export function loadTerminalConfig(vfs: VFS): TerminalConfig {
   }
   const cfg = parseConfig(text);
   applyTheme(cfg.theme ?? DEFAULT_THEME);
-  applyAppearance(cfg.colors, cfg.font, cfg.fontSize);
+  applyAppearance(cfg.colors, cfg.font, cfg.fontSize, cfg.margin);
   // CRT/retro overlay is a plain class on the root (CSP-safe — the effect is all
   // in style.css); flip it here so `crt on/off` applies live via applyConfig.
   if (typeof document !== "undefined") {

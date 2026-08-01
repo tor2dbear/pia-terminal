@@ -22,20 +22,29 @@ describe("applyTheme", () => {
 });
 
 describe("applyAppearance", () => {
-  it("layers colour overrides and font onto the root", () => {
+  it("layers colour overrides, font and margin onto the root", () => {
     const root = document.createElement("div");
-    applyAppearance({ accent: "#ff8800" }, '"Berkeley Mono", monospace', 15, root);
+    applyAppearance({ accent: "#ff8800" }, '"Berkeley Mono", monospace', 15, 24, root);
     expect(root.style.getPropertyValue("--accent")).toBe("#ff8800");
     expect(root.style.getPropertyValue("--font")).toBe('"Berkeley Mono", monospace');
     expect(root.style.getPropertyValue("--font-size")).toBe("15px");
+    expect(root.style.getPropertyValue("--pad")).toBe("24px");
   });
 
-  it("clears font/size when not set, so the stylesheet default returns", () => {
+  it("clears font/size/margin when not set, so the stylesheet default returns", () => {
     const root = document.createElement("div");
     root.style.setProperty("--font", "old");
     root.style.setProperty("--font-size", "20px");
-    applyAppearance({}, undefined, undefined, root);
+    root.style.setProperty("--pad", "30px");
+    applyAppearance({}, undefined, undefined, undefined, root);
     expect(root.style.getPropertyValue("--font")).toBe("");
     expect(root.style.getPropertyValue("--font-size")).toBe("");
+    expect(root.style.getPropertyValue("--pad")).toBe("");
+  });
+
+  it("keeps a zero margin (flush to the safe-area), not treating it as unset", () => {
+    const root = document.createElement("div");
+    applyAppearance({}, undefined, undefined, 0, root);
+    expect(root.style.getPropertyValue("--pad")).toBe("0px");
   });
 });

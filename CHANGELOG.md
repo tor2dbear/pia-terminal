@@ -12,6 +12,11 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`margin` config setting**: `margin = N` in `~/.pia/config` sets the breathing
+  room (px) around the terminal content — top and sides — alongside `theme`,
+  `font`, `font-size`, and colours. The bottom keeps its clearance for the
+  on-screen key bar, and every edge is clamped up to the device safe-area so the
+  value never tucks under a notch or home indicator.
 - **Persistent command history**: up-arrow now reaches commands from earlier
   sessions, not just the current one. History is saved to `~/.pia/history` (the
   bash HISTFILE idiom) — so it survives a reload, syncs across your devices when
