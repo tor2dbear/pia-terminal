@@ -107,8 +107,9 @@ body {
   display: flex;
 }
 #screen.has-tabs .term-pane {
-  /* The strip already carries the notch inset. */
-  padding-top: 0.5rem;
+  /* The strip already carries the notch inset, so no safe-area clamp here — but
+     still honour the configured margin (--pad) for the top edge when set. */
+  padding-top: var(--pad, 0.5rem);
 }
 .term-tabs::-webkit-scrollbar {
   display: none;
