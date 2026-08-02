@@ -131,16 +131,22 @@ export const MANPAGES: Record<string, ManPage> = {
   },
   config: {
     concept: true,
-    summary: "the ~/.pia/config dotfile — prompt, theme, aliases",
+    summary: "the ~/.pia/config dotfile — prompt, theme, appearance, aliases",
     description: [
       "PIA reads ~/.pia/config at startup. It sets the prompt template, the colour " +
         "theme, the CRT overlay, and command aliases. Edit it with `nano " +
         "~/.pia/config`, then `source ~/.pia/config` to apply without a reload.",
       "Lines are `key = value`; `#` starts a comment. Aliases use " +
         "`alias name = expansion`.",
+      "Appearance keys: `font` (an installed font, by name), `font-size` (px, " +
+        "8–40), and `margin` (px of breathing room around the content — top and " +
+        "sides, 0–80; the bottom keeps room for the on-screen key bar, and every " +
+        "edge is clamped up to the device safe-area).",
     ],
     examples: [
       ["theme amber", "change the theme (writes to the config)"],
+      ["font-size = 16", "bump the text size (edit the config)"],
+      ["margin = 24", "more breathing room around the content"],
       ["alias ll = ls -la", "define a shortcut"],
       ["source ~/.pia/config", "re-read and apply the config"],
     ],

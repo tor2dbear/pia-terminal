@@ -44,14 +44,16 @@ export function applyTheme(name: string, root: HTMLElement = document.documentEl
 
 /**
  * Layer the user's own appearance overrides on top of the theme: per-token hex
- * colours, plus font family and size. Applied after {@link applyTheme}, so a
- * removed override falls back to the theme (colours, re-set by applyTheme) or
- * the stylesheet default (font, cleared here). All via the CSSOM, CSP-safe.
+ * colours, font family and size, and the content margin. Applied after
+ * {@link applyTheme}, so a removed override falls back to the theme (colours,
+ * re-set by applyTheme) or the stylesheet default (font/size/margin, cleared
+ * here). All via the CSSOM, CSP-safe.
  */
 export function applyAppearance(
   colors: Partial<Palette>,
   font: string | undefined,
   fontSize: number | undefined,
+  margin: number | undefined,
   root: HTMLElement = document.documentElement,
 ): void {
   for (const [key, value] of Object.entries(colors)) {
@@ -61,4 +63,8 @@ export function applyAppearance(
   else root.style.removeProperty("--font");
   if (fontSize) root.style.setProperty("--font-size", `${fontSize}px`);
   else root.style.removeProperty("--font-size");
+  // `--pad` drives the term-pane's top/side padding (see style.css). 0 is a
+  // valid value (flush to the safe-area), so test for undefined, not falsiness.
+  if (margin !== undefined) root.style.setProperty("--pad", `${margin}px`);
+  else root.style.removeProperty("--pad");
 }

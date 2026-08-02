@@ -115,6 +115,9 @@ theme = amber
 # font = "Berkeley Mono", monospace
 # font-size = 14
 
+# margin: breathing room around the content in px (top + sides; 0–80)
+# margin = 24
+
 # prompt template — placeholders: {user} {host} {cwd}
 # colour it zsh-style: %F{token|#hex}…%f  ·  bold: %B…%b
 #   e.g. prompt = %F{accent}{user}%f:%F{dim}{cwd}%f$ 

@@ -32,6 +32,9 @@ export interface PiaConfig {
   font?: string;
   /** Font size in px. */
   fontSize?: number;
+  /** Breathing room around the terminal content in px — top + left/right. The
+   * bottom keeps its key-bar clearance. Clamped against the device safe-area. */
+  margin?: number;
 }
 
 /** The starter config seeded into a fresh home. */
@@ -55,6 +58,9 @@ export const DEFAULT_CONFIG = [
   "# font (an installed font, by name) and size in px",
   '# font = "Berkeley Mono", monospace',
   "# font-size = 14",
+  "",
+  "# margin: breathing room around the content in px (top + sides; 0–80)",
+  "# margin = 24",
   "",
   "# prompt template — placeholders: {user} {host} {cwd}",
   "# colour it zsh-style: %F{token|#hex}…%f  ·  bold: %B…%b",
@@ -112,6 +118,9 @@ export function parseConfig(text: string): PiaConfig {
       } else if (key === "font-size") {
         const n = Number.parseInt(value, 10);
         if (Number.isInteger(n) && n >= 8 && n <= 40) cfg.fontSize = n;
+      } else if (key === "margin") {
+        const n = Number.parseInt(value, 10);
+        if (Number.isInteger(n) && n >= 0 && n <= 80) cfg.margin = n;
       }
     }
   }
