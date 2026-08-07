@@ -119,9 +119,10 @@ theme = amber
 # margin = 24
 
 # prompt template — placeholders: {user} {host} {cwd}
+# ({host} is your machine name, from /etc/hostname)
 # colour it zsh-style: %F{token|#hex}…%f  ·  bold: %B…%b
 #   e.g. prompt = %F{accent}{user}%f:%F{dim}{cwd}%f$ 
-prompt = {user}@pia:{cwd}$
+prompt = {user}@{host}:{cwd}$
 
 # shortcuts — `alias <name> = <expansion>`   (or use `alias ll ls -la`)
 alias ll = ls -la
@@ -295,6 +296,9 @@ VERSION="<version>"
 ID=pia
 HOME_URL=https://pia.tor2dbear.com
 
+guest@pia:~$ cat /etc/hostname
+pia
+
 guest@pia:~$ version
 PIA v<version>
 guest@pia:~$ about
@@ -395,8 +399,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
- 97  version
- 98  about
- 99  date -u
-100  help
-101  history | tail -5
+ 98  version
+ 99  about
+100  date -u
+101  help
+102  history | tail -5

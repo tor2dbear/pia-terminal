@@ -1,5 +1,6 @@
 import { parseConfig, DEFAULT_CONFIG } from "./rc.js";
 import { applyTheme, applyAppearance, DEFAULT_THEME } from "./themes.js";
+import { readHostname } from "./etc.js";
 import type { VFS } from "../vfs/vfs.js";
 import type { TerminalConfig } from "../terminal/terminal.js";
 
@@ -28,5 +29,7 @@ export function loadTerminalConfig(vfs: VFS): TerminalConfig {
   if (typeof document !== "undefined") {
     document.documentElement.classList.toggle("crt", cfg.crt === true);
   }
-  return { prompt: cfg.prompt, aliases: cfg.aliases };
+  // The machine name (prompt `{host}`) comes from /etc/hostname, not ~/.pia/config
+  // — a system file, like a real box's hostname. Empty → the engine's default.
+  return { prompt: cfg.prompt, aliases: cfg.aliases, host: readHostname(vfs) || undefined };
 }

@@ -4,7 +4,7 @@
  *
  *   # comments start with #
  *   theme = amber
- *   prompt = {user}@pia:{cwd}$
+ *   prompt = {user}@{host}:{cwd}$
  *   alias ll = ls -la
  *
  * Parsing is deliberately lenient (spaces optional, unknown keys ignored); the
@@ -63,9 +63,10 @@ export const DEFAULT_CONFIG = [
   "# margin = 24",
   "",
   "# prompt template — placeholders: {user} {host} {cwd}",
+  "# ({host} is your machine name, from /etc/hostname)",
   "# colour it zsh-style: %F{token|#hex}…%f  ·  bold: %B…%b",
   "#   e.g. prompt = %F{accent}{user}%f:%F{dim}{cwd}%f$ ",
-  "prompt = {user}@pia:{cwd}$",
+  "prompt = {user}@{host}:{cwd}$",
   "",
   "# shortcuts — `alias <name> = <expansion>`   (or use `alias ll ls -la`)",
   "alias ll = ls -la",

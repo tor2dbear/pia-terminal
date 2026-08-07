@@ -203,6 +203,7 @@ const TOUR: string[] = [
   "sudo make me a sandwich",
   "ls /",
   "cat /etc/os-release",
+  "cat /etc/hostname",
   "version",
   "about",
   "date -u",

@@ -40,6 +40,10 @@ function osRelease(): string {
  *    version, so it can't drift.
  * Idempotent: safe to call on every boot (guest, returning guest, logged-in).
  */
+/** The machine's default name — what the prompt's `{host}` shows, and the seed
+ * for /etc/hostname. */
+export const DEFAULT_HOSTNAME = "pia";
+
 export function seedSystemFiles(vfs: VFS): void {
   // Nothing here is write-protected yet, so a user can have put anything at these
   // paths (`mkdir /etc/motd`, a file called `/etc`). Guard every step so a
@@ -49,9 +53,10 @@ export function seedSystemFiles(vfs: VFS): void {
   if (etc && etc.type !== "dir") return; // a non-dir occupies /etc — leave it, don't crash boot
   vfs.mkdirp("/etc");
 
-  // motd: seed only when the path is empty — a user's own file (edits survive) or
-  // a stray directory there is both left untouched.
+  // motd + hostname: yours to edit — seeded only when the path is empty (a file
+  // you've written survives; a stray directory there is left untouched).
   if (!vfs.getNode("/etc/motd")) vfs.writeFile("/etc/motd", `${DEFAULT_MOTD}\n`);
+  if (!vfs.getNode("/etc/hostname")) vfs.writeFile("/etc/hostname", `${DEFAULT_HOSTNAME}\n`);
 
   // os-release: machine-owned, refreshed each boot — unless a directory sits
   // there, in which case there's nothing safe to do but skip it.
@@ -62,4 +67,17 @@ export function seedSystemFiles(vfs: VFS): void {
 export function readMotd(vfs: VFS): string {
   const node = vfs.getNode("/etc/motd");
   return node && node.type === "file" ? vfs.readFile("/etc/motd") : "";
+}
+
+/**
+ * Read the machine name from /etc/hostname — the first line, kept to a sane
+ * hostname charset (which also stops a stray prompt `%`-escape sneaking in).
+ * Empty string when the file is absent or blank, so callers fall back to
+ * {@link DEFAULT_HOSTNAME}.
+ */
+export function readHostname(vfs: VFS): string {
+  const node = vfs.getNode("/etc/hostname");
+  if (!(node && node.type === "file")) return "";
+  const first = vfs.readFile("/etc/hostname").split("\n")[0].trim();
+  return first.replace(/[^A-Za-z0-9._-]/g, "").slice(0, 64);
 }

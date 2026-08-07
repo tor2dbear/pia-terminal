@@ -65,6 +65,20 @@ describe("Terminal (driven via keyboard)", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 
+  it("resolves the prompt's {host} from the configured hostname (/etc/hostname)", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      configure: () => ({ host: "mybox" }), // as /etc/hostname would supply
+    });
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@mybox:~$");
+  });
+
   it("re-homes onto the current account (for a multiplexer's other windows)", async () => {
     const vfs = VFS.seed();
     const session = { user: "guest" };

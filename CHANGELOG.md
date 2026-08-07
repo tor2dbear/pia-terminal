@@ -12,6 +12,12 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`/etc/hostname`**: the machine name behind the prompt's `{host}` now lives in
+  `/etc/hostname` (like a real box). Rename your machine with
+  `echo laptop > /etc/hostname` then `source ~/.pia/config`, and the prompt
+  becomes `you@laptop:~$`. The default prompt template now uses `{host}` (an
+  existing config with a hard-coded name still works — switch it to `{host}` to
+  track the hostname).
 - **`/etc` system tree**: PIA now has a little `/etc` of its own — `/etc/motd`
   (the boot greeting, now a real editable file that drives what you see at
   startup) and `/etc/os-release` (the OS identity `neofetch` echoes). `ls /`

@@ -25,8 +25,12 @@ att öva på) och knyter ihop befintliga features (boot-hälsning, neofetch).
   den saknas (edits överlever), och self-healar om du raderar den.
 - **`/etc/os-release`** — maskinägd OS-identitet (samma version som `neofetch`),
   skrivs alltid om till körande version så den inte driftar.
+- **`/etc/hostname`** — maskinens namn bakom promptens `{host}` (läses via
+  `terminalConfig` → `TerminalConfig.host`; default-prompten använder nu
+  `{host}`). `echo laptop > /etc/hostname; source` döper om maskinen live.
 - `ls /` visar nu `etc/  home/`. Täckt av `etc.test.ts` (seed/edit-överlevnad/
-  self-heal/os-release-refresh) + en tour-rad (`ls /`, `cat /etc/os-release`).
+  self-heal/os-release-refresh/hostname) + tour-rader (`ls /`,
+  `cat /etc/os-release`, `cat /etc/hostname`).
 
 Ingen låsning ännu: `rm /etc/motd` funkar (men kommer tillbaka vid boot); och
 `sudo rm /etc/motd` *avböjer* (stubben kör inget) — så `sudo` skyddar dig just nu
