@@ -414,7 +414,11 @@ grant select               on public.shared_lists        to authenticated;
 -- would let a hand-written PostgREST request rewrite name / created_by /
 -- updated_at — and setting created_by to yourself would make the owner backfill
 -- promote you on a later rerun. name/metadata changes go through owner-only RPCs.
-grant update (content)     on public.shared_lists        to authenticated;
+-- Grants are additive, so first REVOKE any prior table-wide UPDATE (an install
+-- upgraded from the pre-roles script still carries it) — otherwise the
+-- column-scoped grant below wouldn't actually narrow anything.
+revoke update               on public.shared_lists        from authenticated;
+grant  update (content)     on public.shared_lists        to authenticated;
 grant select               on public.shared_list_members to authenticated;
 grant select               on public.shared_list_invites to authenticated;
 
