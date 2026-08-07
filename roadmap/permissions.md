@@ -1,6 +1,6 @@
 ---
 title: Rättigheter — skrivskyddat systemträd + sudo som escape-hatch
-status: next
+status: done
 tags: [shell, fs, teaching]
 updated: 2026-08-07
 ---
@@ -15,7 +15,21 @@ att öva på) och knyter ihop befintliga features (boot-hälsning, neofetch).
 ## Upplägg i tre steg (var och en shippbar för sig)
 1. **Seeda systemträdet** — filerna *finns* och *används*, ingen låsning. ✅ *(gjort)*
 2. **Skrivskydda** systemsökvägarna — `rm /etc/motd` → `permission denied`. ✅ *(gjort)*
-3. **`sudo`-elevation** — `sudo <cmd>` kör kommandot med skyddet av; escape-hatchen.
+3. **`sudo`-elevation** — `sudo <cmd>` kör kommandot med skyddet av; escape-hatchen. ✅ *(gjort)*
+
+## Levererat (steg 3, samma session)
+`sudo <cmd>` kör nu payloaden **eleverat**: en motor-söm `ctx.exec(rad)` kör om
+raden genom den riktiga pipeline-köraren (`runLine`→`runSequence`→`executePipeline`,
+utextraherat ur `submit`), inuti `vfs.runElevated`. Så `sudo rm /etc/motd` /
+`sudo nano /etc/hostname` funkar där ett vanligt kommando får `permission denied`.
+- Ingen lösenords-/user-modell (single-user) — sudo är bara "jag menar det"-knappen.
+- `ctx.fail()` (ny, tyst) låter sudo propagera payloadens exit-status till `&&`/`||`.
+- **Redirect-gotcha, som på riktig Linux:** `>` görs av skalet, inte det eleverade
+  kommandot, så `sudo echo x > /etc/hostname` fallerar ändå — `sudo nano` är vägen.
+  (Läsning är oskyddad, så `sudo cat`/pipe behövs aldrig; sudo behövs bara för
+  *skrivningar*, som inte pipas.)
+- Täckt av terminal-tester (sudo skriver i skyddat träd + återställer vakten;
+  failure propageras till `&&`) och en tour-rad (`rm` nekad → `sudo rm` funkar).
 
 ## Levererat (steg 1, 2026-08-07)
 `src/pia/etc.ts` (`seedSystemFiles`): en liten `/etc`, seedad idempotent vid boot

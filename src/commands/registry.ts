@@ -49,6 +49,14 @@ export interface CoreCommandContext {
   print(text?: string, cls?: LineClass): void;
   /** Print an error line. */
   error(text: string): void;
+  /** Mark this pipeline failed *without* printing — for a wrapper command (e.g.
+   * `sudo`) to propagate its payload's exit status to `&&`/`||`. */
+  fail?(): void;
+  /** Run a command line as this command's payload, through the same pipeline
+   * machinery (pipes, `;`/`&&`/`||`, redirects) — no prompt echo or history.
+   * Used by `sudo` (which runs it under {@link VFS.runElevated}). Returns whether
+   * the line succeeded. */
+  exec?(line: string): Promise<boolean>;
   /** Clear the screen. */
   clear(): void;
   /** Persist the filesystem after a mutation. */

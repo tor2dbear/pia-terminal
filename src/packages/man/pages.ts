@@ -264,16 +264,23 @@ export const MANPAGES: Record<string, ManPage> = {
     seeAlso: ["crt", "config"],
   },
   sudo: {
-    summary: "run a command as superuser (there isn't one here)",
+    summary: "run a command with elevated privileges",
     synopsis: "sudo <command>",
     description: [
-      "On a real system sudo runs a command with elevated privileges. PIA is a " +
-        "single-user machine — no owners, no root, no permission bits — so there's " +
-        "nothing to elevate to: whatever you can do, you can already do. sudo just " +
-        "says so and points you at running the command directly.",
-      "It's kept as a friendly nod to the muscle memory, not a real privilege tool.",
+      "Run a command elevated: the write-guard on the system tree (/etc) is " +
+        "lifted for it, so `sudo rm /etc/motd` or `sudo nano /etc/hostname` work " +
+        "where a plain command gets `permission denied`.",
+      "There's no password or user model — PIA is single-user, so you're always " +
+        "allowed to elevate. sudo is just the deliberate switch for touching the " +
+        "system files.",
+      "Like a real shell, a redirection (`>`) is performed by the shell, not the " +
+        "elevated command, so `sudo echo x > /etc/hostname` still fails. Use " +
+        "`sudo nano /etc/hostname` (or sudo rm/touch/cp/mv) to change a system file.",
     ],
-    examples: [["sudo rm cache", "→ just run `rm cache`; you already own it"]],
-    seeAlso: ["whoami", "whoareyou"],
+    examples: [
+      ["sudo nano /etc/hostname", "rename the machine (edit a protected file)"],
+      ["sudo rm /etc/motd", "remove a protected system file"],
+    ],
+    seeAlso: ["config", "whoami"],
   },
 };

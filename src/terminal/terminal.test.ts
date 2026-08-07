@@ -272,7 +272,34 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("sudo passwd hunter2");
   });
 
-  it("sudo declines to run and fails the pipeline, so `&&` short-circuits", async () => {
+  it("sudo runs its payload elevated, so it can write the protected system tree", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => {
+      vfs.mkdirp("/etc");
+      vfs.writeFile("/etc/motd", "hi.");
+    });
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    await runLine(root, "rm /etc/motd"); // plain: denied
+    expect(vfs.getNode("/etc/motd")).not.toBeNull();
+    expect(root.textContent).toContain("permission denied");
+
+    await runLine(root, "sudo rm /etc/motd"); // elevated: removes it
+    expect(vfs.getNode("/etc/motd")).toBeNull();
+
+    await runLine(root, "touch /etc/again"); // the guard is restored afterwards
+    expect(root.textContent).toContain("permission denied: /etc/again");
+  });
+
+  it("sudo propagates its payload's failure to `&&`", async () => {
     const vfs = VFS.seed();
     const root = document.createElement("div");
     document.body.append(root);
@@ -283,9 +310,8 @@ describe("Terminal (driven via keyboard)", () => {
       session: { user: "guest" },
       extendContext: piaExtendContext(new MemoryAuthAdapter()),
     });
-    await runLine(root, "sudo mkdir foo && mkdir bar");
-    expect(vfs.getNode("/home/guest/foo")).toBeNull(); // sudo never ran mkdir
-    expect(vfs.getNode("/home/guest/bar")).toBeNull(); // …and && short-circuited on the failure
+    await runLine(root, "sudo rm /nope && mkdir made");
+    expect(vfs.getNode("/home/guest/made")).toBeNull(); // rm failed → && short-circuited
   });
 
   it("expands alias args when inspecting an embedded `at` payload", async () => {
