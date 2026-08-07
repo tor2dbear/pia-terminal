@@ -12,6 +12,10 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`sudo`**: an honest single-user stub — PIA has no superuser to elevate to, so
+  it says you're already root and points you at running the command directly
+  (with a nod to xkcd 149). A friendly answer to muscle memory, not a real
+  privilege tool.
 - **`margin` config setting**: `margin = N` in `~/.pia/config` sets the breathing
   room (px) around the terminal content — top and sides — alongside `theme`,
   `font`, `font-size`, and colours. The bottom keeps its clearance for the

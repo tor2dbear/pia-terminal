@@ -15,10 +15,15 @@ import { fillLinkified } from "./linkify.js";
 import { parsePromptSegments } from "./prompt.js";
 import type { ScreenApp, ScreenAppFactory, KeySpec } from "./screen.js";
 
-/** Commands that carry another command line in their arguments (the scheduler's
- * `at <time> <command…>`), so history's secret check must recurse into the
- * payload — a password scheduled for later must not be persisted either. */
-const EMBEDS_COMMAND = new Set(["at"]);
+/** Commands that carry another command line in their arguments, mapped to how
+ * many leading args precede that embedded command: `at <time> <command…>` (skip
+ * the time) and `sudo <command…>` (skip nothing). History's secret check
+ * recurses into the payload so a password tucked inside — `sudo passwd pw`,
+ * `at now+5m login u pw` — is kept out of `~/.pia/history`. */
+const EMBEDS_COMMAND = new Map<string, number>([
+  ["at", 1],
+  ["sudo", 0],
+]);
 
 /** Parse an `alias` command's args into `[name, expansion]` (mirrors the `alias`
  * command: `alias ll ls -la`, `alias ll = ls -la`, `alias ll=ls -la`), or null.
@@ -1263,7 +1268,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         const def = parseAliasDef(args); // a definition earlier in the line applies to later stages
         if (def) aliases.set(def[0], def[1]);
       } else if (budget > 0 && EMBEDS_COMMAND.has(name)) {
-        const payload = args.slice(1).join(" ").trim(); // `at <time> <command…>`, however deeply nested
+        const payload = args.slice(EMBEDS_COMMAND.get(name) ?? 0).join(" ").trim(); // the embedded command, however deeply nested
         if (payload) {
           names.push(...this.collectCommandNames(this.stagesOf(payload, parseSequence(payload)), aliases, budget - 1));
         }

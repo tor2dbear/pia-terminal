@@ -226,6 +226,22 @@ describe("system commands", () => {
     expect(a.text()).toEqual(["a little computer in the browser"]);
   });
 
+  it("sudo is an honest single-user stub (no privilege to elevate)", async () => {
+    const h = harness();
+    await h.run("sudo rm cache");
+    // Doesn't pretend to elevate; points you at running it plainly.
+    expect(h.text().join("\n")).toContain("already root");
+    expect(h.text().join("\n")).toContain("just run: rm cache");
+
+    const s = harness();
+    await s.run("sudo make me a sandwich"); // xkcd 149
+    expect(s.text()).toEqual(["okay."]);
+
+    const bare = harness();
+    await bare.run("sudo");
+    expect(bare.text().join("\n")).toContain("single-user");
+  });
+
   it("echo joins its arguments", async () => {
     const h = harness();
     await h.run("echo hi there");

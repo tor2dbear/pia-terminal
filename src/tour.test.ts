@@ -197,6 +197,7 @@ const TOUR: string[] = [
 
   'echo "# system"',
   "whoami",
+  "sudo make me a sandwich",
   "version",
   "about",
   "date -u",

@@ -241,6 +241,39 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("at now+5m at now+5m at now+5m at now+5m passwd hunter2");
   });
 
+  it("keeps a secret wrapped in `sudo` out of history", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, "sudo passwd hunter2"); // sudo wraps the whole command — the secret must be caught
+    expect(saved.flat()).not.toContain("sudo passwd hunter2");
+  });
+
+  it("sudo declines to run and fails the pipeline, so `&&` short-circuits", async () => {
+    const vfs = VFS.seed();
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    await runLine(root, "sudo mkdir foo && mkdir bar");
+    expect(vfs.getNode("/home/guest/foo")).toBeNull(); // sudo never ran mkdir
+    expect(vfs.getNode("/home/guest/bar")).toBeNull(); // …and && short-circuited on the failure
+  });
+
   it("expands alias args when inspecting an embedded `at` payload", async () => {
     const saved: string[][] = [];
     const root = document.createElement("div");
