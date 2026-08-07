@@ -28,6 +28,8 @@ export class Todo implements ScreenApp {
   private sel = 0;
   private mode: "normal" | "add" = "normal";
   private draft = "";
+  /** Set when the last save was rejected (e.g. lost access / offline). */
+  private saveError = false;
 
   private titleEl: HTMLDivElement | undefined;
   private bodyEl: HTMLDivElement | undefined;
@@ -211,7 +213,21 @@ export class Todo implements ScreenApp {
   }
 
   private save(): void {
-    void this.onSave(this.serialize());
+    // Fire-and-forget, but never let a rejected save (lost access, offline)
+    // become an unhandled rejection — flag it in the status bar; a later
+    // successful save clears it.
+    void Promise.resolve(this.onSave(this.serialize())).then(
+      () => {
+        if (this.saveError) {
+          this.saveError = false;
+          this.render();
+        }
+      },
+      () => {
+        this.saveError = true;
+        this.render();
+      },
+    );
   }
 
   private serialize(): string {
@@ -262,10 +278,11 @@ export class Todo implements ScreenApp {
 
     const open = this.items.filter((i) => !i.done).length;
     const done = this.items.length - open;
-    this.statusEl.textContent = this.readOnly
+    const base = this.readOnly
       ? `${open} open · ${done} done   read-only (viewer) · ↑↓ move · ^X exit`
       : this.mode === "add"
         ? "type an item · Enter to add · esc to cancel · ^X exit"
         : `${open} open · ${done} done   space toggle · + add · ⌫ del · ^X exit`;
+    this.statusEl.textContent = this.saveError ? `⚠ save failed — change not shared · ${base}` : base;
   }
 }

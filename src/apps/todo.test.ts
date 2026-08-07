@@ -313,6 +313,34 @@ describe("todo (through the terminal)", () => {
     expect(root.textContent).toContain("(invited)");
   });
 
+  it("detaches a linked list that's gone server-side into a local copy", async () => {
+    const me = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(me);
+    await runLine(root, "todo handla"); // create ~/todo/handla.list
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+    await runLine(root, "todo share handla friend@example.com"); // linked, me is owner
+    const id = (await me.mine())[0].id;
+
+    // The list disappears server-side (deleted elsewhere) — membership is now a
+    // *confirmed* absence, not just an offline blip.
+    await me.deleteList(id);
+
+    // Re-opening detaches the stale link to a plain local copy (no phantom cloud
+    // save), and a local edit persists.
+    await runLine(root, "todo handla");
+    expect(root.textContent).toContain("no longer shared with you");
+    type(root, "a");
+    type(root, "cheese");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+    await runLine(root, "cat todo/handla.list");
+    expect(root.textContent).toContain("cheese"); // saved locally
+  });
+
   it("removes a member with `todo unshare`", async () => {
     const backing = MemoryShareStore.backing();
     const me = new MemoryShareStore("me@example.com", backing);

@@ -51,14 +51,20 @@ function listLocal(ctx: CommandContext): void {
   }
 }
 
-/** The caller's own role on a linked list (via the share backend), or undefined
- * (offline, guest, or not a member) — so opening a viewer-role list is read-only. */
-async function roleFor(ctx: CommandContext, shareId: string): Promise<Role | undefined> {
+/** The caller's standing on a linked list, resolved via the share backend:
+ * `member` (with role), `absent` (a *confirmed* non-membership — removed, or the
+ * list was deleted), or `unknown` (offline/guest — can't tell). The distinction
+ * matters: an absent membership means the local link is stale and edits would be
+ * refused by RLS, whereas offline should stay editable (the server still gates). */
+type Membership = { kind: "member"; role: Role } | { kind: "absent" } | { kind: "unknown" };
+
+async function membership(ctx: CommandContext, shareId: string): Promise<Membership> {
+  if (!ctx.share?.available()) return { kind: "unknown" }; // guest / no cloud
   try {
-    const lists = await ctx.share?.mine();
-    return lists?.find((l) => l.id === shareId)?.role;
+    const found = (await ctx.share.mine()).find((l) => l.id === shareId);
+    return found?.role ? { kind: "member", role: found.role } : { kind: "absent" };
   } catch {
-    return undefined; // offline/transient — treat as editable, the server still gates
+    return { kind: "unknown" }; // offline/transient — keep it linked, server gates
   }
 }
 
@@ -69,10 +75,26 @@ async function openList(name: string, ctx: CommandContext): Promise<void> {
   if (existing && !isFile(existing)) return ctx.error(`is a directory: ${path}`);
   ctx.vfs.mkdirp(listsDir(ctx));
 
-  if (existing && isFile(existing) && existing.shareId) {
-    const id = existing.shareId;
-    const content = await linkedContent(ctx, id, existing.content);
-    const readOnly = (await roleFor(ctx, id)) === "viewer";
+  let shareId = existing && isFile(existing) ? existing.shareId : undefined;
+  let readOnly = false;
+  if (shareId) {
+    const m = await membership(ctx, shareId);
+    if (m.kind === "absent") {
+      // Confirmed no longer a member (e.g. an owner ran `todo unshare` on you).
+      // Detach the stale link so this becomes a plain local copy — editable
+      // locally, no phantom edits bouncing off RLS on every save.
+      ctx.vfs.unlink(path);
+      await ctx.persist();
+      ctx.print(`"${name}" is no longer shared with you — kept as a local copy`, "dim");
+      shareId = undefined;
+    } else if (m.kind === "member") {
+      readOnly = m.role === "viewer";
+    }
+  }
+
+  if (shareId) {
+    const id = shareId;
+    const content = await linkedContent(ctx, id, existing && isFile(existing) ? existing.content : "");
     const save = readOnly ? async () => {} : linkedSave(ctx, path, id);
     let app: Todo | undefined;
     const unsubscribe = linkedSubscribe(ctx, id, (next) => app?.applyExternal(next));
