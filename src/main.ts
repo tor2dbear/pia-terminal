@@ -260,7 +260,12 @@ async function main(): Promise<void> {
       extendContext: piaExtendContext(auth, share, undefined, reminders, tabs),
       // login/logout/usermod mutate the shared session + VFS; re-home the other
       // windows so their cwd/config follow the account too.
-      onAccountChange: () => tabs?.rehomeAll(),
+      onAccountChange: () => {
+        // login/logout/useradd reload the account's saved tree, which may predate
+        // /etc — re-seed it so the system files survive an account switch.
+        seedSystemFiles(vfs);
+        tabs?.rehomeAll();
+      },
       // …and hold other windows from starting a command mid-transition.
       isLocked: () => tabs?.inTransition() ?? false,
     });

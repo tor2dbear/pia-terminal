@@ -41,10 +41,21 @@ function osRelease(): string {
  * Idempotent: safe to call on every boot (guest, returning guest, logged-in).
  */
 export function seedSystemFiles(vfs: VFS): void {
+  // Nothing here is write-protected yet, so a user can have put anything at these
+  // paths (`mkdir /etc/motd`, a file called `/etc`). Guard every step so a
+  // conflicting node type is left alone rather than throwing — this runs at boot,
+  // and an uncaught error would freeze the terminal before the prompt appears.
+  const etc = vfs.getNode("/etc");
+  if (etc && etc.type !== "dir") return; // a non-dir occupies /etc — leave it, don't crash boot
   vfs.mkdirp("/etc");
-  const motd = vfs.getNode("/etc/motd");
-  if (!(motd && motd.type === "file")) vfs.writeFile("/etc/motd", `${DEFAULT_MOTD}\n`);
-  vfs.writeFile("/etc/os-release", osRelease());
+
+  // motd: seed only when the path is empty — a user's own file (edits survive) or
+  // a stray directory there is both left untouched.
+  if (!vfs.getNode("/etc/motd")) vfs.writeFile("/etc/motd", `${DEFAULT_MOTD}\n`);
+
+  // os-release: machine-owned, refreshed each boot — unless a directory sits
+  // there, in which case there's nothing safe to do but skip it.
+  if (vfs.getNode("/etc/os-release")?.type !== "dir") vfs.writeFile("/etc/os-release", osRelease());
 }
 
 /** Read /etc/motd for the boot greeting; empty string if it isn't there. */
