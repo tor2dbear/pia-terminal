@@ -409,9 +409,14 @@ create trigger shared_lists_touch_updated_at
 
 -- ---- grants ----------------------------------------------------------------
 
-grant select, update on public.shared_lists        to authenticated;
-grant select          on public.shared_list_members to authenticated;
-grant select          on public.shared_list_invites to authenticated;
+grant select               on public.shared_lists        to authenticated;
+-- Column-scoped UPDATE: editors may change *content* only. A table-wide UPDATE
+-- would let a hand-written PostgREST request rewrite name / created_by /
+-- updated_at — and setting created_by to yourself would make the owner backfill
+-- promote you on a later rerun. name/metadata changes go through owner-only RPCs.
+grant update (content)     on public.shared_lists        to authenticated;
+grant select               on public.shared_list_members to authenticated;
+grant select               on public.shared_list_invites to authenticated;
 
 grant execute on function public.is_list_member(uuid)           to authenticated;
 grant execute on function public.can_edit_list(uuid)            to authenticated;
