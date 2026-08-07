@@ -182,6 +182,25 @@ describe("share <file> <email> (collaborative)", () => {
     expect((await store.mine()).length).toBe(0); // membership dropped
   });
 
+  it("refuses rm on a shared list you solely own once another member has joined", async () => {
+    const backing = MemoryShareStore.backing();
+    const me = new MemoryShareStore("me@example.com", backing);
+    const root = mount(me);
+    await runLine(root, "echo hi > note.txt");
+    await runLine(root, "share note.txt friend@example.com");
+    const friend = new MemoryShareStore("friend@example.com", backing);
+    await friend.claim(); // friend is now a real joined member
+
+    // Removing here would orphan the list (sole owner, no transfer yet) — refuse
+    // before mutating instead of deleting locally, failing to leave, and lying.
+    await runLine(root, "rm note.txt");
+    expect(root.textContent).toContain("only owner");
+    expect(root.textContent).not.toContain("left 1 shared file");
+    await runLine(root, "cat note.txt");
+    expect(root.textContent).toContain("hi"); // the file is still there
+    expect((await me.mine()).length).toBe(1); // still a member (owner)
+  });
+
   it("tree shows the structure and marks shared files with @", async () => {
     const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
     const root = mount(store);

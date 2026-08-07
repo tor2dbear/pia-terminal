@@ -2,6 +2,7 @@ import { VfsError } from "../vfs/vfs.js";
 import { isDir, isFile } from "../vfs/types.js";
 import type { VNode } from "../vfs/types.js";
 import type { Command, CommandContext } from "./registry.js";
+import { wouldOrphanShare } from "./linked.js";
 
 /** True if an `-a` / `--all` flag is present (also inside a bundle like `-la`). */
 function hasAllFlag(args: string[]): boolean {
@@ -164,6 +165,22 @@ export const rm: Command = {
       // a shared file also means leaving the share, else it would just get
       // re-placed in ~/shared on the next login.
       const ids = ctx.vfs.shareIdsUnder(target);
+      // Reject *before* mutating if removing would orphan a list we solely own
+      // (leaving is refused there): otherwise we'd delete the local file, fail to
+      // leave, and have it reappear — while claiming it was left.
+      let orphans = false;
+      for (const id of ids) {
+        if (await wouldOrphanShare(ctx, id)) {
+          orphans = true;
+          break;
+        }
+      }
+      if (orphans) {
+        ctx.error(
+          `rm: ${arg}: you're the only owner of this shared list — \`todo unshare\` the others first (ownership transfer is coming), or it would be left ownerless`,
+        );
+        continue;
+      }
       if (guard(ctx, () => ctx.vfs.remove(target, recursive))) {
         changed = true;
         leaving.push(...ids);
