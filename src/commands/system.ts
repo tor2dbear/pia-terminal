@@ -65,8 +65,12 @@ export const sudo: Command = {
       ctx.print("okay.", "accent"); // xkcd 149
       return;
     }
-    ctx.print("sudo: this is a single-user machine — you're already root here.", "dim");
-    ctx.print(`no need to elevate; just run: ${args.join(" ")}`, "dim");
+    // Decline to run — and report it as a failure, so `&&`/`||` see that the
+    // requested command was NOT executed (nothing here elevates or runs it);
+    // otherwise `sudo rm x && echo done` would print `done` with x untouched.
+    ctx.error(
+      `sudo: single-user machine — you're already root here, so nothing ran. just run: ${args.join(" ")}`,
+    );
   },
 };
 
