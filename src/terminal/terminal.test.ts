@@ -272,7 +272,34 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("sudo passwd hunter2");
   });
 
-  it("sudo declines to run and fails the pipeline, so `&&` short-circuits", async () => {
+  it("sudo runs its payload elevated, so it can write the protected system tree", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => {
+      vfs.mkdirp("/etc");
+      vfs.writeFile("/etc/motd", "hi.");
+    });
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    await runLine(root, "rm /etc/motd"); // plain: denied
+    expect(vfs.getNode("/etc/motd")).not.toBeNull();
+    expect(root.textContent).toContain("permission denied");
+
+    await runLine(root, "sudo rm /etc/motd"); // elevated: removes it
+    expect(vfs.getNode("/etc/motd")).toBeNull();
+
+    await runLine(root, "touch /etc/again"); // the guard is restored afterwards
+    expect(root.textContent).toContain("permission denied: /etc/again");
+  });
+
+  it("sudo propagates its payload's failure to `&&`", async () => {
     const vfs = VFS.seed();
     const root = document.createElement("div");
     document.body.append(root);
@@ -283,9 +310,105 @@ describe("Terminal (driven via keyboard)", () => {
       session: { user: "guest" },
       extendContext: piaExtendContext(new MemoryAuthAdapter()),
     });
-    await runLine(root, "sudo mkdir foo && mkdir bar");
-    expect(vfs.getNode("/home/guest/foo")).toBeNull(); // sudo never ran mkdir
-    expect(vfs.getNode("/home/guest/bar")).toBeNull(); // …and && short-circuited on the failure
+    await runLine(root, "sudo rm /nope && mkdir made");
+    expect(vfs.getNode("/home/guest/made")).toBeNull(); // rm failed → && short-circuited
+  });
+
+  it("sudo refuses a redirect instead of truncating the target to empty", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => {
+      vfs.mkdirp("/etc");
+      vfs.writeFile("/etc/hostname", "pia");
+    });
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    // The classic footgun: the shell captures `echo`'s output (empty, since sudo
+    // ran it on a fresh line) and would blank the file. sudo must refuse, not run.
+    await runLine(root, "sudo echo laptop > /etc/hostname");
+    expect(root.textContent).toContain("can't run in a pipe or with a redirect");
+    expect(vfs.readFile("/etc/hostname")).toBe("pia"); // untouched
+  });
+
+  it("sudo refuses inside a pipe rather than dropping the piped input", async () => {
+    const root = mount();
+    await runLine(root, "echo hi | sudo cat");
+    expect(root.textContent).toContain("can't run in a pipe or with a redirect");
+  });
+
+  it("sudo preserves quoted argument boundaries (no split on re-parse)", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => vfs.mkdirp("/etc"));
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+    });
+    await runLine(root, 'sudo touch "/etc/my file"');
+    expect(vfs.getNode("/etc/my file")).not.toBeNull(); // one file…
+    expect(vfs.getNode("/etc/my")).toBeNull(); // …not two split on the space
+    expect(vfs.getNode("/etc/file")).toBeNull();
+  });
+
+  it("sudo refuses while another window is busy, and holds the lock while it runs", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => {
+      vfs.mkdirp("/etc");
+      vfs.writeFile("/etc/motd", "hi.");
+    });
+    const root = document.createElement("div");
+    document.body.append(root);
+    let othersBusy = false;
+    const transitions: string[] = [];
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(
+        new MemoryAuthAdapter(),
+        undefined,
+        undefined,
+        undefined,
+        {
+          newWindow() {},
+          next() {},
+          prev() {},
+          select() {},
+          kill() {},
+          list: () => [],
+          otherWindowsBusy: () => othersBusy,
+          beginTransition: () => transitions.push("begin"),
+          endTransition: () => transitions.push("end"),
+        },
+      ),
+    });
+
+    // Another window mid-command: sudo refuses (elevation locks the machine).
+    othersBusy = true;
+    await runLine(root, "sudo rm /etc/motd");
+    expect(root.textContent).toContain("another window is busy");
+    expect(vfs.getNode("/etc/motd")).not.toBeNull();
+    expect(transitions).toEqual([]); // never took the lock
+
+    // Free now: sudo runs, taking then releasing the cross-window lock.
+    othersBusy = false;
+    await runLine(root, "sudo rm /etc/motd");
+    expect(vfs.getNode("/etc/motd")).toBeNull();
+    expect(transitions).toEqual(["begin", "end"]);
   });
 
   it("expands alias args when inspecting an embedded `at` payload", async () => {

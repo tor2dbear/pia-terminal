@@ -9,7 +9,14 @@ import {
   type PickResult,
   type Session,
 } from "../commands/registry.js";
-import { tokenize, parseSequence, type Pipeline, type SequenceResult, type Stage } from "./parse.js";
+import {
+  tokenize,
+  parseSequence,
+  type Pipeline,
+  type SequenceResult,
+  type SequenceItem,
+  type Stage,
+} from "./parse.js";
 import { expandArgs, unescapeWild, type GlobFs } from "./glob.js";
 import { fillLinkified } from "./linkify.js";
 import { parsePromptSegments } from "./prompt.js";
@@ -1084,11 +1091,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
-    // Another window is mid account-transition (login/logout replacing the
-    // shared VFS) — don't start a command whose paths would land in the wrong
-    // account. It's brief; the prompt returns once the transition finishes.
+    // Another window holds the machine lock — an account transition
+    // (login/logout replacing the shared VFS) or a `sudo` elevation (the
+    // write-guard is process-wide). Don't start a command that would race the
+    // VFS swap or write the protected tree unguarded. It's brief; the prompt
+    // returns once the other window finishes.
     if (this.isLocked?.()) {
-      this.print("hold on — finishing an account change in another window…", "dim");
+      this.print("hold on — another window is busy (account change or sudo)…", "dim");
       this.renderInput();
       return;
     }
@@ -1121,16 +1130,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     this.running = new AbortController();
     this.setInputVisible(false);
     try {
-      // Run each pipeline in turn; `&&` skips on the previous failure, `||`
-      // skips on the previous success, `;` always runs. A skipped pipeline
-      // leaves the running status untouched, like a real shell.
-      let ok = true;
-      for (const item of parsed.items) {
-        if (this.running.signal.aborted) break; // Ctrl-C stops the rest of the chain
-        if (item.connector === "&&" && !ok) continue;
-        if (item.connector === "||" && ok) continue;
-        ok = await this.executePipeline(item.pipeline);
-      }
+      await this.runSequence(parsed.items);
     } finally {
       const aborted = this.running?.signal.aborted ?? false;
       this.busy = false;
@@ -1139,6 +1139,33 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       this.setInputVisible(true);
     }
     this.renderInput();
+  }
+
+  /** Run a parsed sequence of pipelines, honouring the `;`/`&&`/`||` connectors
+   * and Ctrl-C. Returns the last pipeline's success. Shared by {@link submit}
+   * (user input) and {@link runLine} (a command running a payload, e.g. `sudo`). */
+  private async runSequence(items: SequenceItem[]): Promise<boolean> {
+    let ok = true;
+    for (const item of items) {
+      if (this.running?.signal.aborted) break; // Ctrl-C stops the rest of the chain
+      if (item.connector === "&&" && !ok) continue;
+      if (item.connector === "||" && ok) continue;
+      ok = await this.executePipeline(item.pipeline);
+    }
+    return ok;
+  }
+
+  /** Run a command line (pipelines + `;`/`&&`/`||` + redirects) from *within*
+   * another command — no prompt echo, no history, no busy toggle. This is the
+   * `ctx.exec` seam a command like `sudo` uses to run its payload. Returns
+   * whether the line succeeded. */
+  private async runLine(line: string): Promise<boolean> {
+    const parsed = parseSequence(line);
+    if (!parsed.ok) {
+      this.print(parsed.error, "error");
+      return false;
+    }
+    return this.runSequence(parsed.items);
   }
 
   /** Run one pipeline (each stage's captured output feeds the next); returns
@@ -1363,6 +1390,15 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         : (text, cls) => this.print(text, cls),
       // stderr always goes to the screen, never into the pipe.
       error: (text) => fail(text),
+      // Mark the pipeline failed without printing — so a wrapper command (e.g.
+      // `sudo`) can propagate its payload's exit status to `&&`/`||` without
+      // echoing a second error line.
+      fail: () => {
+        if (opts.status) opts.status.failed = true;
+      },
+      // Run a command line as this command's payload, elevated or not by the
+      // caller (see `sudo`). No prompt echo/history — we're already in a command.
+      exec: (line: string) => this.runLine(line),
       clear: () => this.clear(),
       persist: () => this.persistTree(),
       reloadFs: async () => {

@@ -238,20 +238,14 @@ describe("system commands", () => {
     expect(h.vfs.getNode("/etc/motd")).not.toBeNull(); // the file survived
   });
 
-  it("sudo is an honest single-user stub (no privilege to elevate)", async () => {
-    const h = harness();
-    await h.run("sudo rm cache");
-    // Doesn't pretend to elevate; points you at running it plainly.
-    expect(h.text().join("\n")).toContain("already root");
-    expect(h.text().join("\n")).toContain("just run: rm cache");
-
+  it("sudo greets the sandwich and shows usage bare (elevation is tested via the terminal)", async () => {
     const s = harness();
     await s.run("sudo make me a sandwich"); // xkcd 149
     expect(s.text()).toEqual(["okay."]);
 
     const bare = harness();
     await bare.run("sudo");
-    expect(bare.text().join("\n")).toContain("single-user");
+    expect(bare.text().join("\n")).toContain("elevated");
   });
 
   it("echo joins its arguments", async () => {

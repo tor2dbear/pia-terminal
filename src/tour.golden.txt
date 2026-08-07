@@ -301,6 +301,9 @@ pia
 
 guest@pia:~$ rm /etc/motd
 permission denied: /etc/motd
+guest@pia:~$ sudo rm /etc/motd
+guest@pia:~$ ls /etc
+hostname  os-release
 guest@pia:~$ version
 PIA v<version>
 guest@pia:~$ about
@@ -378,7 +381,7 @@ available commands:
   sl           Steam Locomotive — the train you get for mistyping ls
   sort         sort lines of text
   source       re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
-  sudo         run a command as superuser — but you already own everything here
+  sudo         run a command with elevated privileges (e.g. write to /etc)
   tail         print the last lines of a file (or piped input)
   tetris       play Tetris (arrows move/rotate, space hard-drop, ^X exit)
   theme        switch colour theme (theme <name>, or list them)
@@ -401,8 +404,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
- 99  version
-100  about
-101  date -u
-102  help
-103  history | tail -5
+101  version
+102  about
+103  date -u
+104  help
+105  history | tail -5

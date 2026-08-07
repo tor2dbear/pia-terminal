@@ -1,6 +1,6 @@
 ---
 title: Rättigheter — skrivskyddat systemträd + sudo som escape-hatch
-status: next
+status: done
 tags: [shell, fs, teaching]
 updated: 2026-08-07
 ---
@@ -15,7 +15,32 @@ att öva på) och knyter ihop befintliga features (boot-hälsning, neofetch).
 ## Upplägg i tre steg (var och en shippbar för sig)
 1. **Seeda systemträdet** — filerna *finns* och *används*, ingen låsning. ✅ *(gjort)*
 2. **Skrivskydda** systemsökvägarna — `rm /etc/motd` → `permission denied`. ✅ *(gjort)*
-3. **`sudo`-elevation** — `sudo <cmd>` kör kommandot med skyddet av; escape-hatchen.
+3. **`sudo`-elevation** — `sudo <cmd>` kör kommandot med skyddet av; escape-hatchen. ✅ *(gjort)*
+
+## Levererat (steg 3, samma session)
+`sudo <cmd>` kör nu payloaden **eleverat**: en motor-söm `ctx.exec(rad)` kör om
+raden genom den riktiga pipeline-köraren (`runLine`→`runSequence`→`executePipeline`,
+utextraherat ur `submit`), inuti `vfs.runElevated`. Så `sudo rm /etc/motd` /
+`sudo nano /etc/hostname` funkar där ett vanligt kommando får `permission denied`.
+- Ingen lösenords-/user-modell (single-user) — sudo är bara "jag menar det"-knappen.
+- `ctx.fail()` (ny, tyst) låter sudo propagera payloadens exit-status till `&&`/`||`.
+- **Nekar pipe/redirect, som på riktig Linux:** `>` och `|` görs av skalet runt
+  det eleverade kommandot — payloaden körs om på en *ny rad*, så en redirect skulle
+  skriva tomt (`sudo echo x > /etc/f` trunkerar filen) och en pipe skulle tappa
+  sin input. Därför vägrar sudo i pipe/redirect (`ctx.piped || ctx.stdin`) och
+  säger till dig att elevera själva skrivningen: `sudo nano /etc/hostname`.
+- **Bevarar argument-gränser:** payloaden re-quotas innan den re-parsas, så
+  `sudo touch "/etc/my file"` blir en fil, inte två.
+- **Serialiserad över fönster:** elevation lyfter en *process-vid* vakt, så sudo
+  tar tmux-övergångslåset (`otherWindowsBusy` → neka; annars `beginTransition`/
+  `endTransition`) — bara ett eleverat kommando i taget, så inget annat fönster
+  kan skriva /etc oskyddat medan `sudo nano` står öppet. `runElevated` räknar
+  djup (inte en boolean), så överlappande async-elevationer inte korrumperar
+  varandras vakt-tillstånd.
+- Täckt av terminal-tester (sudo skriver i skyddat träd + återställer vakten;
+  failure → `&&`; nekad i pipe/redirect utan att röra filen; quote-gränser
+  bevarade; fönsterlåset tas/släpps) + vfs-test (överlappande async-elevation) +
+  en tour-rad (`rm` nekad → `sudo rm` funkar).
 
 ## Levererat (steg 1, 2026-08-07)
 `src/pia/etc.ts` (`seedSystemFiles`): en liten `/etc`, seedad idempotent vid boot

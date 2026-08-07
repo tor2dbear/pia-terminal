@@ -11,13 +11,25 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-08-07
+
+A little Unix underneath: `/etc`, real permissions, and history that persists.
+
 ### Added
-- **Write-protected `/etc`**: the system tree is now read-only to ordinary
+- **`sudo`**: run a command elevated — it lifts the write-guard on the system
+  tree for the payload, so `sudo nano /etc/hostname` or `sudo rm /etc/motd` work
+  where a plain command gets `permission denied`. Single-user, so there's no
+  password: it's just the deliberate "touch the system files" switch (with the
+  xkcd 149 nod). Like a real shell a redirect (or pipe) is done by the shell, not
+  the elevated command, so `sudo` refuses to run inside one — `sudo nano
+  /etc/hostname` (not `sudo echo …>`) is how you edit a system file. While it runs
+  it holds the machine (other windows wait), so an elevated edit is the only thing
+  touching the system tree at a time.
+- **Write-protected `/etc`**: the system tree is read-only to ordinary
   commands — `rm /etc/motd`, `echo x > /etc/hostname`, `mkdir /etc/foo` all say
   `permission denied`, like a real box. The system still seeds and refreshes it
-  (elevated), and your home is unaffected. Editing the system files (motd,
-  hostname) now needs elevation — `sudo` becomes that escape hatch in the next
-  step (see `roadmap/permissions.md`).
+  (elevated), your home is unaffected, and `sudo` is the escape hatch for editing
+  a system file.
 - **`/etc/hostname`**: the machine name behind the prompt's `{host}` now lives in
   `/etc/hostname` (like a real box). Rename your machine with
   `echo laptop > /etc/hostname` then `source ~/.pia/config`, and the prompt
@@ -29,10 +41,6 @@ log and grouped into milestones.
   startup) and `/etc/os-release` (the OS identity `neofetch` echoes). `ls /`
   shows `etc/` next to `home/`. Nothing is write-protected yet; that's a planned
   next step (see `roadmap/permissions.md`).
-- **`sudo`**: an honest single-user stub — PIA has no superuser to elevate to, so
-  it says you're already root and points you at running the command directly
-  (with a nod to xkcd 149). A friendly answer to muscle memory, not a real
-  privilege tool.
 - **`margin` config setting**: `margin = N` in `~/.pia/config` sets the breathing
   room (px) around the terminal content — top and sides — alongside `theme`,
   `font`, `font-size`, and colours. The bottom keeps its clearance for the
@@ -195,6 +203,7 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.12.0
 [0.11.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.11.0
 [0.10.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.10.0

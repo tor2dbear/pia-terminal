@@ -22,32 +22,37 @@ export class VFS {
    * under one throws `permission denied` unless {@link runElevated} lifts the
    * guard, which the system seeder uses (and, later, `sudo`). */
   protectedPaths: string[] = [];
-  private elevated = false;
+  /** How many elevations are currently in flight (see {@link runElevated}). The
+   * guard is lifted while this is > 0. A *depth counter*, not a boolean, so
+   * nested and overlapping async elevations compose correctly — restoring a
+   * saved boolean would strand the flag if two elevated promises overlapped. */
+  private elevationDepth = 0;
 
   constructor(public root: DirNode) {}
 
-  /** Run `fn` with the write-guard lifted — system seeding today, `sudo`
-   * tomorrow. Restores the previous state after, so nesting is safe. If `fn`
-   * returns a promise, elevation is held until it settles (not just through the
-   * synchronous prefix), so a future async `sudo` payload works. NB the flag is
-   * shared, so two *concurrent* elevated async commands isn't safe — a step-3
-   * concern; today only the synchronous seeder uses this. */
+  /** Run `fn` with the write-guard lifted — system seeding, and `sudo`'s
+   * payload. If `fn` returns a promise, elevation is held until it settles (not
+   * just through the synchronous prefix), so an async `sudo` payload (e.g.
+   * `sudo nano`) stays elevated for its whole life. Nesting is safe via the
+   * depth counter; concurrent elevations don't corrupt each other's state, but
+   * note the guard is process-wide — while any elevation is open every window
+   * can write the protected tree, so `sudo` also takes the cross-window lock to
+   * stay the *only* command running while elevated. */
   runElevated<T>(fn: () => T): T {
-    const prev = this.elevated;
-    this.elevated = true;
+    this.elevationDepth++;
     let result: T;
     try {
       result = fn();
     } catch (err) {
-      this.elevated = prev;
+      this.elevationDepth--;
       throw err;
     }
     if (result != null && typeof (result as { then?: unknown }).then === "function") {
       return (result as unknown as Promise<unknown>).finally(() => {
-        this.elevated = prev;
+        this.elevationDepth--;
       }) as unknown as T;
     }
-    this.elevated = prev;
+    this.elevationDepth--;
     return result;
   }
 
@@ -61,7 +66,7 @@ export class VFS {
   /** Throw `permission denied` if `absPath` sits in a protected prefix and we're
    * not currently elevated. Called by every mutating operation. */
   private guardWrite(absPath: string): void {
-    if (!this.elevated && this.isProtected(absPath)) {
+    if (this.elevationDepth === 0 && this.isProtected(absPath)) {
       throw new VfsError(`permission denied: ${absPath}`);
     }
   }

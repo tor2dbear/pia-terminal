@@ -205,6 +205,8 @@ const TOUR: string[] = [
   "cat /etc/os-release",
   "cat /etc/hostname",
   "rm /etc/motd",
+  "sudo rm /etc/motd",
+  "ls /etc",
   "version",
   "about",
   "date -u",
