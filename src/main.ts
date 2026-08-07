@@ -11,6 +11,7 @@ import { boot } from "./boot.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
 import { parseConfig } from "./pia/rc.js";
 import { appendHistory, hasSecret, parseHistory, serializeHistory } from "./pia/history.js";
+import { seedSystemFiles, readMotd } from "./pia/etc.js";
 import { cloudConfig } from "./config.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
@@ -259,7 +260,12 @@ async function main(): Promise<void> {
       extendContext: piaExtendContext(auth, share, undefined, reminders, tabs),
       // login/logout/usermod mutate the shared session + VFS; re-home the other
       // windows so their cwd/config follow the account too.
-      onAccountChange: () => tabs?.rehomeAll(),
+      onAccountChange: () => {
+        // login/logout/useradd reload the account's saved tree, which may predate
+        // /etc — re-seed it so the system files survive an account switch.
+        seedSystemFiles(vfs);
+        tabs?.rehomeAll();
+      },
       // …and hold other windows from starting a command mid-transition.
       isLocked: () => tabs?.inTransition() ?? false,
     });
@@ -278,12 +284,15 @@ async function main(): Promise<void> {
   // when the prompt appears.
   seedDefaultPackages(vfs, vfs.home);
   await registerInstalled(vfs, vfs.home, registry);
+  // Seed the little /etc system tree (motd, os-release) — global, not per-home,
+  // and idempotent, so it's there for guests and logged-in users alike.
+  seedSystemFiles(vfs);
   // The BIOS/POST preamble is an opt-in retro flourish read from ~/.pia/config
   // (seeded above by the Terminal's config load), consumed only here at boot.
   const rcNode = vfs.getNode(`${vfs.home}/.pia/config`);
   const bios =
     rcNode?.type === "file" ? parseConfig(vfs.readFile(`${vfs.home}/.pia/config`)).bios === true : false;
-  await boot(term, { bios });
+  await boot(term, { bios, motd: readMotd(vfs) });
 
   // Turn pending invites into memberships, then place any not-yet-placed shares
   // into ~/shared/ as real linked files, so files shared with this user show up

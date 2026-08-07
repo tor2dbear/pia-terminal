@@ -12,6 +12,11 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`/etc` system tree**: PIA now has a little `/etc` of its own — `/etc/motd`
+  (the boot greeting, now a real editable file that drives what you see at
+  startup) and `/etc/os-release` (the OS identity `neofetch` echoes). `ls /`
+  shows `etc/` next to `home/`. Nothing is write-protected yet; that's a planned
+  next step (see `roadmap/permissions.md`).
 - **`sudo`**: an honest single-user stub — PIA has no superuser to elevate to, so
   it says you're already root and points you at running the command directly
   (with a nod to xkcd 149). A friendly answer to muscle memory, not a real

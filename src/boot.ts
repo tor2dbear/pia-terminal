@@ -1,5 +1,6 @@
 import type { Terminal } from "./terminal/terminal.js";
 import { VERSION } from "./meta.js";
+import { DEFAULT_MOTD } from "./pia/etc.js";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -16,6 +17,9 @@ function prefersReducedMotion(): boolean {
 export interface BootOptions {
   /** Play the longer retro BIOS/POST preamble before the prompt (opt-in). */
   bios?: boolean;
+  /** The message-of-the-day to greet with (from /etc/motd). Empty/omitted → the
+   * built-in {@link DEFAULT_MOTD}. */
+  motd?: string;
 }
 
 /** Print a short boot sequence, then hand the terminal to the user. */
@@ -46,12 +50,16 @@ export async function boot(term: Terminal, opts: BootOptions = {}): Promise<void
       await pause(220);
     }
     term.print();
-    // The invitation, typed out — the little computer greeting you.
-    await term.printTyped("hi. type 'help' to begin.");
-    // A signpost for newcomers: a self-running tour, the interactive tutor, and
-    // the manual. `tutor`/`man` are preinstalled in the seed so these all work
-    // on first run (see VFS.seed).
-    term.print("new here? try `demo` for a tour, `tutor` to learn, or `man pia`.", "dim");
+    // The greeting is the message-of-the-day from /etc/motd (seeded, editable,
+    // read at boot; DEFAULT_MOTD is the fallback). The first line is the
+    // invitation, typed out — the little computer greeting you — and the rest are
+    // dim signposts for newcomers (a self-running tour, the tutor, the manual;
+    // `tutor`/`man` are preinstalled so they work on first run).
+    const lines = (opts.motd?.trim() ? opts.motd.trimEnd() : DEFAULT_MOTD).split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (i === 0) await term.printTyped(lines[i]);
+      else term.print(lines[i], "dim");
+    }
     term.print();
   } finally {
     term.setBooting(false);

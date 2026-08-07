@@ -19,6 +19,7 @@ import { buildRegistry } from "./commands/index.js";
 import { commandPackage, registerInstalled, seedDefaultPackages } from "./packages/catalog.js";
 import { piaExtendContext } from "./pia/context.js";
 import { loadTerminalConfig } from "./pia/terminalConfig.js";
+import { seedSystemFiles, readMotd } from "./pia/etc.js";
 import { boot } from "./boot.js";
 
 const tick = () => new Promise((r) => setTimeout(r, 1));
@@ -75,7 +76,9 @@ function transcript(): string {
         // Redact the app version so the golden survives every `npm version`
         // bump. Anchor on a leading digit so it only touches real version
         // strings (`PIA v0.10.0`), not prose like "print the PIA version".
-        .replace(/PIA v\d\S*/g, "PIA v<version>"),
+        .replace(/PIA v\d\S*/g, "PIA v<version>")
+        // …and the same in /etc/os-release's `VERSION="0.10.0"` line.
+        .replace(/VERSION="\d\S*"/g, 'VERSION="<version>"'),
     )
     .join("\n");
 }
@@ -198,6 +201,8 @@ const TOUR: string[] = [
   'echo "# system"',
   "whoami",
   "sudo make me a sandwich",
+  "ls /",
+  "cat /etc/os-release",
   "version",
   "about",
   "date -u",
@@ -225,7 +230,8 @@ describe("tour — a scripted session through the real terminal", () => {
     // pointers are live.
     seedDefaultPackages(vfs, vfs.home);
     await registerInstalled(vfs, vfs.home, registry);
-    await boot(term!);
+    seedSystemFiles(vfs); // the /etc system tree (motd, os-release), like main.ts
+    await boot(term!, { motd: readMotd(vfs) });
     for (const line of TOUR) await run(line);
     await expect(transcript()).toMatchFileSnapshot("./tour.golden.txt");
   });
