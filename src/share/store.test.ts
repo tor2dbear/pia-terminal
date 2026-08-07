@@ -155,6 +155,24 @@ describe("MemoryShareStore (roles)", () => {
     await owner.leave(id); // now the owner is alone → allowed
     expect((await owner.mine()).length).toBe(0);
   });
+
+  it("re-establishes an owner when a pending invite is claimed into an orphaned list", async () => {
+    const backing = MemoryShareStore.backing();
+    const owner = new MemoryShareStore("owner@example.com", backing);
+    const later = new MemoryShareStore("later@example.com", backing);
+    const id = await owner.create("handla", "");
+    await owner.invite(id, "later@example.com", "viewer"); // invited, not yet claimed
+
+    // The sole owner can leave even with a pending invite (e.g. `rm`-ing a
+    // freshly-shared-but-unclaimed file) — the list is briefly ownerless…
+    await owner.leave(id);
+    expect((await owner.mine()).length).toBe(0);
+
+    // …but claiming re-establishes an owner: the claimer takes it rather than
+    // joining (even as a would-be viewer) an ownerless list.
+    expect(await later.claim()).toBe(1);
+    expect((await later.mine())[0].role).toBe("owner");
+  });
 });
 
 describe("NullShareStore", () => {

@@ -53,7 +53,12 @@ interface ShareClient {
       ): { maybeSingle(): PromiseLike<Result<Row | null>> };
     };
     update(values: Record<string, unknown>): {
-      eq(column: string, value: string): PromiseLike<Result<unknown>>;
+      eq(
+        column: string,
+        value: string,
+      ): PromiseLike<Result<unknown>> & {
+        select(columns: string): PromiseLike<Result<Row[] | null>>;
+      };
     };
   };
   channel(name: string): RealtimeChannel;
@@ -108,8 +113,20 @@ export class SupabaseShareStore implements ShareStore {
   }
 
   async save(id: string, content: string): Promise<void> {
-    const { error } = await this.db.from(TABLE).update({ content }).eq("id", id);
+    // `.select()` so the UPDATE returns the rows it touched. A viewer's write is
+    // filtered out by the RLS `USING (can_edit_list)` clause — the statement
+    // succeeds with *zero* rows rather than erroring, so without this check a
+    // read-only save would look successful and the local cache would drift from
+    // the (unchanged) cloud. No rows back → the write was refused.
+    const { data, error } = await this.db
+      .from(TABLE)
+      .update({ content })
+      .eq("id", id)
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) {
+      throw new Error("permission denied: you have read-only access to this list");
+    }
   }
 
   async invite(id: string, email: string, role: InviteRole = "editor"): Promise<void> {

@@ -325,7 +325,18 @@ export class Editor implements ScreenApp {
 
   private async save(): Promise<void> {
     const buf = this.buf;
-    await buf.onSave(buf.lines.join("\n"));
+    try {
+      await buf.onSave(buf.lines.join("\n"));
+    } catch (err) {
+      // A refused save (e.g. read-only access to a shared file) or a transient
+      // cloud error must be shown, not swallowed — keep the buffer dirty so the
+      // change isn't silently lost.
+      this.message = `could not save ${buf.filename}: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+      this.render();
+      return;
+    }
     buf.dirty = false;
     this.quitArmed = false;
     this.message = `saved ${buf.filename}`;

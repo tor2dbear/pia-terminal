@@ -257,6 +257,11 @@ begin
   if v_uid is null then
     raise exception 'not authenticated';
   end if;
+  -- Block the sole owner from orphaning a list that still has other *joined*
+  -- members (they'd be left ownerless with no way to promote anyone — ownership
+  -- transfer is a later step). A still-*pending* invite doesn't block: leaving is
+  -- allowed, and claim_invites re-establishes an owner if the list has none (so
+  -- `rm`-ing a freshly-shared-but-unclaimed file still cleanly drops it).
   if public.is_list_owner(p_list)
      and exists (select 1 from public.shared_list_members
                  where list_id = p_list and user_id <> v_uid)
@@ -281,11 +286,12 @@ as $$
 declare
   v_uid   uuid := auth.uid();
   v_email text := lower(auth.jwt() ->> 'email');
-  v_count integer := 0;
+  v_lists uuid[];
 begin
   if v_uid is null or v_email is null then
     return 0;
   end if;
+  -- Turn this user's pending invites into memberships, capturing which lists.
   with claimed as (
     insert into public.shared_list_members (list_id, user_id, role)
       select i.list_id, v_uid, i.role
@@ -294,11 +300,27 @@ begin
       on conflict (list_id, user_id) do nothing
       returning list_id
   )
+  select array_agg(list_id) into v_lists from claimed;
+
+  if v_lists is null then
+    return 0;
+  end if;
+
+  -- Clear the claimed invites.
   delete from public.shared_list_invites i
-    using claimed c
-    where i.list_id = c.list_id and lower(i.email) = v_email;
-  get diagnostics v_count = row_count;
-  return v_count;
+    where lower(i.email) = v_email and i.list_id = any (v_lists);
+
+  -- Ensure every list still has an owner: if a claimed list has none (its sole
+  -- owner left before the invite was claimed), promote this claimer to owner so
+  -- it's never left ownerless.
+  update public.shared_list_members m
+    set role = 'owner'
+    where m.user_id = v_uid
+      and m.list_id = any (v_lists)
+      and not exists (select 1 from public.shared_list_members o
+                      where o.list_id = m.list_id and o.role = 'owner');
+
+  return coalesce(array_length(v_lists, 1), 0);
 end;
 $$;
 

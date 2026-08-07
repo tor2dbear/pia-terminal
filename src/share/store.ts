@@ -218,6 +218,9 @@ export class MemoryShareStore implements ShareStore {
     const members = this.db.members.get(id);
     if (!members) return;
     const others = [...members].filter(([e]) => e !== this.key());
+    // Block the sole owner only while other *joined* members remain (they'd be
+    // orphaned with no way to promote anyone). A pending invite doesn't block —
+    // claim() re-establishes an owner if the list ends up with none.
     if (
       members.get(this.key()) === "owner" &&
       others.length > 0 &&
@@ -235,7 +238,10 @@ export class MemoryShareStore implements ShareStore {
       if (role) {
         const members = this.db.members.get(id) ?? new Map<string, Role>();
         if (!members.has(this.key())) {
-          members.set(this.key(), role);
+          // Ensure the list has an owner: if it lost its only one (the sole
+          // owner left before this invite was claimed), the claimer takes it.
+          const orphaned = ![...members.values()].some((r) => r === "owner");
+          members.set(this.key(), orphaned ? "owner" : role);
           this.db.members.set(id, members);
         }
         emails.delete(this.key());
