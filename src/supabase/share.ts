@@ -1,11 +1,23 @@
 import type { SupabaseLike } from "./client.js";
-import type { ShareStore, SharedList } from "../share/store.js";
+import type { InviteRole, Member, Role, ShareStore, SharedList } from "../share/store.js";
 
 /** A shared-list row as it comes back from PostgREST. */
 interface Row {
   id: string;
   name: string;
   content: string;
+}
+
+/** A row from the `my_shared_lists()` RPC — a list plus the caller's role. */
+interface MyListRow extends Row {
+  role: Role;
+}
+
+/** A row from the `list_members()` RPC. */
+interface MemberRow {
+  email: string;
+  role: Role;
+  status: "member" | "invited";
 }
 
 interface Result<T> {
@@ -69,9 +81,10 @@ export class SupabaseShareStore implements ShareStore {
 
   async mine(): Promise<SharedList[]> {
     if (!(await this.uid())) return []; // guest in cloud mode — nothing shared
-    const { data, error } = await this.db.from(TABLE).select("id,name,content");
+    const { data, error } = await this.db.rpc("my_shared_lists");
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => ({ id: r.id, name: r.name, content: r.content }));
+    const rows = (data as MyListRow[] | null) ?? [];
+    return rows.map((r) => ({ id: r.id, name: r.name, content: r.content, role: r.role }));
   }
 
   async get(id: string): Promise<SharedList | null> {
@@ -99,12 +112,32 @@ export class SupabaseShareStore implements ShareStore {
     if (error) throw new Error(error.message);
   }
 
-  async invite(id: string, email: string): Promise<void> {
+  async invite(id: string, email: string, role: InviteRole = "editor"): Promise<void> {
     await this.requireAuth();
     const { error } = await this.db.rpc("invite_to_list", {
       p_list: id,
       p_email: email,
+      p_role: role,
     });
+    if (error) throw new Error(error.message);
+  }
+
+  async members(id: string): Promise<Member[]> {
+    const { data, error } = await this.db.rpc("list_members", { p_list: id });
+    if (error) throw new Error(error.message);
+    const rows = (data as MemberRow[] | null) ?? [];
+    return rows.map((r) => ({ email: r.email, role: r.role, status: r.status }));
+  }
+
+  async removeMember(id: string, email: string): Promise<void> {
+    await this.requireAuth();
+    const { error } = await this.db.rpc("remove_member", { p_list: id, p_email: email });
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteList(id: string): Promise<void> {
+    await this.requireAuth();
+    const { error } = await this.db.rpc("delete_list", { p_list: id });
     if (error) throw new Error(error.message);
   }
 

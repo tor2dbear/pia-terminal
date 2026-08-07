@@ -241,6 +241,8 @@ describe("todo (through the terminal)", () => {
     const me = new MemoryShareStore("me@example.com", backing);
     const other = new MemoryShareStore("other@example.com", backing);
     const id = await me.create("handla", "[ ] milk");
+    await me.invite(id, "other@example.com"); // a real co-editor (member), not a stranger
+    await other.claim();
 
     const root = mount(me);
     // Open the incoming shared list but DON'T await — runApp resolves on exit.
@@ -263,6 +265,73 @@ describe("todo (through the terminal)", () => {
     const root = mount(me);
     await runLine(root, "todo share ghost friend@example.com");
     expect(root.textContent).toContain("no such list: ghost");
+  });
+
+  it("shares read-only with --ro and opens read-only for the viewer", async () => {
+    const backing = MemoryShareStore.backing();
+    const me = new MemoryShareStore("me@example.com", backing);
+    const root = mount(me);
+    await runLine(root, "todo handla");
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+
+    await runLine(root, "todo share handla wife@example.com --ro");
+    expect(root.textContent).toContain("(read-only)");
+
+    // The viewer opens it — the app is read-only and a toggle does nothing.
+    const wife = new MemoryShareStore("wife@example.com", backing);
+    await wife.claim();
+    const id = (await wife.mine())[0].id;
+    const hers = mount(wife);
+    type(hers, "shared handla");
+    press(hers, "Enter");
+    await flush();
+    expect(hers.textContent).toContain("read-only");
+    type(hers, " "); // try to toggle the first item
+    press(hers, "x", { ctrlKey: true });
+    await flush();
+    expect((await me.get(id))?.content).toBe("[ ] milk"); // unchanged
+  });
+
+  it("lists members with their roles via `todo members`", async () => {
+    const me = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(me);
+    await runLine(root, "todo handla");
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+    await runLine(root, "todo share handla wife@example.com --ro");
+
+    await runLine(root, "todo members handla");
+    expect(root.textContent).toContain("owner");
+    expect(root.textContent).toContain("me@example.com");
+    expect(root.textContent).toContain("viewer");
+    expect(root.textContent).toContain("wife@example.com");
+    expect(root.textContent).toContain("(invited)");
+  });
+
+  it("removes a member with `todo unshare`", async () => {
+    const backing = MemoryShareStore.backing();
+    const me = new MemoryShareStore("me@example.com", backing);
+    const root = mount(me);
+    await runLine(root, "todo handla");
+    type(root, "milk");
+    press(root, "Enter");
+    press(root, "x", { ctrlKey: true });
+    await flush();
+    await runLine(root, "todo share handla wife@example.com");
+    const id = (await me.mine())[0].id;
+    const wife = new MemoryShareStore("wife@example.com", backing);
+    await wife.claim();
+    expect((await wife.mine()).length).toBe(1);
+
+    await runLine(root, "todo unshare handla wife@example.com");
+    expect(root.textContent).toContain("removed wife@example.com");
+    expect((await wife.mine()).length).toBe(0);
+    expect(await me.get(id)).toBeTruthy(); // the list itself stays
   });
 
   it("refreshes the key bar when the app changes mode", async () => {
