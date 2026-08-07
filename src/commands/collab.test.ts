@@ -182,6 +182,27 @@ describe("share <file> <email> (collaborative)", () => {
     expect((await store.mine()).length).toBe(0); // membership dropped
   });
 
+  it("doesn't leave nested shares when the local removal is rejected (dir without -r)", async () => {
+    const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(store);
+    await runLine(root, "mkdir folder");
+    await runLine(root, "echo hi > folder/note.txt");
+    await runLine(root, "share folder/note.txt friend@example.com");
+    expect((await store.mine()).length).toBe(1);
+
+    // `rm folder` (no -r) must fail *before* leaving the nested share — otherwise
+    // we'd drop remote access yet leave the files sitting locally.
+    await runLine(root, "rm folder");
+    expect(root.textContent).toContain("use -r");
+    expect((await store.mine()).length).toBe(1); // share NOT left
+    await runLine(root, "cat folder/note.txt");
+    expect(root.textContent).toContain("hi"); // file still there
+
+    // With -r it leaves and removes as expected.
+    await runLine(root, "rm -r folder");
+    expect((await store.mine()).length).toBe(0);
+  });
+
   it("shows a viewer that a shared text edit was refused, not silently saved", async () => {
     const backing = MemoryShareStore.backing();
     const owner = new MemoryShareStore("owner@example.com", backing);

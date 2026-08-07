@@ -163,10 +163,19 @@ export const rm: Command = {
       // Any cloud links under this path — removing a shared file also means
       // leaving the share, else it would be re-placed in ~/shared on next login.
       const ids = ctx.vfs.shareIdsUnder(target);
-      // Leave the shares FIRST (the authoritative guard), then remove — atomic,
-      // with no check-then-act window: we never delete locally and only then fail
-      // to leave (which would resurrect the file). A refused leave (you're the
-      // sole owner with other members) or a failure (offline) skips removal.
+      // Validate the LOCAL removal first (no mutation) — leaving a share can't be
+      // undone (there's no re-join), so we must not drop memberships and only
+      // then fail the removal (e.g. a non-empty dir without -r), stranding the
+      // files locally with remote access already gone. If it can't be removed,
+      // let the guarded call print the exact error (it throws before mutating).
+      if (!ctx.vfs.canRemove(target, recursive)) {
+        guard(ctx, () => ctx.vfs.remove(target, recursive));
+        continue;
+      }
+      // Then leave the shares (the authoritative guard) before removing — atomic
+      // order, no check-then-act window: we never delete locally and only then
+      // fail to leave (which would resurrect the file). A refused leave (you're
+      // the sole owner with other members) or a failure (offline) skips removal.
       let leftHere = 0;
       let blocked = false;
       for (const id of ids) {

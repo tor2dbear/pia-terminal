@@ -205,6 +205,7 @@ begin
   if v_uid is null then
     raise exception 'not authenticated';
   end if;
+  perform 1 from public.shared_lists where id = p_list for update; -- serialize ownership changes
   if not public.is_list_owner(p_list) then
     raise exception 'only the owner can remove members';
   end if;
@@ -234,6 +235,7 @@ begin
   if v_uid is null then
     raise exception 'not authenticated';
   end if;
+  perform 1 from public.shared_lists where id = p_list for update; -- serialize ownership changes
   if not public.is_list_owner(p_list) then
     raise exception 'only the owner can delete this list';
   end if;
@@ -257,6 +259,10 @@ begin
   if v_uid is null then
     raise exception 'not authenticated';
   end if;
+  -- Serialize ownership changes on this list (leave / claim / remove / delete all
+  -- take this lock) so a concurrent invite-claim can't race the guard below and
+  -- leave the list ownerless.
+  perform 1 from public.shared_lists where id = p_list for update;
   -- Block the sole owner from orphaning a list that still has other *joined*
   -- members (they'd be left ownerless with no way to promote anyone — ownership
   -- transfer is a later step). A still-*pending* invite doesn't block: leaving is
@@ -291,6 +297,15 @@ begin
   if v_uid is null or v_email is null then
     return 0;
   end if;
+  -- Lock the lists we're about to claim into, so this serializes with a
+  -- concurrent leave_list on the same list (which also takes this lock): the
+  -- owner-invariant check below then sees committed state, never a half-done
+  -- leave, so a claim + a sole-owner leave can't race into an ownerless list.
+  perform 1 from public.shared_lists
+    where id in (
+      select i.list_id from public.shared_list_invites i where lower(i.email) = v_email
+    )
+    for update;
   -- Turn this user's pending invites into memberships, capturing which lists.
   with claimed as (
     insert into public.shared_list_members (list_id, user_id, role)
