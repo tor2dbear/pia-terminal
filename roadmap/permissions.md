@@ -24,12 +24,23 @@ utextraherat ur `submit`), inuti `vfs.runElevated`. Så `sudo rm /etc/motd` /
 `sudo nano /etc/hostname` funkar där ett vanligt kommando får `permission denied`.
 - Ingen lösenords-/user-modell (single-user) — sudo är bara "jag menar det"-knappen.
 - `ctx.fail()` (ny, tyst) låter sudo propagera payloadens exit-status till `&&`/`||`.
-- **Redirect-gotcha, som på riktig Linux:** `>` görs av skalet, inte det eleverade
-  kommandot, så `sudo echo x > /etc/hostname` fallerar ändå — `sudo nano` är vägen.
-  (Läsning är oskyddad, så `sudo cat`/pipe behövs aldrig; sudo behövs bara för
-  *skrivningar*, som inte pipas.)
+- **Nekar pipe/redirect, som på riktig Linux:** `>` och `|` görs av skalet runt
+  det eleverade kommandot — payloaden körs om på en *ny rad*, så en redirect skulle
+  skriva tomt (`sudo echo x > /etc/f` trunkerar filen) och en pipe skulle tappa
+  sin input. Därför vägrar sudo i pipe/redirect (`ctx.piped || ctx.stdin`) och
+  säger till dig att elevera själva skrivningen: `sudo nano /etc/hostname`.
+- **Bevarar argument-gränser:** payloaden re-quotas innan den re-parsas, så
+  `sudo touch "/etc/my file"` blir en fil, inte två.
+- **Serialiserad över fönster:** elevation lyfter en *process-vid* vakt, så sudo
+  tar tmux-övergångslåset (`otherWindowsBusy` → neka; annars `beginTransition`/
+  `endTransition`) — bara ett eleverat kommando i taget, så inget annat fönster
+  kan skriva /etc oskyddat medan `sudo nano` står öppet. `runElevated` räknar
+  djup (inte en boolean), så överlappande async-elevationer inte korrumperar
+  varandras vakt-tillstånd.
 - Täckt av terminal-tester (sudo skriver i skyddat träd + återställer vakten;
-  failure propageras till `&&`) och en tour-rad (`rm` nekad → `sudo rm` funkar).
+  failure → `&&`; nekad i pipe/redirect utan att röra filen; quote-gränser
+  bevarade; fönsterlåset tas/släpps) + vfs-test (överlappande async-elevation) +
+  en tour-rad (`rm` nekad → `sudo rm` funkar).
 
 ## Levererat (steg 1, 2026-08-07)
 `src/pia/etc.ts` (`seedSystemFiles`): en liten `/etc`, seedad idempotent vid boot

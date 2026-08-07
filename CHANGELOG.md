@@ -20,9 +20,11 @@ A little Unix underneath: `/etc`, real permissions, and history that persists.
   tree for the payload, so `sudo nano /etc/hostname` or `sudo rm /etc/motd` work
   where a plain command gets `permission denied`. Single-user, so there's no
   password: it's just the deliberate "touch the system files" switch (with the
-  xkcd 149 nod). Like a real shell a redirect is done by the shell, not the
-  elevated command, so `sudo nano /etc/hostname` (not `sudo echo …>`) is how you
-  edit a system file.
+  xkcd 149 nod). Like a real shell a redirect (or pipe) is done by the shell, not
+  the elevated command, so `sudo` refuses to run inside one — `sudo nano
+  /etc/hostname` (not `sudo echo …>`) is how you edit a system file. While it runs
+  it holds the machine (other windows wait), so an elevated edit is the only thing
+  touching the system tree at a time.
 - **Write-protected `/etc`**: the system tree is read-only to ordinary
   commands — `rm /etc/motd`, `echo x > /etc/hostname`, `mkdir /etc/foo` all say
   `permission denied`, like a real box. The system still seeds and refreshes it

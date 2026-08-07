@@ -45,6 +45,14 @@ export const whoareyou: Command = {
   },
 };
 
+/** Re-quote one already-tokenized argument so re-lexing the joined line yields
+ * the same token — otherwise `sudo touch "/etc/my file"` would split back into
+ * two files. Wrap in double quotes (the only quoting the lexer knows) when the
+ * token is empty or carries whitespace or a shell operator. */
+function requote(token: string): string {
+  return token === "" || /[\s"|<>;&]/.test(token) ? `"${token}"` : token;
+}
+
 // `sudo <cmd>` runs the command elevated — the write-guard on the system tree
 // (/etc) is lifted for the payload, so `sudo rm /etc/motd` / `sudo nano
 // /etc/hostname` work where a plain command gets `permission denied`. There's no
@@ -65,12 +73,39 @@ export const sudo: Command = {
       ctx.print("okay.", "accent"); // xkcd 149
       return;
     }
+    // Refuse to take part in a pipe or a redirect. `sudo` re-runs its payload as
+    // a *fresh* line, so a pipe's stdin never reaches it and a redirect is done
+    // by the shell (unelevated) around it — so `echo x | sudo cat` would drop
+    // the input and `sudo echo x > /etc/f` would truncate the file to empty.
+    // Elevate the write itself instead (`sudo nano <file>`), like a real shell.
+    if (ctx.piped || ctx.stdin !== "") {
+      return ctx.error(
+        "sudo: can't run in a pipe or with a redirect — elevate the command itself, e.g. `sudo nano /etc/hostname`",
+      );
+    }
     if (!ctx.exec) return ctx.error("sudo: not supported here");
-    // Run the payload with the VFS write-guard lifted, then restore it (async is
-    // held until it settles). Propagate the payload's exit status silently so
-    // `&&`/`||` behave — its own errors are already printed.
-    const ok = await ctx.vfs.runElevated(() => ctx.exec!(args.join(" ")));
-    if (!ok) ctx.fail?.();
+    // Elevation lifts a *process-wide* guard, so hold the cross-window lock for
+    // its duration: refuse if another window is mid-command, then block other
+    // windows from starting one until the payload finishes — otherwise a plain
+    // command elsewhere could write the protected tree while we're elevated
+    // (`sudo nano` in particular stays open, so elevation lasts a while).
+    if (ctx.tabs?.otherWindowsBusy()) {
+      return ctx.error(
+        "sudo: another window is busy — let it finish (or close it) first; elevation locks the machine",
+      );
+    }
+    ctx.tabs?.beginTransition();
+    try {
+      // Re-quote each token so boundaries survive the payload's re-parse, then
+      // run it with the write-guard lifted (async is held until it settles).
+      // Propagate the payload's exit status silently so `&&`/`||` behave — its
+      // own errors are already printed.
+      const payload = args.map(requote).join(" ");
+      const ok = await ctx.vfs.runElevated(() => ctx.exec!(payload));
+      if (!ok) ctx.fail?.();
+    } finally {
+      ctx.tabs?.endTransition();
+    }
   },
 };
 

@@ -1091,11 +1091,13 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       return;
     }
 
-    // Another window is mid account-transition (login/logout replacing the
-    // shared VFS) — don't start a command whose paths would land in the wrong
-    // account. It's brief; the prompt returns once the transition finishes.
+    // Another window holds the machine lock — an account transition
+    // (login/logout replacing the shared VFS) or a `sudo` elevation (the
+    // write-guard is process-wide). Don't start a command that would race the
+    // VFS swap or write the protected tree unguarded. It's brief; the prompt
+    // returns once the other window finishes.
     if (this.isLocked?.()) {
-      this.print("hold on — finishing an account change in another window…", "dim");
+      this.print("hold on — another window is busy (account change or sudo)…", "dim");
       this.renderInput();
       return;
     }

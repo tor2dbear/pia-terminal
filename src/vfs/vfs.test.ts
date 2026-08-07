@@ -113,6 +113,32 @@ describe("VFS write protection (protectedPaths + runElevated)", () => {
     expect(vfs.readFile("/etc/x")).toBe("after await");
     expect(() => vfs.writeFile("/etc/x", "y")).toThrow(/permission denied/); // restored once settled
   });
+
+  it("keeps the guard consistent when two async elevations overlap (depth counter)", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => vfs.mkdirp("/etc"));
+    // Two elevations open at once and settle in the opposite order they started —
+    // the pattern that would strand a saved-boolean flag either elevated-forever
+    // or denied-mid-flight. With a depth counter each write during either lands.
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    const a = vfs.runElevated(async () => {
+      await new Promise<void>((r) => (releaseA = r));
+      vfs.writeFile("/etc/a", "a"); // still elevated
+    });
+    const b = vfs.runElevated(async () => {
+      await new Promise<void>((r) => (releaseB = r));
+      vfs.writeFile("/etc/b", "b"); // still elevated
+    });
+    releaseA(); // A settles first (started first) — B is still open…
+    await a;
+    releaseB(); // …and B's write must still be elevated
+    await b;
+    expect(vfs.readFile("/etc/a")).toBe("a");
+    expect(vfs.readFile("/etc/b")).toBe("b");
+    expect(() => vfs.writeFile("/etc/c", "c")).toThrow(/permission denied/); // fully restored
+  });
 });
 
 describe("VFS.resolve", () => {

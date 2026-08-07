@@ -274,8 +274,10 @@ export const MANPAGES: Record<string, ManPage> = {
         "allowed to elevate. sudo is just the deliberate switch for touching the " +
         "system files.",
       "Like a real shell, a redirection (`>`) is performed by the shell, not the " +
-        "elevated command, so `sudo echo x > /etc/hostname` still fails. Use " +
-        "`sudo nano /etc/hostname` (or sudo rm/touch/cp/mv) to change a system file.",
+        "elevated command — so `sudo echo x > /etc/hostname` couldn't work — and " +
+        "a pipe's input never reaches the elevated command. sudo therefore refuses " +
+        "to run inside a pipe or with a redirect; elevate the command itself with " +
+        "`sudo nano /etc/hostname` (or sudo rm/touch/cp/mv) instead.",
     ],
     examples: [
       ["sudo nano /etc/hostname", "rename the machine (edit a protected file)"],
