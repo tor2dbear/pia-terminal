@@ -147,16 +147,14 @@ async function openSharedItem(item: SharedList, ctx: CommandContext): Promise<vo
   } catch {
     /* fall back to the cached copy */
   }
-  // A viewer's role is read-only: the server (RLS) would refuse a save, so don't
-  // even try — the apps open read-only instead of bouncing an edit back.
+  // A viewer's role is read-only. The checklist app takes a `readOnly` flag (its
+  // mutations go inert), but the text editor has no such mode — so keep the *real*
+  // save for it: a viewer's write is refused by RLS and the editor surfaces "could
+  // not save" instead of a phantom success that silently drops their edits.
   const readOnly = item.role === "viewer";
-  const save = readOnly
-    ? async (): Promise<void> => {
-        /* read-only viewer — no write */
-      }
-    : async (text: string): Promise<void> => {
-        await ctx.share?.save(item.id, text);
-      };
+  const save = async (text: string): Promise<void> => {
+    await ctx.share?.save(item.id, text);
+  };
 
   if (kindOf(item.name, content) === "list") {
     // A checklist merges cleanly, so it live-syncs a co-editor's change in place.

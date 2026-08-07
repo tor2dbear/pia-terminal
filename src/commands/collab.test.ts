@@ -182,6 +182,24 @@ describe("share <file> <email> (collaborative)", () => {
     expect((await store.mine()).length).toBe(0); // membership dropped
   });
 
+  it("shows a viewer that a shared text edit was refused, not silently saved", async () => {
+    const backing = MemoryShareStore.backing();
+    const owner = new MemoryShareStore("owner@example.com", backing);
+    const id = await owner.create("notes.txt", "hello"); // text, not a list
+    await owner.invite(id, "wife@example.com", "viewer");
+
+    const wife = new MemoryShareStore("wife@example.com", backing);
+    await wife.claim();
+    const root = mount(wife);
+    await runLine(root, "shared notes.txt"); // opens the text editor
+    type(root, " world"); // edit it
+    press(root, "o", { ctrlKey: true }); // ^O save → refused by RLS for a viewer
+    await flush();
+    expect(root.querySelector(".ed-status")?.textContent).toContain("could not save");
+    expect(root.querySelector(".ed-status")?.textContent).not.toContain("saved notes");
+    expect((await owner.get(id))?.content).toBe("hello"); // cloud untouched
+  });
+
   it("refuses rm on a shared list you solely own once another member has joined", async () => {
     const backing = MemoryShareStore.backing();
     const me = new MemoryShareStore("me@example.com", backing);

@@ -2,7 +2,6 @@ import { VfsError } from "../vfs/vfs.js";
 import { isDir, isFile } from "../vfs/types.js";
 import type { VNode } from "../vfs/types.js";
 import type { Command, CommandContext } from "./registry.js";
-import { wouldOrphanShare } from "./linked.js";
 
 /** True if an `-a` / `--all` flag is present (also inside a bundle like `-la`). */
 function hasAllFlag(args: string[]): boolean {
@@ -158,47 +157,42 @@ export const rm: Command = {
     const targets = args.filter((a) => !a.startsWith("-"));
     if (targets.length === 0) return ctx.error("rm: specify at least one path");
     let changed = false;
-    const leaving: string[] = [];
+    let left = 0;
     for (const arg of targets) {
       const target = ctx.vfs.resolve(ctx.cwd, arg);
-      // Collect any share links under this path *before* removing it — removing
-      // a shared file also means leaving the share, else it would just get
-      // re-placed in ~/shared on the next login.
+      // Any cloud links under this path — removing a shared file also means
+      // leaving the share, else it would be re-placed in ~/shared on next login.
       const ids = ctx.vfs.shareIdsUnder(target);
-      // Reject *before* mutating if removing would orphan a list we solely own
-      // (leaving is refused there): otherwise we'd delete the local file, fail to
-      // leave, and have it reappear — while claiming it was left.
-      let orphans = false;
+      // Leave the shares FIRST (the authoritative guard), then remove — atomic,
+      // with no check-then-act window: we never delete locally and only then fail
+      // to leave (which would resurrect the file). A refused leave (you're the
+      // sole owner with other members) or a failure (offline) skips removal.
+      let leftHere = 0;
+      let blocked = false;
       for (const id of ids) {
-        if (await wouldOrphanShare(ctx, id)) {
-          orphans = true;
+        try {
+          await ctx.share?.leave(id);
+          leftHere++;
+        } catch {
+          blocked = true;
           break;
         }
       }
-      if (orphans) {
+      if (blocked) {
         ctx.error(
-          `rm: ${arg}: you're the only owner of this shared list — \`todo unshare\` the others first (ownership transfer is coming), or it would be left ownerless`,
+          `rm: ${arg}: couldn't leave this shared list — you may be its only owner ` +
+            "(`todo unshare` the others; ownership transfer is coming), or you're offline; not removed",
         );
         continue;
       }
       if (guard(ctx, () => ctx.vfs.remove(target, recursive))) {
         changed = true;
-        leaving.push(...ids);
+        left += leftHere;
       }
     }
     if (changed) await ctx.persist();
-    for (const id of leaving) {
-      try {
-        await ctx.share?.leave(id);
-      } catch {
-        /* best-effort — the local file is already gone */
-      }
-    }
-    if (leaving.length > 0) {
-      ctx.print(
-        `(left ${leaving.length} shared file${leaving.length === 1 ? "" : "s"})`,
-        "dim",
-      );
+    if (left > 0) {
+      ctx.print(`(left ${left} shared file${left === 1 ? "" : "s"})`, "dim");
     }
   },
 };

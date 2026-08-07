@@ -36,28 +36,6 @@ export function linkedSave(
   };
 }
 
-/**
- * Would leaving/removing this shared list leave it ownerless? True only when the
- * caller is its *sole* owner and other members remain — the case the leave guard
- * refuses (there's no one to promote until ownership transfer, a later step). So
- * `rm` can reject *before* mutating rather than delete locally, fail to leave,
- * and have the list reappear. Best-effort: an offline/failed lookup returns
- * false so `rm` falls back to its best-effort leave (the server still gates).
- */
-export async function wouldOrphanShare(ctx: CommandContext, shareId: string): Promise<boolean> {
-  try {
-    const my = (await ctx.share?.mine())?.find((l) => l.id === shareId);
-    if (my?.role !== "owner") return false; // not the owner → leaving is always fine
-    const joined = ((await ctx.share?.members(shareId)) ?? []).filter(
-      (m) => m.status === "member",
-    );
-    const owners = joined.filter((m) => m.role === "owner");
-    return joined.length > 1 && owners.length <= 1;
-  } catch {
-    return false;
-  }
-}
-
 /** Subscribe to a linked file's cloud changes; returns an unsubscribe (or none). */
 export function linkedSubscribe(
   ctx: CommandContext,

@@ -367,6 +367,25 @@ update public.shared_list_members m
   from public.shared_lists l
   where m.list_id = l.id and m.user_id = l.created_by and m.role <> 'owner';
 
+-- …and for any list *still* without an owner (its creator had already left under
+-- the old flat model, or created_by is null after an account deletion), promote
+-- one deterministic remaining member — otherwise every member is an editor and
+-- no one can call the owner-only remove_member / delete_list RPCs. Deterministic
+-- pick (lowest user_id) so a re-run is stable. No-op once each list has an owner.
+with orphaned as (
+  select m.list_id, min(m.user_id::text) as uid
+    from public.shared_list_members m
+    where not exists (
+      select 1 from public.shared_list_members o
+      where o.list_id = m.list_id and o.role = 'owner'
+    )
+    group by m.list_id
+)
+update public.shared_list_members m
+  set role = 'owner'
+  from orphaned o
+  where m.list_id = o.list_id and m.user_id::text = o.uid;
+
 -- Keep updated_at fresh on content edits (reuses schema.sql's helper).
 drop trigger if exists shared_lists_touch_updated_at on public.shared_lists;
 create trigger shared_lists_touch_updated_at
