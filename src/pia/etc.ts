@@ -45,22 +45,24 @@ function osRelease(): string {
 export const DEFAULT_HOSTNAME = "pia";
 
 export function seedSystemFiles(vfs: VFS): void {
-  // Nothing here is write-protected yet, so a user can have put anything at these
-  // paths (`mkdir /etc/motd`, a file called `/etc`). Guard every step so a
-  // conflicting node type is left alone rather than throwing — this runs at boot,
-  // and an uncaught error would freeze the terminal before the prompt appears.
-  const etc = vfs.getNode("/etc");
-  if (etc && etc.type !== "dir") return; // a non-dir occupies /etc — leave it, don't crash boot
-  vfs.mkdirp("/etc");
+  // /etc is write-protected against ordinary commands, so the system seeds it
+  // elevated. Guards on each step also tolerate a conflicting node type a user
+  // left behind (a file called `/etc`, a dir at `/etc/motd`) — this runs at
+  // boot, and an uncaught error would freeze the terminal before the prompt.
+  vfs.runElevated(() => {
+    const etc = vfs.getNode("/etc");
+    if (etc && etc.type !== "dir") return; // a non-dir occupies /etc — leave it, don't crash boot
+    vfs.mkdirp("/etc");
 
-  // motd + hostname: yours to edit — seeded only when the path is empty (a file
-  // you've written survives; a stray directory there is left untouched).
-  if (!vfs.getNode("/etc/motd")) vfs.writeFile("/etc/motd", `${DEFAULT_MOTD}\n`);
-  if (!vfs.getNode("/etc/hostname")) vfs.writeFile("/etc/hostname", `${DEFAULT_HOSTNAME}\n`);
+    // motd + hostname: yours to edit — seeded only when the path is empty (a file
+    // you've written survives; a stray directory there is left untouched).
+    if (!vfs.getNode("/etc/motd")) vfs.writeFile("/etc/motd", `${DEFAULT_MOTD}\n`);
+    if (!vfs.getNode("/etc/hostname")) vfs.writeFile("/etc/hostname", `${DEFAULT_HOSTNAME}\n`);
 
-  // os-release: machine-owned, refreshed each boot — unless a directory sits
-  // there, in which case there's nothing safe to do but skip it.
-  if (vfs.getNode("/etc/os-release")?.type !== "dir") vfs.writeFile("/etc/os-release", osRelease());
+    // os-release: machine-owned, refreshed each boot — unless a directory sits
+    // there, in which case there's nothing safe to do but skip it.
+    if (vfs.getNode("/etc/os-release")?.type !== "dir") vfs.writeFile("/etc/os-release", osRelease());
+  });
 }
 
 /** Read /etc/motd for the boot greeting; empty string if it isn't there. */

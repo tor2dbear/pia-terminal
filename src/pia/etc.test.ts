@@ -33,6 +33,15 @@ describe("seedSystemFiles", () => {
     expect(vfs.readFile("/etc/os-release")).toContain(`VERSION="${VERSION}"`); // overwritten
   });
 
+  it("seeds even when /etc is write-protected (the system seeds elevated)", () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"]; // as main.ts sets it
+    expect(() => seedSystemFiles(vfs)).not.toThrow();
+    expect(vfs.readFile("/etc/motd")).toBe(`${DEFAULT_MOTD}\n`);
+    // …but an ordinary command write is still refused.
+    expect(() => vfs.writeFile("/etc/motd", "x")).toThrow(/permission denied/);
+  });
+
   it("tolerates conflicting nodes at the /etc paths (never throws — boot must not brick)", () => {
     const fileAtEtc = VFS.seed();
     fileAtEtc.writeFile("/etc", "i am a file, not a dir");

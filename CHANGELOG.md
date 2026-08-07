@@ -12,6 +12,12 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **Write-protected `/etc`**: the system tree is now read-only to ordinary
+  commands — `rm /etc/motd`, `echo x > /etc/hostname`, `mkdir /etc/foo` all say
+  `permission denied`, like a real box. The system still seeds and refreshes it
+  (elevated), and your home is unaffected. Editing the system files (motd,
+  hostname) now needs elevation — `sudo` becomes that escape hatch in the next
+  step (see `roadmap/permissions.md`).
 - **`/etc/hostname`**: the machine name behind the prompt's `{host}` now lives in
   `/etc/hostname` (like a real box). Rename your machine with
   `echo laptop > /etc/hostname` then `source ~/.pia/config`, and the prompt

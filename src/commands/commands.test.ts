@@ -226,6 +226,18 @@ describe("system commands", () => {
     expect(a.text()).toEqual(["a little computer in the browser"]);
   });
 
+  it("refuses to delete a write-protected system file (rm /etc/motd)", async () => {
+    const h = harness();
+    h.vfs.protectedPaths = ["/etc"];
+    h.vfs.runElevated(() => {
+      h.vfs.mkdirp("/etc");
+      h.vfs.writeFile("/etc/motd", "hi.");
+    });
+    await h.run("rm /etc/motd");
+    expect(h.text().join("\n")).toContain("permission denied");
+    expect(h.vfs.getNode("/etc/motd")).not.toBeNull(); // the file survived
+  });
+
   it("sudo is an honest single-user stub (no privilege to elevate)", async () => {
     const h = harness();
     await h.run("sudo rm cache");

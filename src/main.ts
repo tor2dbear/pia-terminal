@@ -114,6 +114,10 @@ async function main(): Promise<void> {
     // persisted by their first real mutation instead.
     if (!cloudConfig) await adapter.save(vfs.root);
   }
+  // The system tree is read-only to ordinary commands — `rm /etc/motd` is
+  // `permission denied`. The seeder writes it elevated (see seedSystemFiles);
+  // `sudo` will be the user-facing escape hatch (roadmap/permissions.md).
+  vfs.protectedPaths = ["/etc"];
 
   const session = (await auth.current()) ?? { user: "guest" };
 

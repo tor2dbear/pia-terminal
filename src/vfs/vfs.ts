@@ -17,7 +17,35 @@ export class VFS {
    *  not part of the serialized tree — the terminal sets it on login/logout. */
   home = HOME;
 
+  /** Absolute-path prefixes that are read-only to ordinary writes. Session state
+   * (not serialized) — PIA points this at the system tree (`/etc`). A mutation
+   * under one throws `permission denied` unless {@link runElevated} lifts the
+   * guard, which the system seeder uses (and, later, `sudo`). */
+  protectedPaths: string[] = [];
+  private elevated = false;
+
   constructor(public root: DirNode) {}
+
+  /** Run `fn` with the write-guard lifted — system seeding today, `sudo`
+   * tomorrow. Restores the previous state after, so nesting is safe. */
+  runElevated<T>(fn: () => T): T {
+    const prev = this.elevated;
+    this.elevated = true;
+    try {
+      return fn();
+    } finally {
+      this.elevated = prev;
+    }
+  }
+
+  /** Throw `permission denied` if `absPath` sits in a protected prefix and we're
+   * not currently elevated. Called by every mutating operation. */
+  private guardWrite(absPath: string): void {
+    if (this.elevated) return;
+    if (this.protectedPaths.some((p) => absPath === p || absPath.startsWith(`${p}/`))) {
+      throw new VfsError(`permission denied: ${absPath}`);
+    }
+  }
 
   /** A fresh default tree with a home directory and a welcome file. */
   static seed(): VFS {
@@ -95,6 +123,7 @@ export class VFS {
 
   /** Create a directory; error if the parent is missing or the name is taken. */
   mkdir(absPath: string): void {
+    this.guardWrite(absPath);
     const { parent, name } = this.parentOf(absPath);
     if (parent.children[name]) {
       throw new VfsError(`already exists: ${absPath}`);
@@ -104,6 +133,7 @@ export class VFS {
 
   /** Create a directory and any missing ancestors (like `mkdir -p`). */
   mkdirp(absPath: string): void {
+    this.guardWrite(absPath);
     const parts = absPath.split("/").filter(Boolean);
     let node = this.root;
     for (const part of parts) {
@@ -121,6 +151,7 @@ export class VFS {
 
   /** Create an empty file if absent; a no-op if it already exists. */
   touch(absPath: string): void {
+    this.guardWrite(absPath);
     const existing = this.getNode(absPath);
     if (existing) {
       if (isDir(existing)) throw new VfsError(`is a directory: ${absPath}`);
@@ -131,6 +162,7 @@ export class VFS {
 
   /** Write (creating or overwriting) a file's content. Preserves a cloud link. */
   writeFile(absPath: string, content: string): void {
+    this.guardWrite(absPath);
     const { parent, name } = this.parentOf(absPath);
     const existing = parent.children[name];
     if (existing && isDir(existing)) {
@@ -167,6 +199,7 @@ export class VFS {
 
   /** Remove a file or directory. Directories require `recursive`. */
   remove(absPath: string, recursive = false): void {
+    this.guardWrite(absPath);
     const node = this.getNode(absPath);
     if (!node) throw new VfsError(`no such file or directory: ${absPath}`);
     if (isDir(node) && Object.keys(node.children).length > 0 && !recursive) {
@@ -178,6 +211,7 @@ export class VFS {
 
   /** Move/rename a node from one absolute path to another. */
   move(fromPath: string, toPath: string): void {
+    this.guardWrite(fromPath); // moving *out* of a protected path removes it there
     const node = this.getNode(fromPath);
     if (!node) throw new VfsError(`no such file or directory: ${fromPath}`);
 
@@ -187,6 +221,7 @@ export class VFS {
     if (destNode && isDir(destNode)) {
       dest = (toPath === "/" ? "" : toPath) + "/" + node.name;
     }
+    this.guardWrite(dest); // …and moving *into* one writes there
 
     const { parent: destParent, name: destName } = this.parentOf(dest);
     if (destParent.children[destName] && isDir(destParent.children[destName])) {
@@ -217,6 +252,7 @@ export class VFS {
     if (dest === fromPath || dest.startsWith(fromPath + "/")) {
       throw new VfsError(`cannot copy '${fromPath}' into itself`);
     }
+    this.guardWrite(dest); // copying *into* a protected path writes there
 
     const { parent: destParent, name: destName } = this.parentOf(dest);
     this.placeCopy(destParent, destName, node);

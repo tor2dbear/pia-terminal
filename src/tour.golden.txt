@@ -299,6 +299,8 @@ HOME_URL=https://pia.tor2dbear.com
 guest@pia:~$ cat /etc/hostname
 pia
 
+guest@pia:~$ rm /etc/motd
+permission denied: /etc/motd
 guest@pia:~$ version
 PIA v<version>
 guest@pia:~$ about
@@ -399,8 +401,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
- 98  version
- 99  about
-100  date -u
-101  help
-102  history | tail -5
+ 99  version
+100  about
+101  date -u
+102  help
+103  history | tail -5
