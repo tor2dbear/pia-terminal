@@ -142,11 +142,15 @@ export const MANPAGES: Record<string, ManPage> = {
         "8–40), and `margin` (px of breathing room around the content — top and " +
         "sides, 0–80; the bottom keeps room for the on-screen key bar, and every " +
         "edge is clamped up to the device safe-area).",
+      "The prompt's `{host}` placeholder is the machine name, read from the system " +
+        "file /etc/hostname (not this config) — edit it to rename the machine, e.g. " +
+        "`echo laptop > /etc/hostname` then `source ~/.pia/config`.",
     ],
     examples: [
       ["theme amber", "change the theme (writes to the config)"],
       ["font-size = 16", "bump the text size (edit the config)"],
       ["margin = 24", "more breathing room around the content"],
+      ["echo laptop > /etc/hostname", "rename the machine (prompt {host})"],
       ["alias ll = ls -la", "define a shortcut"],
       ["source ~/.pia/config", "re-read and apply the config"],
     ],

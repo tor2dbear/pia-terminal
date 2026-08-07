@@ -27,7 +27,7 @@ describe("parseConfig", () => {
   it("parses the seeded default", () => {
     const cfg = parseConfig(DEFAULT_CONFIG);
     expect(cfg.theme).toBe("phosphor");
-    expect(cfg.prompt).toBe("{user}@pia:{cwd}$");
+    expect(cfg.prompt).toBe("{user}@{host}:{cwd}$");
     expect(cfg.aliases.ll).toBe("ls -la");
     // Retro toggles are off unless set (they're commented out in the default).
     expect(cfg.crt).toBeUndefined();

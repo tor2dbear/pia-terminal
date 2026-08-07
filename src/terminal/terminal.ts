@@ -60,6 +60,8 @@ const NULL_ADAPTER: StorageAdapter = {
 export interface TerminalConfig {
   /** Prompt template with `{user}` `{host}` `{cwd}` placeholders. */
   prompt?: string;
+  /** The machine name the prompt's `{host}` resolves to. Omitted → `pia`. */
+  host?: string;
   /** Command shortcuts: alias name → its expansion. */
   aliases?: Record<string, string>;
 }
@@ -227,7 +229,9 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
   private buffer = "";
   private cursor = 0;
   /** Prompt template (from `configure`) — placeholders {user} {host} {cwd}. */
-  private promptTemplate = "{user}@pia:{cwd}$";
+  private promptTemplate = "{user}@{host}:{cwd}$";
+  /** Machine name for the prompt's {host} (from `configure`, i.e. /etc/hostname). */
+  private hostname = "pia";
   /** User-defined command shortcuts (from `configure`). */
   private aliases = new Map<string, string>();
   private history: string[] = [];
@@ -529,7 +533,8 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
    */
   private loadConfig(): void {
     const cfg = this.configure?.() ?? {};
-    this.promptTemplate = cfg.prompt || "{user}@pia:{cwd}$";
+    this.promptTemplate = cfg.prompt || "{user}@{host}:{cwd}$";
+    this.hostname = cfg.host?.trim() || "pia";
     this.aliases = new Map(Object.entries(cfg.aliases ?? {}));
   }
 
@@ -593,7 +598,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     else if (shown.startsWith(`${home}/`)) shown = `~${shown.slice(home.length)}`;
     return text
       .replaceAll("{user}", this.session.user)
-      .replaceAll("{host}", "pia")
+      .replaceAll("{host}", this.hostname)
       .replaceAll("{cwd}", shown);
   }
 
