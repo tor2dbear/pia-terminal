@@ -81,6 +81,32 @@ describe("share <file> <email> (collaborative)", () => {
     expect(root.textContent).toContain("nothing new shared with you");
   });
 
+  it("refuses to co-edit-share a write-protected system file (no cloud object made)", async () => {
+    const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => {
+      vfs.mkdirp("/etc");
+      vfs.writeFile("/etc/motd", "hi.");
+    });
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs,
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter(), store),
+    });
+
+    await runLine(root, "share /etc/motd friend@example.com");
+    expect(root.textContent).toContain("permission denied");
+    // Refused up front — the file was never linked, and nothing was uploaded.
+    const node = vfs.getNode("/etc/motd");
+    expect(node && node.type === "file" && node.shareId).toBeFalsy();
+    expect(await store.mine()).toHaveLength(0);
+  });
+
   it("edits a shared file in place through nano and syncs to the cloud", async () => {
     const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
     const root = mount(store);

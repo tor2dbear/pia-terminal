@@ -66,6 +66,10 @@ describe("VFS write protection (protectedPaths + runElevated)", () => {
     expect(() => vfs.move("/home/guest/welcome.txt", "/etc/w")).toThrow(/permission denied/); // into /etc
     expect(() => vfs.copy("/home/guest/welcome.txt", "/etc/w")).toThrow(/permission denied/);
 
+    // …including the cloud-link ops, so a protected file can't be put under
+    // cloud control (share/co-edit) either.
+    expect(() => vfs.link("/etc/motd", "cloud-1")).toThrow(/permission denied/);
+
     // The file is untouched; a same-prefix-name-but-not-under path is fine.
     expect(vfs.readFile("/etc/motd")).toBe("hi");
     vfs.writeFile("/etcetera.txt", "ok"); // "/etc" prefix but not "/etc/…" — allowed
@@ -82,6 +86,18 @@ describe("VFS write protection (protectedPaths + runElevated)", () => {
     });
     expect(vfs.readFile("/etc/motd")).toBe("seeded");
     expect(() => vfs.writeFile("/etc/motd", "x")).toThrow(/permission denied/); // guard restored
+  });
+
+  it("holds elevation across an async payload's awaits (for a future async sudo)", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    await vfs.runElevated(async () => {
+      vfs.mkdirp("/etc");
+      await Promise.resolve(); // a real command would await here
+      vfs.writeFile("/etc/x", "after await"); // would throw if elevation ended at the first await
+    });
+    expect(vfs.readFile("/etc/x")).toBe("after await");
+    expect(() => vfs.writeFile("/etc/x", "y")).toThrow(/permission denied/); // restored once settled
   });
 });
 

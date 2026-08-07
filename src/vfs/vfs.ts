@@ -27,22 +27,41 @@ export class VFS {
   constructor(public root: DirNode) {}
 
   /** Run `fn` with the write-guard lifted — system seeding today, `sudo`
-   * tomorrow. Restores the previous state after, so nesting is safe. */
+   * tomorrow. Restores the previous state after, so nesting is safe. If `fn`
+   * returns a promise, elevation is held until it settles (not just through the
+   * synchronous prefix), so a future async `sudo` payload works. NB the flag is
+   * shared, so two *concurrent* elevated async commands isn't safe — a step-3
+   * concern; today only the synchronous seeder uses this. */
   runElevated<T>(fn: () => T): T {
     const prev = this.elevated;
     this.elevated = true;
+    let result: T;
     try {
-      return fn();
-    } finally {
+      result = fn();
+    } catch (err) {
       this.elevated = prev;
+      throw err;
     }
+    if (result != null && typeof (result as { then?: unknown }).then === "function") {
+      return (result as unknown as Promise<unknown>).finally(() => {
+        this.elevated = prev;
+      }) as unknown as T;
+    }
+    this.elevated = prev;
+    return result;
+  }
+
+  /** Whether `absPath` is under a read-only protected prefix (ignores elevation).
+   * For callers that mutate *outside* the core ops — e.g. cloud sharing — and
+   * want to refuse a protected path up front, before any external change. */
+  isProtected(absPath: string): boolean {
+    return this.protectedPaths.some((p) => absPath === p || absPath.startsWith(`${p}/`));
   }
 
   /** Throw `permission denied` if `absPath` sits in a protected prefix and we're
    * not currently elevated. Called by every mutating operation. */
   private guardWrite(absPath: string): void {
-    if (this.elevated) return;
-    if (this.protectedPaths.some((p) => absPath === p || absPath.startsWith(`${p}/`))) {
+    if (!this.elevated && this.isProtected(absPath)) {
       throw new VfsError(`permission denied: ${absPath}`);
     }
   }
@@ -178,6 +197,7 @@ export class VFS {
 
   /** Link a file to a cloud shared object — sharing is a property, not a move. */
   link(absPath: string, shareId: string): void {
+    this.guardWrite(absPath); // a protected file can't be put under cloud control
     const node = this.getNode(absPath);
     if (!node || !isFile(node)) throw new VfsError(`not a file: ${absPath}`);
     node.shareId = shareId;
@@ -185,6 +205,7 @@ export class VFS {
 
   /** Drop a file's cloud link (leave the share); the local content stays. */
   unlink(absPath: string): void {
+    this.guardWrite(absPath);
     const node = this.getNode(absPath);
     if (node && isFile(node)) delete node.shareId;
   }
