@@ -17,7 +17,54 @@ export class VFS {
    *  not part of the serialized tree — the terminal sets it on login/logout. */
   home = HOME;
 
+  /** Absolute-path prefixes that are read-only to ordinary writes. Session state
+   * (not serialized) — PIA points this at the system tree (`/etc`). A mutation
+   * under one throws `permission denied` unless {@link runElevated} lifts the
+   * guard, which the system seeder uses (and, later, `sudo`). */
+  protectedPaths: string[] = [];
+  private elevated = false;
+
   constructor(public root: DirNode) {}
+
+  /** Run `fn` with the write-guard lifted — system seeding today, `sudo`
+   * tomorrow. Restores the previous state after, so nesting is safe. If `fn`
+   * returns a promise, elevation is held until it settles (not just through the
+   * synchronous prefix), so a future async `sudo` payload works. NB the flag is
+   * shared, so two *concurrent* elevated async commands isn't safe — a step-3
+   * concern; today only the synchronous seeder uses this. */
+  runElevated<T>(fn: () => T): T {
+    const prev = this.elevated;
+    this.elevated = true;
+    let result: T;
+    try {
+      result = fn();
+    } catch (err) {
+      this.elevated = prev;
+      throw err;
+    }
+    if (result != null && typeof (result as { then?: unknown }).then === "function") {
+      return (result as unknown as Promise<unknown>).finally(() => {
+        this.elevated = prev;
+      }) as unknown as T;
+    }
+    this.elevated = prev;
+    return result;
+  }
+
+  /** Whether `absPath` is under a read-only protected prefix (ignores elevation).
+   * For callers that mutate *outside* the core ops — e.g. cloud sharing — and
+   * want to refuse a protected path up front, before any external change. */
+  isProtected(absPath: string): boolean {
+    return this.protectedPaths.some((p) => absPath === p || absPath.startsWith(`${p}/`));
+  }
+
+  /** Throw `permission denied` if `absPath` sits in a protected prefix and we're
+   * not currently elevated. Called by every mutating operation. */
+  private guardWrite(absPath: string): void {
+    if (!this.elevated && this.isProtected(absPath)) {
+      throw new VfsError(`permission denied: ${absPath}`);
+    }
+  }
 
   /** A fresh default tree with a home directory and a welcome file. */
   static seed(): VFS {
@@ -95,6 +142,7 @@ export class VFS {
 
   /** Create a directory; error if the parent is missing or the name is taken. */
   mkdir(absPath: string): void {
+    this.guardWrite(absPath);
     const { parent, name } = this.parentOf(absPath);
     if (parent.children[name]) {
       throw new VfsError(`already exists: ${absPath}`);
@@ -104,6 +152,7 @@ export class VFS {
 
   /** Create a directory and any missing ancestors (like `mkdir -p`). */
   mkdirp(absPath: string): void {
+    this.guardWrite(absPath);
     const parts = absPath.split("/").filter(Boolean);
     let node = this.root;
     for (const part of parts) {
@@ -121,6 +170,7 @@ export class VFS {
 
   /** Create an empty file if absent; a no-op if it already exists. */
   touch(absPath: string): void {
+    this.guardWrite(absPath);
     const existing = this.getNode(absPath);
     if (existing) {
       if (isDir(existing)) throw new VfsError(`is a directory: ${absPath}`);
@@ -131,6 +181,7 @@ export class VFS {
 
   /** Write (creating or overwriting) a file's content. Preserves a cloud link. */
   writeFile(absPath: string, content: string): void {
+    this.guardWrite(absPath);
     const { parent, name } = this.parentOf(absPath);
     const existing = parent.children[name];
     if (existing && isDir(existing)) {
@@ -146,6 +197,7 @@ export class VFS {
 
   /** Link a file to a cloud shared object — sharing is a property, not a move. */
   link(absPath: string, shareId: string): void {
+    this.guardWrite(absPath); // a protected file can't be put under cloud control
     const node = this.getNode(absPath);
     if (!node || !isFile(node)) throw new VfsError(`not a file: ${absPath}`);
     node.shareId = shareId;
@@ -153,8 +205,27 @@ export class VFS {
 
   /** Drop a file's cloud link (leave the share); the local content stays. */
   unlink(absPath: string): void {
+    this.guardWrite(absPath);
     const node = this.getNode(absPath);
     if (node && isFile(node)) delete node.shareId;
+  }
+
+  /** Strip cloud links from every file under `prefix` (a system migration, so it
+   * isn't guarded). Used when a path becomes read-only: a file shared *before* it
+   * was protected keeps a serialized `shareId`, which would route edits through
+   * the cloud (`linkedSave` writes the cloud, then the guarded local write
+   * fails). Detaching abandons the legacy share so it's just a protected file. */
+  detachLinksUnder(prefix: string): void {
+    const node = this.getNode(prefix);
+    if (!node) return;
+    const walk = (n: VNode): void => {
+      if (isFile(n)) {
+        delete n.shareId;
+        return;
+      }
+      for (const child of Object.values(n.children)) walk(child);
+    };
+    walk(node);
   }
 
   /** Read a file's content, or throw a printable error. */
@@ -167,6 +238,7 @@ export class VFS {
 
   /** Remove a file or directory. Directories require `recursive`. */
   remove(absPath: string, recursive = false): void {
+    this.guardWrite(absPath);
     const node = this.getNode(absPath);
     if (!node) throw new VfsError(`no such file or directory: ${absPath}`);
     if (isDir(node) && Object.keys(node.children).length > 0 && !recursive) {
@@ -178,6 +250,7 @@ export class VFS {
 
   /** Move/rename a node from one absolute path to another. */
   move(fromPath: string, toPath: string): void {
+    this.guardWrite(fromPath); // moving *out* of a protected path removes it there
     const node = this.getNode(fromPath);
     if (!node) throw new VfsError(`no such file or directory: ${fromPath}`);
 
@@ -187,6 +260,7 @@ export class VFS {
     if (destNode && isDir(destNode)) {
       dest = (toPath === "/" ? "" : toPath) + "/" + node.name;
     }
+    this.guardWrite(dest); // …and moving *into* one writes there
 
     const { parent: destParent, name: destName } = this.parentOf(dest);
     if (destParent.children[destName] && isDir(destParent.children[destName])) {
@@ -217,6 +291,7 @@ export class VFS {
     if (dest === fromPath || dest.startsWith(fromPath + "/")) {
       throw new VfsError(`cannot copy '${fromPath}' into itself`);
     }
+    this.guardWrite(dest); // copying *into* a protected path writes there
 
     const { parent: destParent, name: destName } = this.parentOf(dest);
     this.placeCopy(destParent, destName, node);

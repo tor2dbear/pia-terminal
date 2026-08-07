@@ -14,7 +14,7 @@ att öva på) och knyter ihop befintliga features (boot-hälsning, neofetch).
 
 ## Upplägg i tre steg (var och en shippbar för sig)
 1. **Seeda systemträdet** — filerna *finns* och *används*, ingen låsning. ✅ *(gjort)*
-2. **Skrivskydda** systemsökvägarna — `rm /etc/motd` → `permission denied`.
+2. **Skrivskydda** systemsökvägarna — `rm /etc/motd` → `permission denied`. ✅ *(gjort)*
 3. **`sudo`-elevation** — `sudo <cmd>` kör kommandot med skyddet av; escape-hatchen.
 
 ## Levererat (steg 1, 2026-08-07)
@@ -32,15 +32,23 @@ att öva på) och knyter ihop befintliga features (boot-hälsning, neofetch).
   self-heal/os-release-refresh/hostname) + tour-rader (`ls /`,
   `cat /etc/os-release`, `cat /etc/hostname`).
 
-Ingen låsning ännu: `rm /etc/motd` funkar (men kommer tillbaka vid boot); och
-`sudo rm /etc/motd` *avböjer* (stubben kör inget) — så `sudo` skyddar dig just nu
-genom att inte göra något, tills steg 3 vänder på det.
+## Levererat (steg 2, samma session)
+Skrivskydd i VFS:en, som planerat — prefix-baserat, ingen per-nod-metadata:
+- `VFS.protectedPaths` (prefix) + en `elevated`-flagga och `runElevated(fn)`.
+  Varje muterande op (`mkdir`/`mkdirp`/`touch`/`writeFile`/`remove`/`move`/`copy`)
+  kollar `guardWrite(path)` och kastar `permission denied: <path>` om sökvägen
+  ligger under ett skyddat prefix och vi inte är eleverade. `move`/`copy` vaktar
+  *båda* ändarna (ut ur och in i /etc).
+- `main.ts` sätter `vfs.protectedPaths = ["/etc"]`; `seedSystemFiles` kör i
+  `runElevated` så systemet fortfarande kan seeda/uppdatera. Hemmet opåverkat.
+- **Följd:** de "redigerbara" system­filerna (motd, hostname) är nu låsta för
+  vanliga kommandon också — `echo laptop > /etc/hostname` ger `permission denied`.
+  Det är meningen: seed-if-missing-designen betyder att när `sudo` (steg 3) finns,
+  överlever dina eleverade edits en reseed. Tills dess är /etc helt låst.
+- Täckt av vfs.test (neka alla ops / elevation-bypass), etc.test (seedar under
+  skydd), commands.test (`rm /etc/motd` → denied, filen kvar), tour-rad.
 
-## Kvar (steg 2–3, öppna beslut)
-- **Skydd (steg 2):** enklast en uppsättning skyddade sökvägs-prefix som VFS:ens
-  `writeFile`/`mkdir`/`remove`/`move` kollar och kastar `permission denied` på —
-  ingen per-nod-metadata, inga ändringar i det serialiserade trädet. (Alternativ:
-  `readonly`-flagga per nod — flexiblare men bloatar trädet + kräver migrering.)
+## Kvar (steg 3)
 - **Elevation (steg 3):** behöver en väg för `sudo` att *köra* payloaden med
   skyddet av. Antingen en motor-söm `ctx.exec(rad, { elevated })` (troget, kör om
   genom riktiga pipeline-köraren med glob/pipes/alias intakta) eller ett

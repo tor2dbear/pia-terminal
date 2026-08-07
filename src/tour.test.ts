@@ -204,6 +204,7 @@ const TOUR: string[] = [
   "ls /",
   "cat /etc/os-release",
   "cat /etc/hostname",
+  "rm /etc/motd",
   "version",
   "about",
   "date -u",
@@ -231,7 +232,8 @@ describe("tour — a scripted session through the real terminal", () => {
     // pointers are live.
     seedDefaultPackages(vfs, vfs.home);
     await registerInstalled(vfs, vfs.home, registry);
-    seedSystemFiles(vfs); // the /etc system tree (motd, os-release), like main.ts
+    vfs.protectedPaths = ["/etc"]; // system tree is read-only, like main.ts
+    seedSystemFiles(vfs); // the /etc system tree (motd, os-release), seeded elevated
     await boot(term!, { motd: readMotd(vfs) });
     for (const line of TOUR) await run(line);
     await expect(transcript()).toMatchFileSnapshot("./tour.golden.txt");

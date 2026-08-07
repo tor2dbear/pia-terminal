@@ -108,6 +108,9 @@ export async function shareForEditing(
   const path = ctx.vfs.resolve(ctx.cwd, name);
   const node = ctx.vfs.getNode(path);
   if (!node || !isFile(node)) return ctx.error(`share: no such file: ${path}`);
+  // A write-protected system file can't be put under cloud control — refuse
+  // before creating any cloud object, so nothing external is changed.
+  if (ctx.vfs.isProtected(path)) return ctx.error(`permission denied: ${path}`);
 
   try {
     if (node.shareId) {

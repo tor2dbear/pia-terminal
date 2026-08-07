@@ -51,6 +51,70 @@ describe("VFS share links", () => {
   });
 });
 
+describe("VFS write protection (protectedPaths + runElevated)", () => {
+  it("denies every ordinary write under a protected prefix, but not elsewhere", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp("/etc");
+    vfs.writeFile("/etc/motd", "hi"); // seeded before protection is on
+    vfs.protectedPaths = ["/etc"];
+
+    expect(() => vfs.writeFile("/etc/motd", "x")).toThrow(/permission denied/);
+    expect(() => vfs.remove("/etc/motd")).toThrow(/permission denied/);
+    expect(() => vfs.mkdir("/etc/new")).toThrow(/permission denied/);
+    expect(() => vfs.touch("/etc/new")).toThrow(/permission denied/);
+    expect(() => vfs.move("/etc/motd", "/home/guest/motd")).toThrow(/permission denied/); // out of /etc
+    expect(() => vfs.move("/home/guest/welcome.txt", "/etc/w")).toThrow(/permission denied/); // into /etc
+    expect(() => vfs.copy("/home/guest/welcome.txt", "/etc/w")).toThrow(/permission denied/);
+
+    // …including the cloud-link ops, so a protected file can't be put under
+    // cloud control (share/co-edit) either.
+    expect(() => vfs.link("/etc/motd", "cloud-1")).toThrow(/permission denied/);
+
+    // The file is untouched; a same-prefix-name-but-not-under path is fine.
+    expect(vfs.readFile("/etc/motd")).toBe("hi");
+    vfs.writeFile("/etcetera.txt", "ok"); // "/etc" prefix but not "/etc/…" — allowed
+    vfs.writeFile("/home/guest/note.txt", "ok"); // unprotected home — allowed
+  });
+
+  it("runElevated lifts the guard for its duration, then restores it (nesting-safe)", () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => {
+      vfs.mkdirp("/etc");
+      vfs.runElevated(() => vfs.writeFile("/etc/motd", "seeded")); // nested
+      vfs.writeFile("/etc/os-release", "id"); // still elevated after the nested call
+    });
+    expect(vfs.readFile("/etc/motd")).toBe("seeded");
+    expect(() => vfs.writeFile("/etc/motd", "x")).toThrow(/permission denied/); // guard restored
+  });
+
+  it("detachLinksUnder abandons a legacy cloud link on a now-protected file", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp("/etc");
+    vfs.writeFile("/etc/motd", "hi");
+    vfs.link("/etc/motd", "cloud-legacy"); // shared back when /etc wasn't protected
+    vfs.protectedPaths = ["/etc"];
+
+    vfs.detachLinksUnder("/etc"); // as main.ts does at boot
+    const node = vfs.getNode("/etc/motd");
+    expect(node && node.type === "file" && node.shareId).toBeUndefined();
+    // …so editing it now can't route through the cloud — it's a plain protected file.
+    expect(() => vfs.writeFile("/etc/motd", "x")).toThrow(/permission denied/);
+  });
+
+  it("holds elevation across an async payload's awaits (for a future async sudo)", async () => {
+    const vfs = VFS.seed();
+    vfs.protectedPaths = ["/etc"];
+    await vfs.runElevated(async () => {
+      vfs.mkdirp("/etc");
+      await Promise.resolve(); // a real command would await here
+      vfs.writeFile("/etc/x", "after await"); // would throw if elevation ended at the first await
+    });
+    expect(vfs.readFile("/etc/x")).toBe("after await");
+    expect(() => vfs.writeFile("/etc/x", "y")).toThrow(/permission denied/); // restored once settled
+  });
+});
+
 describe("VFS.resolve", () => {
   const vfs = VFS.seed();
 
