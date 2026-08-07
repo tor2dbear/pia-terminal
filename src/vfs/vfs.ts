@@ -210,6 +210,24 @@ export class VFS {
     if (node && isFile(node)) delete node.shareId;
   }
 
+  /** Strip cloud links from every file under `prefix` (a system migration, so it
+   * isn't guarded). Used when a path becomes read-only: a file shared *before* it
+   * was protected keeps a serialized `shareId`, which would route edits through
+   * the cloud (`linkedSave` writes the cloud, then the guarded local write
+   * fails). Detaching abandons the legacy share so it's just a protected file. */
+  detachLinksUnder(prefix: string): void {
+    const node = this.getNode(prefix);
+    if (!node) return;
+    const walk = (n: VNode): void => {
+      if (isFile(n)) {
+        delete n.shareId;
+        return;
+      }
+      for (const child of Object.values(n.children)) walk(child);
+    };
+    walk(node);
+  }
+
   /** Read a file's content, or throw a printable error. */
   readFile(absPath: string): string {
     const node = this.getNode(absPath);

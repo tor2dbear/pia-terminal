@@ -118,6 +118,9 @@ async function main(): Promise<void> {
   // `permission denied`. The seeder writes it elevated (see seedSystemFiles);
   // `sudo` will be the user-facing escape hatch (roadmap/permissions.md).
   vfs.protectedPaths = ["/etc"];
+  // Abandon any legacy cloud link on a now-protected file (from before /etc was
+  // read-only), so a guarded `linkedSave` can't change the cloud then fail.
+  for (const p of vfs.protectedPaths) vfs.detachLinksUnder(p);
 
   const session = (await auth.current()) ?? { user: "guest" };
 
@@ -266,8 +269,11 @@ async function main(): Promise<void> {
       // windows so their cwd/config follow the account too.
       onAccountChange: () => {
         // login/logout/useradd reload the account's saved tree, which may predate
-        // /etc — re-seed it so the system files survive an account switch.
+        // /etc — re-seed it and drop any legacy cloud links on protected paths so
+        // the system files survive an account switch (and can't be edited via the
+        // cloud).
         seedSystemFiles(vfs);
+        for (const p of vfs.protectedPaths) vfs.detachLinksUnder(p);
         tabs?.rehomeAll();
       },
       // …and hold other windows from starting a command mid-transition.
