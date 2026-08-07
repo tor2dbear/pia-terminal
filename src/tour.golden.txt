@@ -284,6 +284,8 @@ guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
 guest
+guest@pia:~$ sudo make me a sandwich
+okay.
 guest@pia:~$ version
 PIA v<version>
 guest@pia:~$ about
@@ -361,6 +363,7 @@ available commands:
   sl           Steam Locomotive — the train you get for mistyping ls
   sort         sort lines of text
   source       re-read ~/.pia/config and apply it (theme, colours, font, prompt, aliases)
+  sudo         run a command as superuser — but you already own everything here
   tail         print the last lines of a file (or piped input)
   tetris       play Tetris (arrows move/rotate, space hard-drop, ^X exit)
   theme        switch colour theme (theme <name>, or list them)
@@ -383,8 +386,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-94  version
-95  about
-96  date -u
-97  help
-98  history | tail -5
+95  version
+96  about
+97  date -u
+98  help
+99  history | tail -5

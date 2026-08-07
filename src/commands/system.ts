@@ -45,6 +45,31 @@ export const whoareyou: Command = {
   },
 };
 
+// `sudo` has no referent here: PIA is a single-user machine with no privilege
+// model (no owners, no root vs user) — there is nothing to elevate to, so
+// `sudo <cmd>` couldn't do anything `<cmd>` doesn't already do. Kept as an
+// honest, friendly stub (persona, not utility — flagged like `whoareyou`): it
+// says you're already root and points you at running the command plainly,
+// rather than faking privilege. The sandwich is the xkcd #149 gag.
+export const sudo: Command = {
+  name: "sudo",
+  help: "run a command as superuser — but you already own everything here",
+  usage: "sudo <command>",
+  run(args, ctx) {
+    if (args.length === 0) {
+      ctx.print("usage: sudo <command>", "dim");
+      ctx.print("…though there's no superuser here — PIA is single-user, and it's all yours.", "dim");
+      return;
+    }
+    if (args.join(" ").toLowerCase() === "make me a sandwich") {
+      ctx.print("okay.", "accent"); // xkcd 149
+      return;
+    }
+    ctx.print("sudo: this is a single-user machine — you're already root here.", "dim");
+    ctx.print(`no need to elevate; just run: ${args.join(" ")}`, "dim");
+  },
+};
+
 export const echo: Command = {
   name: "echo",
   help: "print the arguments",
@@ -143,6 +168,7 @@ export const systemCommands: Command[] = [
   help,
   whoami,
   whoareyou,
+  sudo,
   echo,
   clear,
   neofetch,
