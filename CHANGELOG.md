@@ -11,6 +11,12 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Added
+- **Passwordless / magic-link login**: `login <email>` with no password now emails
+  a one-time sign-in link — click it to sign in, no password needed. It's also the
+  recovery path for a forgotten password: sign in via the link, then `passwd` to
+  set a new one. `login <email> <password>` still logs in directly.
+
 ## [0.13.0] — 2026-08-08
 
 Shared files grow up: roles on collaborative lists.

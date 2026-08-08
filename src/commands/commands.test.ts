@@ -32,6 +32,14 @@ class PasswordAuth implements AuthAdapter {
   }
 }
 
+/** A cloud-like auth that can also send magic-link emails (records them). */
+class PasswordAuthWithInvite extends PasswordAuth {
+  readonly invitedEmails: string[] = [];
+  async inviteByEmail(email: string): Promise<void> {
+    this.invitedEmails.push(email);
+  }
+}
+
 /** A test harness: runs commands over a real VFS and captures output. */
 function harness(auth: AuthAdapter = new MemoryAuthAdapter()) {
   const vfs = VFS.seed();
@@ -316,6 +324,31 @@ describe("auth commands", () => {
     await h.run("login bad/name");
     expect(h.lines.at(-1)?.cls).toBe("error");
     expect(h.ctx.session.user).toBe("guest");
+  });
+
+  it("login <email> with no password sends a magic link (passwordless / recovery)", async () => {
+    const auth = new PasswordAuthWithInvite();
+    const h = harness(auth);
+    await h.run("login someone@example.com");
+    expect(auth.invitedEmails).toContain("someone@example.com");
+    expect(h.text().join("\n")).toContain("magic link sent");
+    expect(h.ctx.session.user).toBe("guest"); // not in yet — clicking the link logs you in
+  });
+
+  it("login <email> <password> still logs in directly (no magic link)", async () => {
+    const auth = new PasswordAuthWithInvite();
+    const h = harness(auth);
+    await h.run("login someone@example.com hunter2");
+    expect(h.ctx.session.user).toBe("someone");
+    expect(auth.invitedEmails).toEqual([]);
+  });
+
+  it("login <email> falls back to a password error when the backend can't email", async () => {
+    const auth = new PasswordAuth(); // no inviteByEmail
+    const h = harness(auth);
+    await h.run("login someone@example.com");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    expect(h.text().join("\n")).toContain("password required");
   });
 
   it("logout returns to guest at the guest home", async () => {

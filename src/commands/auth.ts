@@ -60,9 +60,28 @@ async function enter(ctx: CommandContext, user: string): Promise<void> {
 
 export const login: Command = {
   name: "login",
-  help: "log in (a username locally; email + password with a backend)",
-  usage: "login <user> [password]",
+  help: "log in — a username locally; email + password, or just an email for a magic link, with a backend",
+  usage: "login <email> [password]   (omit the password to get a one-time sign-in link)",
   async run(args, ctx) {
+    // Passwordless magic-link sign-in (cloud only): `login <email>` with no
+    // password emails a one-time sign-in link — clicking it signs you in. It's
+    // also the recovery path for a forgotten password: sign in via the link,
+    // then `passwd` to set a new one. No account change happens now (the click,
+    // later, logs you in), so this sits outside the transition lock.
+    if (ctx.auth?.requiresPassword && args[0] && !args[1]) {
+      const email = args[0];
+      if (!ctx.auth.inviteByEmail) {
+        return ctx.error("login: password required — login <email> <password>");
+      }
+      try {
+        await ctx.auth.inviteByEmail(email, ctx.baseUrl);
+      } catch (err) {
+        return ctx.error(`login: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      ctx.print(`magic link sent to ${email}`, "accent");
+      ctx.print("click it to sign in — no password needed (then `passwd` to set one)", "dim");
+      return;
+    }
     const blocked = accountBlocked(ctx);
     if (blocked) return ctx.error(`login: ${blocked}`);
     return withTransition(ctx, async () => {
@@ -72,6 +91,8 @@ export const login: Command = {
           const [email, password] = args;
           if (!email) return ctx.error("login: specify an email");
           if (!password) {
+            // Reached only when the backend can't send email (no inviteByEmail);
+            // the passwordless magic-link path above handles the normal case.
             return ctx.error("login: password required — login <email> <password>");
           }
           session = await ctx.auth.login(email, password);
