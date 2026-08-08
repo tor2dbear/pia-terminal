@@ -11,6 +11,10 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-08-08
+
+Signing in grows up: passwordless magic-link login and lazy email verification.
+
 ### Added
 - **`verify` — lazy email verification.** Signup stays frictionless (`useradd`
   logs you in immediately, no email round-trip); confirming you control your
@@ -262,7 +266,8 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.14.0
 [0.13.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.13.0
 [0.12.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.12.0
 [0.11.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.11.0
