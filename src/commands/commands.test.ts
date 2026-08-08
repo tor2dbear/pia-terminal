@@ -40,6 +40,13 @@ class PasswordAuthWithInvite extends PasswordAuth {
   }
 }
 
+/** …that rejects every password login, to exercise the failure path. */
+class RejectingAuthWithInvite extends PasswordAuthWithInvite {
+  async login(): Promise<Session> {
+    throw new Error("Invalid login credentials");
+  }
+}
+
 /** A test harness: runs commands over a real VFS and captures output. */
 function harness(auth: AuthAdapter = new MemoryAuthAdapter()) {
   const vfs = VFS.seed();
@@ -341,6 +348,16 @@ describe("auth commands", () => {
     await h.run("login someone@example.com hunter2");
     expect(h.ctx.session.user).toBe("someone");
     expect(auth.invitedEmails).toEqual([]);
+  });
+
+  it("hints at the magic link when a password login fails", async () => {
+    const auth = new RejectingAuthWithInvite();
+    const h = harness(auth);
+    await h.run("login you@example.com wrongpw");
+    const out = h.text().join("\n");
+    expect(out).toContain("Invalid login credentials"); // the real error, terse
+    expect(out).toContain("login you@example.com"); // the dim recovery hint
+    expect(h.ctx.session.user).toBe("guest"); // still not logged in
   });
 
   it("login <email> falls back to a password error when the backend can't email", async () => {

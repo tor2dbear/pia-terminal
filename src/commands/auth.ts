@@ -103,7 +103,16 @@ export const login: Command = {
           session = await ctx.auth.login(user);
         }
       } catch (err) {
-        return ctx.error(err instanceof Error ? err.message : String(err));
+        ctx.error(err instanceof Error ? err.message : String(err));
+        // A failed password login is the moment to surface the passwordless
+        // route — it also recovers a forgotten password. A dim hint (like the
+        // rest of PIA's discoverability), kept separate from the error itself,
+        // so the failure still reads like a real shell. Only when the backend
+        // can actually send the link.
+        if (ctx.auth.requiresPassword && ctx.auth.inviteByEmail && args[0]) {
+          ctx.print(`try \`login ${args[0]}\` for a one-time sign-in link (no password)`, "dim");
+        }
+        return;
       }
 
       await ctx.reloadFs?.(); // adopt the user's cloud tree, if any
