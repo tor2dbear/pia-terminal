@@ -11,6 +11,10 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-08-08
+
+Shared files grow up: roles on collaborative lists.
+
 ### Added
 - **Roles on shared lists** (`owner` / `editor` / `viewer`): sharing is no longer
   flat co-ownership. Invite read-only with `todo share <list> <email> --ro` (a
@@ -214,7 +218,8 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.13.0
 [0.12.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.12.0
 [0.11.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.11.0
 [0.10.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.10.0

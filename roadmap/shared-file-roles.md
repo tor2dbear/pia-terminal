@@ -1,8 +1,8 @@
 ---
 title: Roller på delade filer (owner/editor/viewer)
-status: now
+status: next
 tags: [collab, permissions, supabase]
-updated: 2026-08-07
+updated: 2026-08-08
 ---
 
 ## Levererat (Slice A, 2026-08-07)
@@ -29,6 +29,17 @@ Rollmodell på delade listor — kollaborationens motsvarighet till `/etc`-skydd
 ## Kvar (Slice B)
 Roll-byte (promote/demote), ownership-transfer, och en `ls -l`-vy i själva
 listan. `chmod`-flavor-ytan om vi vill gå mer Unix-rent senare.
+
+**Samtidighets-härdning (uppskjuten från Slice A, 2026-08-08):** en teoretisk
+race där ende ägaren lämnar samtidigt som en invite hämtas kan lämna listan
+ägarlös. Slice A mildrar den (rad-lås `FOR UPDATE` i alla ägar-muterande RPC:er
++ `claim_invites` befordrar den som hämtar om listan saknar ägare), men stänger
+den inte helt under READ COMMITTED. Ren fix: `pg_advisory_xact_lock(list_id)` i
+leave/claim/invite, ELLER auto-promote-on-owner-leave (faller naturligt ut ur
+ownership-transfer). Extremt osannolik på en single-user-terminal — medvetet
+uppskjuten hit hellre än att handrulla mer lås-protokoll i Slice A.
+
+_Slice A shippad i 0.13.0._
 
 ## Mål
 Ge delade listor en *rollmodell* istället för platt "alla är med-ägare". Det är
