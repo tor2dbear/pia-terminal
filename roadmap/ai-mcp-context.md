@@ -2,7 +2,7 @@
 title: AI-kontext via MCP-connector
 status: inbox
 tags: [mcp, ai]
-updated: 2026-07-17
+updated: 2026-08-08
 ---
 
 ## Mål
@@ -42,6 +42,29 @@ där PIA saknar edge. Den lever bara omframad till PIA:s faktiska skäl: **lära
 + portfolio + kul**. Att bygga en egen MCP-connector är en aktuell, CV-stark
 signal (2026) och on-brand om den exponerar PIA:s *egna* leksaks-fs ("chatta med
 min lilla dator") — inte om den blir "personlig moln-databas".
+
+## User stories
+Konkretiserar riktningen **filer *ut* till en extern AI** (motsatt riktning —
+en röst *in* i PIA — bor i `ai-host-persona`). Håll dem inramade i PIA:s faktiska
+skäl (*lärande + portfolio + kul*, "chatta med min lilla dator"), inte som
+"personlig moln-databas" — se den ärliga omframningen ovan.
+
+- **US 1 — fånga en tanke från mobilen.**
+  *Som* PIA-användare på språng *vill jag* be Claude på iOS lägga en rad i min
+  PIA-inbox *så att* idén hamnar i min lilla dator utan att jag öppnar terminalen.
+  Flöde: agenten är kopplad som MCP-klient, skriver `~/inbox/<datum>.md`; nästa
+  boot visar `cat inbox/<datum>.md` raden. Samma fil, två klienter. Kräver
+  `write` (scoped, se öppna frågor) — läs-först-varianten faller tillbaka på US 2.
+- **US 2 — låt en agent läsa och sammanfatta (read-only).**
+  *Som* någon med en rörig `notes/` *vill jag* be en agent sammanfatta veckan
+  *så att* jag får överblick utan att läsa allt. Agenten `list`/`read` över MCP;
+  resultatet klistras tillbaka av mig (eller skrivs till fil om `write` finns).
+  **Detta är v1** — ren `list`/`read`, ingen skrivrisk, on-brand ("chatta med min
+  lilla dator").
+- **US 3 — skrivbar bara där det är ofarligt.**
+  *Som* försiktig ägare *vill jag* att en agent bara får skriva i utpekade mappar
+  (t.ex. `inbox/`) *så att* "AI skriver över filer osett" aldrig kan hända i
+  `docs/` eller `.pia/`. Motsvarar öppen fråga om skriv-scope + ev. diff-gate.
 
 ## Öppna frågor
 - Värt det jämfört med motor-extraktionen (se `terminal-engine-package`)? MCP är

@@ -2,7 +2,7 @@
 title: AI-värd-persona (och ev. ask-kommandot)
 status: inbox
 tags: [persona, ai]
-updated: 2026-07-17
+updated: 2026-08-08
 ---
 
 ## Mål
@@ -24,6 +24,20 @@ inte nytta.**
   och lek.
 - Koppling: `ai-mcp-context` handlar om filer *ut* till en extern AI. Den här
   handlar om en röst *in* i PIA. Olika riktningar — förväxla inte.
+
+## User stories
+Riktningen **en röst *in* i PIA** (motsatt `ai-mcp-context`, som skickar filer
+*ut*). Ramen är persona, inte assistent — se research ovan.
+
+- **US 1 — värden hälsar med karaktär (ingen modell).**
+  *Som* återvändande användare *vill jag* mötas av en torr, skriptad rad vid boot
+  *så att* PIA känns som en *någon*, inte ett tomt skal. Ren karaktär, gratis att
+  köra — **bygg den här delen först.**
+- **US 2 — fråga värden om mina egna filer (`ask`, om lusten finns).**
+  *Som* van terminalanvändare *vill jag* skriva `ask "sammanfatta todo.md som tre
+  punkter"` *så att* jag får svar där jag redan är, med tillgång till min VFS.
+  On-brand bara som **värdens röst** (inte "en assistent") — annars commodity-drift.
+  Drar in nyckel/kostnad (web-divergens): flagga före bygge, se öppna frågor.
 
 ## Öppna frågor
 - Namn på värden (README lämnade det öppet).
