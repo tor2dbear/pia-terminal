@@ -1,5 +1,6 @@
 import type { Command, CommandContext, Session } from "./registry.js";
 import { reconcilePackages } from "../packages/catalog.js";
+import { materializeShared } from "../share/materialize.js";
 
 const GUEST = "guest";
 const VALID_USER = /^[a-z0-9_-]+$/i;
@@ -155,7 +156,67 @@ export const useradd: Command = {
       await ctx.reloadFs?.();
       await enter(ctx, session.user);
       ctx.print(`account created — logged in as ${session.user}`, "accent");
+      // Signup is frictionless (no email round-trip); verifying your inbox is a
+      // separate, lazy step — only needed to accept lists others share with you.
+      if (ctx.auth.requiresPassword && ctx.auth.sendEmailCheck) {
+        ctx.print("tip: run `verify` to confirm your email (needed to accept shared lists)", "dim");
+      }
     });
+  },
+};
+
+export const verify: Command = {
+  name: "verify",
+  help: "confirm you control your account's email (needed to accept shared lists)",
+  usage: "verify [code]",
+  async run(args, ctx) {
+    if (ctx.session.user === GUEST) return ctx.error("verify: log in first");
+    if (!ctx.auth.sendEmailCheck || !ctx.auth.submitEmailCheck || !ctx.share?.confirmEmailControl) {
+      return ctx.error("verify: needs a cloud account");
+    }
+
+    const code = args[0];
+    if (!code) {
+      try {
+        const email = await ctx.auth.sendEmailCheck();
+        ctx.print(`sent a 6-digit code to ${email}`, "accent");
+        ctx.print("check your inbox, then run `verify <code>`", "dim");
+      } catch (err) {
+        ctx.error(`verify: ${err instanceof Error ? err.message : "could not send a code"}`);
+      }
+      return;
+    }
+
+    try {
+      await ctx.auth.submitEmailCheck(code);
+      const ok = await ctx.share.confirmEmailControl();
+      if (!ok) {
+        return ctx.error("verify: could not confirm — run `verify` for a fresh code and try again");
+      }
+    } catch (err) {
+      // The code was rejected (or the confirm RPC failed): verification did not
+      // happen, so report it and let them retry.
+      return ctx.error(`verify: ${err instanceof Error ? err.message : "invalid code"}`);
+    }
+
+    // Past this point verification has *succeeded* and the one-time code is
+    // spent — so accepting anything already shared with you is best-effort: a
+    // transient failure here must not report the (completed) verification as
+    // failed or invite a retry with the now-consumed code. The next `shared` or
+    // reload places the list anyway (same as a fresh boot).
+    ctx.print("email verified ✓", "accent");
+    try {
+      const claimed = await ctx.share.claim();
+      if (claimed > 0) {
+        const placed = await materializeShared(ctx.vfs, ctx.share);
+        await ctx.persist();
+        if (placed > 0) {
+          ctx.print(`accepted ${placed} shared list${placed === 1 ? "" : "s"} — \`ls ~/shared\``, "dim");
+        }
+      }
+    } catch {
+      ctx.print("(couldn't place shared lists just now — run `shared` in a moment)", "dim");
+    }
   },
 };
 
@@ -265,6 +326,7 @@ export const authCommands: Command[] = [
   useradd,
   usermod,
   passwd,
+  verify,
   invite,
   logout,
 ];

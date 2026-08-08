@@ -12,6 +12,11 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`verify` — lazy email verification.** Signup stays frictionless (`useradd`
+  logs you in immediately, no email round-trip); confirming you control your
+  inbox is a separate, optional step (`verify` emails a 6-digit code, `verify
+  <code>` confirms it). Arriving via a share/invite magic link verifies you
+  automatically. Only needed to *accept* lists others share with you.
 - **`exit`**: close the current window, like leaving a shell — with more than one
   window open it closes the active one (tmux `kill`); on the last window it's
   honest that the machine lives in a browser tab (close the tab) rather than
@@ -39,6 +44,16 @@ log and grouped into milestones.
   `installed <name> ✓`. An honest installation ceremony — no faked progress or
   timing, and never an invented size (the size is a build-time manifest, omitted
   when unavailable). (`apt` shares it, since it's the same command.)
+
+### Security
+- **Claiming a shared-list invite now requires a verified email.** The share
+  model trusts your account's email, so turning an invite addressed to it into a
+  membership now requires proving you control that inbox — closing an
+  interception hole where, since email confirmation is off for frictionless
+  signup, registering someone else's address could claim lists shared to them.
+  Personal use and signup are unaffected. Existing accounts are grandfathered.
+  Run `supabase/email_verification.sql` (before re-applying `shared_lists.sql`,
+  whose `claim_invites` now reads the new table).
 
 ## [0.13.0] — 2026-08-08
 

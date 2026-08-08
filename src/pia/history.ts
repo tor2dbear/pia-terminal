@@ -39,7 +39,7 @@ export function appendHistory(existing: string[], additions: string[], cap = HIS
  * Auth commands that take a password (or other secret) as a plain argument.
  * Their command line must never reach the persisted, synced history file.
  */
-export const SECRET_COMMANDS = ["passwd", "login", "useradd", "register"];
+export const SECRET_COMMANDS = ["passwd", "login", "useradd", "register", "verify"];
 
 /**
  * True if any of the commands a line runs is secret-bearing (bash `HISTIGNORE`

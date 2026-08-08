@@ -76,6 +76,38 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     return !!user && !user.user_metadata?.username;
   }
 
+  async sendEmailCheck(): Promise<string> {
+    const { data } = await this.client.auth.getSession();
+    const email = data.session?.user?.email;
+    if (!email) throw new Error("verify: log in first");
+    // A passwordless OTP to the account's own address: the email carries a
+    // 6-digit code (the "Magic Link" template must include `{{ .Token }}`).
+    // shouldCreateUser:false — this is an existing account proving its inbox.
+    const { error } = await this.client.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    if (error) {
+      const message = (error.message ?? "").trim();
+      throw new Error(
+        message && message !== "{}"
+          ? message
+          : "could not send a code — check the SMTP sender domain in Supabase",
+      );
+    }
+    return email;
+  }
+
+  async submitEmailCheck(code: string): Promise<void> {
+    const { data } = await this.client.auth.getSession();
+    const email = data.session?.user?.email;
+    if (!email) throw new Error("verify: log in first");
+    // verifyOtp establishes a fresh session whose `amr` records the email/OTP
+    // method — the proof confirm_email_control() checks server-side.
+    const { error } = await this.client.auth.verifyOtp({ email, token: code, type: "email" });
+    if (error) throw new Error(error.message || "invalid or expired code");
+  }
+
   async inviteByEmail(email: string, redirectTo: string): Promise<void> {
     // A magic link (OTP) rather than an admin invite: it needs no service_role
     // key, so it works straight from the browser. `shouldCreateUser` makes the

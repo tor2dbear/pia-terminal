@@ -24,6 +24,14 @@ export interface SupabaseLike {
       email: string;
       options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
     }): Promise<{ error: { message: string } | null }>;
+    verifyOtp(c: {
+      email: string;
+      token: string;
+      type: "email";
+    }): Promise<{
+      data: { user: AuthUser | null };
+      error: { message: string } | null;
+    }>;
     signUp(c: {
       email: string;
       password: string;
