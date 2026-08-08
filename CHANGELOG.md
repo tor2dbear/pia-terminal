@@ -30,6 +30,12 @@ log and grouped into milestones.
   no fake permission-denied gag. Commands can now be marked `hidden` to stay off
   the `help` list and Tab-completion.
 
+### Changed
+- **`brew install` shows its real stages** instead of a single line: `==> Fetching
+  <name>…` around the genuine chunk fetch (a real dynamic import), `==> Registering:
+  <commands>`, then `installed <name> ✓`. An honest installation ceremony — no faked
+  progress or timing. (`apt` shares it, since it's the same command.)
+
 ## [0.13.0] — 2026-08-08
 
 Shared files grow up: roles on collaborative lists.
