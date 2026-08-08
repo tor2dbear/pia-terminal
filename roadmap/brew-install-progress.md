@@ -5,13 +5,25 @@ tags: [packages, system]
 updated: 2026-08-08
 ---
 
-## Levererat (Nivå 1)
+## Levererat (Nivå 1 + 2)
 `brew install <name>` visar nu de riktiga stegen istället för en enda rad:
-`==> Fetching <name>…` (brackettar den äkta dynamiska `import()`-hämtningen)
-→ `==> Registering: <commands>` → `installed <name> ✓`. Ingen påhittad tid eller
-bar — bara de steg som faktiskt händer. Test i `brew.test.ts` + touren.
-**Kvar:** Nivå 2 (verklig gzip-chunkstorlek via bygg-manifest, injicerat likt
-`VERSION`) och den öppna Nivå 3-frågan (kosmetisk pacing).
+`==> Fetching <name>… (8.6 kB)` (brackettar den äkta dynamiska
+`import()`-hämtningen, med paketets **verkliga gzip-storlek**) →
+`==> Registering: <commands>` → `installed <name> ✓`. Ingen påhittad tid — bara
+de steg som faktiskt händer.
+
+**Nivå 2-mekanik:** en vite-plugin (`packageSizes` i `vite.config.ts`) räknar
+varje pakets gzip-chunkstorlek i `generateBundle` och emitterar
+`package-sizes.json`. Storleken finns bara *efter* bundling, så den kan inte bli
+en compile-time `define` som `VERSION` — den byggda appen fetchar assetten
+same-origin (CSP `connect-src 'self'`, likt `ping`) via `src/packages/sizes.ts`,
+memoiserat och best-effort (null → storleken utelämnas). Grindat på
+`import.meta.env.PROD`, så dev/test/tour aldrig fetchar → deterministiskt.
+
+**Kvar:**
+- **Nivå 2b:** animerad bar/spinner under laddningen — kräver en uppdaterbar
+  utdatarad. Egen puck: `live-output-line.md`.
+- **Nivå 3:** kosmetisk pacing (fejka tid) — öppen fråga, default avvisa.
 
 ## Mål
 Ge `brew install` en känsla av att något faktiskt *installeras* — men **ärligt**,

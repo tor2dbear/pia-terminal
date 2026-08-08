@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { readFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
 // Single source of truth for app metadata: package.json. Exposed as compile-time
@@ -128,9 +129,39 @@ function securityHeaders(mode: string): Plugin {
   };
 }
 
+/**
+ * Emit `package-sizes.json` — each brew package's real gzip size — so
+ * `brew install` can show honest bytes (see src/packages/sizes.ts). A chunk's
+ * gzip size only exists *after* bundling, so it can't be a compile-time `define`
+ * like the version; the built app fetches this same-origin asset at runtime
+ * instead (CSP `connect-src 'self'`). Keyed by the package's directory name
+ * under src/packages, which is its catalog name.
+ */
+function packageSizes(): Plugin {
+  return {
+    name: "pia-package-sizes",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const sizes: Record<string, number> = {};
+      for (const file of Object.values(bundle)) {
+        if (file.type !== "chunk") continue;
+        const match = file.facadeModuleId?.match(
+          /[/\\]packages[/\\]([^/\\]+)[/\\]index\.[jt]s$/,
+        );
+        if (match) sizes[match[1]] = gzipSync(Buffer.from(file.code)).length;
+      }
+      this.emitFile({
+        type: "asset",
+        fileName: "package-sizes.json",
+        source: JSON.stringify(sizes),
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   base: "./",
-  plugins: [securityHeaders(mode)],
+  plugins: [securityHeaders(mode), packageSizes()],
   define: {
     __PIA_VERSION__: JSON.stringify(PIA_VERSION),
     __PIA_REPO_URL__: JSON.stringify(PIA_REPO_URL),

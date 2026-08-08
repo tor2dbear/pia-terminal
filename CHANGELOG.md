@@ -32,9 +32,11 @@ log and grouped into milestones.
 
 ### Changed
 - **`brew install` shows its real stages** instead of a single line: `==> Fetching
-  <name>…` around the genuine chunk fetch (a real dynamic import), `==> Registering:
-  <commands>`, then `installed <name> ✓`. An honest installation ceremony — no faked
-  progress or timing. (`apt` shares it, since it's the same command.)
+  <name>… (8.6 kB)` around the genuine chunk fetch (a real dynamic import, tagged
+  with the package's **real gzip size**), `==> Registering: <commands>`, then
+  `installed <name> ✓`. An honest installation ceremony — no faked progress or
+  timing, and never an invented size (the size is a build-time manifest, omitted
+  when unavailable). (`apt` shares it, since it's the same command.)
 
 ## [0.13.0] — 2026-08-08
 

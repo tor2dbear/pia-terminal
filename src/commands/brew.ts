@@ -4,6 +4,7 @@ import {
   packagesPath,
   registerPackage,
 } from "../packages/catalog.js";
+import { packageGzipSize, formatBytes } from "../packages/sizes.js";
 import type { Command, CommandContext } from "./registry.js";
 
 async function setInstalled(ctx: CommandContext, names: string[]): Promise<void> {
@@ -51,9 +52,10 @@ export const brew: Command = {
       // without faking anything: `Fetching` brackets the real dynamic import()
       // of the package's chunk (a genuine, if usually quick, async fetch —
       // slower for a heavy one like `python`), then its commands are registered,
-      // then persisted. No made-up timing or progress bar; real chunk sizes and
-      // a bar are a later step (see roadmap/brew-install-progress.md).
-      ctx.print(`==> Fetching ${name}…`, "dim");
+      // then persisted. The size, when known, is the chunk's *real* gzip size
+      // from the build manifest — never invented; omitted when unavailable.
+      const size = await packageGzipSize(name, ctx.baseUrl);
+      ctx.print(`==> Fetching ${name}…${size != null ? ` (${formatBytes(size)})` : ""}`, "dim");
       const pkg = await registerPackage(name, ctx.registry);
       if (!pkg) return ctx.error(`brew: could not load '${name}'`);
       ctx.print(`==> Registering: ${pkg.commands.map((c) => c.name).join(", ")}`, "dim");
