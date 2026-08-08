@@ -183,7 +183,9 @@ install with `brew install <name>`
 guest@pia:~$ mines
 mines: not installed — run `brew install minesweeper`
 guest@pia:~$ brew install cowsay
-installed cowsay — commands: cowsay, cowthink
+==> Fetching cowsay…
+==> Registering: cowsay, cowthink
+installed cowsay ✓
 guest@pia:~$ cowsay hello from a package
  ______________________
 < hello from a package >
@@ -196,7 +198,9 @@ guest@pia:~$ cowsay hello from a package
 guest@pia:~$ brew uninstall cowsay
 uninstalled cowsay
 guest@pia:~$ brew install cal
-installed cal — commands: cal
+==> Fetching cal…
+==> Registering: cal
+installed cal ✓
 guest@pia:~$ cal 7 2026
      July 2026
 Su Mo Tu We Th Fr Sa
@@ -206,18 +210,24 @@ Su Mo Tu We Th Fr Sa
 19 20 21 22 23 24 25
 26 27 28 29 30 31
 guest@pia:~$ brew install bc
-installed bc — commands: bc
+==> Fetching bc…
+==> Registering: bc
+installed bc ✓
 guest@pia:~$ bc "2 + 3 * 4"
 14
 guest@pia:~$ echo 6*7 | bc
 42
 guest@pia:~$ brew install fortune
-installed fortune — commands: fortune
+==> Fetching fortune…
+==> Registering: fortune
+installed fortune ✓
 guest@pia:~$ fortune
 Programs must be written for people to read, and only incidentally for machines to execute.
     — Harold Abelson
 guest@pia:~$ brew install figlet
-installed figlet — commands: figlet
+==> Fetching figlet…
+==> Registering: figlet
+installed figlet ✓
 guest@pia:~$ figlet pia
 ###  ###  ## 
 #  #  #  #  #
@@ -225,7 +235,9 @@ guest@pia:~$ figlet pia
 #     #  #  #
 #    ### #  #
 guest@pia:~$ brew install coreutils
-installed coreutils — commands: rev, base64, factor, xxd
+==> Fetching coreutils…
+==> Registering: rev, base64, factor, xxd
+installed coreutils ✓
 guest@pia:~$ echo hello | rev
 olleh
 guest@pia:~$ echo pia | base64
@@ -254,23 +266,41 @@ ping - measure round-trip latency to the app or cloud
 guest@pia:~$ man nope
 No manual entry for nope
 guest@pia:~$ brew install sl
-installed sl — commands: sl
+==> Fetching sl…
+==> Registering: sl
+installed sl ✓
 guest@pia:~$ brew install cmatrix
-installed cmatrix — commands: cmatrix
+==> Fetching cmatrix…
+==> Registering: cmatrix
+installed cmatrix ✓
 guest@pia:~$ brew install life
-installed life — commands: life
+==> Fetching life…
+==> Registering: life
+installed life ✓
 guest@pia:~$ brew install tetris
-installed tetris — commands: tetris
+==> Fetching tetris…
+==> Registering: tetris
+installed tetris ✓
 guest@pia:~$ brew install wordle
-installed wordle — commands: wordle
+==> Fetching wordle…
+==> Registering: wordle
+installed wordle ✓
 guest@pia:~$ brew install piano
-installed piano — commands: piano
+==> Fetching piano…
+==> Registering: piano
+installed piano ✓
 guest@pia:~$ brew install minesweeper
-installed minesweeper — commands: minesweeper
+==> Fetching minesweeper…
+==> Registering: minesweeper
+installed minesweeper ✓
 guest@pia:~$ brew install qr
-installed qr — commands: qr
+==> Fetching qr…
+==> Registering: qr
+installed qr ✓
 guest@pia:~$ brew install python
-installed python — commands: python
+==> Fetching python…
+==> Registering: python
+installed python ✓
 guest@pia:~$ python nope.py
 python: can't open file 'nope.py'
 guest@pia:~$ echo "# ping (honest HTTP round-trip)"
@@ -281,6 +311,19 @@ PIA's CSP only allows its own origin and the cloud backend.
 try `ping self` or `ping cloud`.
 guest@pia:~$ ping cloud
 ping: cloud is not configured — PIA is running fully local (no backend to reach).
+guest@pia:~$ echo "# easter eggs (hidden — never in help/Tab, reachable if you know them)"
+# easter eggs (hidden — never in help/Tab, reachable if you know them)
+guest@pia:~$ xyzzy
+Nothing happens.
+guest@pia:~$ coffee
+HTTP 418: I'm a teapot.
+guest@pia:~$ vim
+this machine ships `nano` — try that (alias `edit`).
+guest@pia:~$ ed
+ed is the standard text editor.
+(this machine ships `nano`, though — try that.)
+guest@pia:~$ :wq
+you're at the shell, not in vi — type `exit` to leave.
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -317,6 +360,9 @@ npm      https://www.npmjs.com/package/pia-terminal-engine
 run `changelog` to see what's new.
 guest@pia:~$ date -u
 Sat Jul 18 12:00:00 UTC 2026
+guest@pia:~$ exit
+this is the last window — close the browser tab to leave.
+(`tmux new` opens another window; `tmux` lists them.)
 guest@pia:~$ help
 available commands:
 
@@ -343,6 +389,7 @@ available commands:
   demo         play a looping, self-running tour of PIA (any key to exit)
   download     download a file from the VFS to your computer
   echo         print the arguments
+  exit         close the current window (like leaving a shell)
   factor       print the prime factors of a number
   figlet       print big ASCII banner text (figlet <text>)
   find         list files and directories recursively
@@ -356,7 +403,7 @@ available commands:
   json_pp      pretty-print and colourise a JSON file
   less         page through a file or piped input
   life         Conway's Game of Life (space pause, s step, r reseed, ^X exit)
-  login        log in (a username locally; email + password with a backend)
+  login        log in — a username locally; email + password, or just an email for a magic link, with a backend
   logout       log out and return to guest
   ls           list the contents of a directory
   man          show the manual page for a command or topic
@@ -405,8 +452,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-101  version
-102  about
-103  date -u
-104  help
-105  history | tail -5
+108  about
+109  date -u
+110  exit
+111  help
+112  history | tail -5

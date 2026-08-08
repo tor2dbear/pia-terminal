@@ -17,6 +17,33 @@ log and grouped into milestones.
   inbox is a separate, optional step (`verify` emails a 6-digit code, `verify
   <code>` confirms it). Arriving via a share/invite magic link verifies you
   automatically. Only needed to *accept* lists others share with you.
+- **`exit`**: close the current window, like leaving a shell — with more than one
+  window open it closes the active one (tmux `kill`); on the last window it's
+  honest that the machine lives in a browser tab (close the tab) rather than
+  pretending to quit. It's also the real escape the `:q`/`vi` eggs point at.
+- **Passwordless / magic-link login**: `login <email>` with no password now emails
+  a one-time sign-in link — click it to sign in, no password needed. It's also the
+  recovery path for a forgotten password: sign in via the link, then `passwd` to
+  set a new one. `login <email> <password>` still logs in directly. A failed
+  password login now points you at it with a hint, so the recovery route is
+  discoverable instead of a dead end.
+- **A handful of hidden easter eggs**, in the terminal tradition and never
+  advertised in `help` or Tab-completion — you have to already know the name
+  (they're still reachable by `man <name>`). `xyzzy` (nothing happens), `coffee`
+  (HTTP 418, a teapot — distinct from the real `brew`), `vi`/`vim`/`emacs`/`pico`
+  and `:q`/`:wq`/`:x` (friendly redirects for editor muscle memory → `nano` /
+  `exit`), and `ed` ("ed is the standard text editor"). The line held throughout:
+  an egg never lies about the machine — PIA's `sudo` really elevates, so there's
+  no fake permission-denied gag. Commands can now be marked `hidden` to stay off
+  the `help` list and Tab-completion.
+
+### Changed
+- **`brew install` shows its real stages** instead of a single line: `==> Fetching
+  <name>… (8.6 kB)` around the genuine chunk fetch (a real dynamic import, tagged
+  with the package's **real gzip size**), `==> Registering: <commands>`, then
+  `installed <name> ✓`. An honest installation ceremony — no faked progress or
+  timing, and never an invented size (the size is a build-time manifest, omitted
+  when unavailable). (`apt` shares it, since it's the same command.)
 
 ### Security
 - **Claiming a shared-list invite now requires a verified email.** The share

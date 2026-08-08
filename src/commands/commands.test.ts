@@ -32,6 +32,21 @@ class PasswordAuth implements AuthAdapter {
   }
 }
 
+/** A cloud-like auth that can also send magic-link emails (records them). */
+class PasswordAuthWithInvite extends PasswordAuth {
+  readonly invitedEmails: string[] = [];
+  async inviteByEmail(email: string): Promise<void> {
+    this.invitedEmails.push(email);
+  }
+}
+
+/** …that rejects every password login, to exercise the failure path. */
+class RejectingAuthWithInvite extends PasswordAuthWithInvite {
+  async login(): Promise<Session> {
+    throw new Error("Invalid login credentials");
+  }
+}
+
 /** A test harness: runs commands over a real VFS and captures output. */
 function harness(auth: AuthAdapter = new MemoryAuthAdapter()) {
   const vfs = VFS.seed();
@@ -316,6 +331,41 @@ describe("auth commands", () => {
     await h.run("login bad/name");
     expect(h.lines.at(-1)?.cls).toBe("error");
     expect(h.ctx.session.user).toBe("guest");
+  });
+
+  it("login <email> with no password sends a magic link (passwordless / recovery)", async () => {
+    const auth = new PasswordAuthWithInvite();
+    const h = harness(auth);
+    await h.run("login someone@example.com");
+    expect(auth.invitedEmails).toContain("someone@example.com");
+    expect(h.text().join("\n")).toContain("magic link sent");
+    expect(h.ctx.session.user).toBe("guest"); // not in yet — clicking the link logs you in
+  });
+
+  it("login <email> <password> still logs in directly (no magic link)", async () => {
+    const auth = new PasswordAuthWithInvite();
+    const h = harness(auth);
+    await h.run("login someone@example.com hunter2");
+    expect(h.ctx.session.user).toBe("someone");
+    expect(auth.invitedEmails).toEqual([]);
+  });
+
+  it("hints at the magic link when a password login fails", async () => {
+    const auth = new RejectingAuthWithInvite();
+    const h = harness(auth);
+    await h.run("login you@example.com wrongpw");
+    const out = h.text().join("\n");
+    expect(out).toContain("Invalid login credentials"); // the real error, terse
+    expect(out).toContain("login you@example.com"); // the dim recovery hint
+    expect(h.ctx.session.user).toBe("guest"); // still not logged in
+  });
+
+  it("login <email> falls back to a password error when the backend can't email", async () => {
+    const auth = new PasswordAuth(); // no inviteByEmail
+    const h = harness(auth);
+    await h.run("login someone@example.com");
+    expect(h.lines.at(-1)?.cls).toBe("error");
+    expect(h.text().join("\n")).toContain("password required");
   });
 
   it("logout returns to guest at the guest home", async () => {
@@ -710,5 +760,47 @@ describe("text/search commands", () => {
     h.ctx.stdin = "line one\nline two";
     await h.run("cat");
     expect(h.text()).toEqual(["line one", "line two"]);
+  });
+});
+
+describe("exit", () => {
+  // A minimal multiplexer stub: only the two methods `exit` touches, cast to
+  // the full TabControl (the command never calls the rest).
+  function stubTabs(windows: number, onKill: () => void): CommandContext["tabs"] {
+    return {
+      list: () =>
+        Array.from({ length: windows }, (_, i) => ({
+          index: i + 1,
+          active: i === 0,
+          title: "~",
+        })),
+      kill: onKill,
+    } as unknown as CommandContext["tabs"];
+  }
+
+  it("closes the current window when more than one is open", async () => {
+    const h = harness();
+    let killed = 0;
+    h.ctx.tabs = stubTabs(2, () => {
+      killed += 1;
+    });
+    await h.run("exit");
+    expect(killed).toBe(1);
+    expect(h.text()).toEqual([]); // no chatter — the window just closes
+  });
+
+  it("is honest on the last window instead of pretending to quit", async () => {
+    const h = harness();
+    h.ctx.tabs = stubTabs(1, () => {
+      throw new Error("must not kill the last window");
+    });
+    await h.run("exit");
+    expect(h.text().join("\n").toLowerCase()).toContain("last window");
+  });
+
+  it("is honest with no multiplexer at all", async () => {
+    const h = harness(); // ctx.tabs is undefined here
+    await h.run("exit");
+    expect(h.text().join("\n").toLowerCase()).toContain("close the browser tab");
   });
 });
