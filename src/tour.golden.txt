@@ -281,6 +281,19 @@ PIA's CSP only allows its own origin and the cloud backend.
 try `ping self` or `ping cloud`.
 guest@pia:~$ ping cloud
 ping: cloud is not configured — PIA is running fully local (no backend to reach).
+guest@pia:~$ echo "# easter eggs (hidden — never in help/Tab, reachable if you know them)"
+# easter eggs (hidden — never in help/Tab, reachable if you know them)
+guest@pia:~$ xyzzy
+Nothing happens.
+guest@pia:~$ coffee
+HTTP 418: I'm a teapot.
+guest@pia:~$ vim
+this machine ships `nano` — try that (alias `edit`).
+guest@pia:~$ ed
+ed is the standard text editor.
+(this machine ships `nano`, though — try that.)
+guest@pia:~$ :wq
+you're at the shell, not in vi — type `exit` to leave.
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -317,6 +330,9 @@ npm      https://www.npmjs.com/package/pia-terminal-engine
 run `changelog` to see what's new.
 guest@pia:~$ date -u
 Sat Jul 18 12:00:00 UTC 2026
+guest@pia:~$ exit
+this is the last window — close the browser tab to leave.
+(`tmux new` opens another window; `tmux` lists them.)
 guest@pia:~$ help
 available commands:
 
@@ -343,6 +359,7 @@ available commands:
   demo         play a looping, self-running tour of PIA (any key to exit)
   download     download a file from the VFS to your computer
   echo         print the arguments
+  exit         close the current window (like leaving a shell)
   factor       print the prime factors of a number
   figlet       print big ASCII banner text (figlet <text>)
   find         list files and directories recursively
@@ -404,8 +421,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-101  version
-102  about
-103  date -u
-104  help
-105  history | tail -5
+108  about
+109  date -u
+110  exit
+111  help
+112  history | tail -5

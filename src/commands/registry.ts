@@ -120,6 +120,10 @@ export interface Command<Ctx extends CoreCommandContext = CommandContext> {
   usage?: string;
   /** Alternative names that resolve to this command (e.g. `edit` → `nano`). */
   aliases?: string[];
+  /** Kept out of `help`'s listing and Tab-completion — for easter eggs, which
+   * should be stumbled upon, not advertised. Still fully runnable, and still
+   * reachable by an explicit `help <name>` / `man <name>` if you know it. */
+  hidden?: boolean;
   run(args: string[], ctx: Ctx): void | Promise<void>;
   /**
    * Optional argument completion. Given the argument tokens already typed (after
@@ -176,8 +180,12 @@ export class CommandRegistry<Ctx extends CoreCommandContext = CommandContext> {
     return [...this.primaries].sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Names and aliases starting with `prefix`, for Tab-completion. */
+  /** Names and aliases starting with `prefix`, for Tab-completion. Hidden
+   * commands (easter eggs) are excluded, so they never surface via Tab or the
+   * `man`/`apropos` topic list — you have to already know the name. */
   namesStartingWith(prefix: string): string[] {
-    return [...this.byName.keys()].filter((n) => n.startsWith(prefix)).sort();
+    return [...this.byName.keys()]
+      .filter((n) => n.startsWith(prefix) && !this.byName.get(n)?.hidden)
+      .sort();
   }
 }
