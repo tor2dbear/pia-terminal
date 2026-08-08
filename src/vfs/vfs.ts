@@ -253,6 +253,21 @@ export class VFS {
     delete parent.children[name];
   }
 
+  /** Whether {@link remove} would succeed for this path right now, without
+   * mutating — same preconditions (exists, not a protected write, and `-r` for a
+   * non-empty directory). Lets a caller validate before an irreversible side
+   * effect it can't undo (e.g. `rm` leaving a cloud share it can't re-join). */
+  canRemove(absPath: string, recursive = false): boolean {
+    // Root has no parent — `remove` throws "cannot operate on root" (via
+    // parentOf), so mirror that here rather than reporting it as removable.
+    if (absPath.split("/").filter(Boolean).length === 0) return false;
+    if (this.elevationDepth === 0 && this.isProtected(absPath)) return false;
+    const node = this.getNode(absPath);
+    if (!node) return false;
+    if (isDir(node) && Object.keys(node.children).length > 0 && !recursive) return false;
+    return true;
+  }
+
   /** Move/rename a node from one absolute path to another. */
   move(fromPath: string, toPath: string): void {
     this.guardWrite(fromPath); // moving *out* of a protected path removes it there

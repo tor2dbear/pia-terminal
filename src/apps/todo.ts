@@ -28,6 +28,8 @@ export class Todo implements ScreenApp {
   private sel = 0;
   private mode: "normal" | "add" = "normal";
   private draft = "";
+  /** Set when the last save was rejected (e.g. lost access / offline). */
+  private saveError = false;
 
   private titleEl: HTMLDivElement | undefined;
   private bodyEl: HTMLDivElement | undefined;
@@ -38,9 +40,17 @@ export class Todo implements ScreenApp {
     content: string,
     private readonly onSave: (content: string) => void | Promise<void>,
     private readonly exit: () => void,
+    /** Read-only (a viewer's role): navigation only, every mutation is inert and
+     * the UI says so. The real boundary is server-side (RLS); this keeps the
+     * client honest instead of letting an edit bounce back. */
+    private readonly readOnly = false,
   ) {
     this.items = parse(content);
-    if (this.items.length === 0) this.mode = "add"; // let them type right away
+    if (this.items.length === 0 && !this.readOnly) this.mode = "add"; // type right away
+  }
+
+  private enterAdd(): void {
+    if (!this.readOnly) this.mode = "add";
   }
 
   mount(container: HTMLElement): void {
@@ -113,7 +123,7 @@ export class Todo implements ScreenApp {
         this.draft += ch;
         continue;
       }
-      if (ch === "a" || ch === "n" || ch === "+") this.mode = "add";
+      if (ch === "a" || ch === "n" || ch === "+") this.enterAdd();
       else if (ch === "j") this.move(1);
       else if (ch === "k") this.move(-1);
       else if (ch === " " || ch === "x") this.toggle();
@@ -123,6 +133,13 @@ export class Todo implements ScreenApp {
   }
 
   keys(): KeySpec[] {
+    if (this.readOnly) {
+      return [
+        { label: "↑", run: () => this.act(() => this.move(-1)) },
+        { label: "↓", run: () => this.act(() => this.move(1)) },
+        { label: "^X", run: () => this.exit() },
+      ];
+    }
     if (this.mode === "add") {
       return [
         { label: "esc", run: () => this.act(() => this.cancelAdd()) },
@@ -130,7 +147,7 @@ export class Todo implements ScreenApp {
       ];
     }
     return [
-      { label: "+", run: () => this.act(() => (this.mode = "add")) },
+      { label: "+", run: () => this.act(() => this.enterAdd()) },
       { label: "✓", run: () => this.act(() => this.toggle()) },
       { label: "⌫", run: () => this.act(() => this.remove()) },
       { label: "↑", run: () => this.act(() => this.move(-1)) },
@@ -164,6 +181,7 @@ export class Todo implements ScreenApp {
   }
 
   private toggle(): void {
+    if (this.readOnly) return;
     const item = this.items[this.sel];
     if (!item) return;
     item.done = !item.done;
@@ -171,6 +189,7 @@ export class Todo implements ScreenApp {
   }
 
   private remove(): void {
+    if (this.readOnly) return;
     if (!this.items[this.sel]) return;
     this.items.splice(this.sel, 1);
     this.sel = Math.max(0, Math.min(this.sel, this.items.length - 1));
@@ -194,7 +213,21 @@ export class Todo implements ScreenApp {
   }
 
   private save(): void {
-    void this.onSave(this.serialize());
+    // Fire-and-forget, but never let a rejected save (lost access, offline)
+    // become an unhandled rejection — flag it in the status bar; a later
+    // successful save clears it.
+    void Promise.resolve(this.onSave(this.serialize())).then(
+      () => {
+        if (this.saveError) {
+          this.saveError = false;
+          this.render();
+        }
+      },
+      () => {
+        this.saveError = true;
+        this.render();
+      },
+    );
   }
 
   private serialize(): string {
@@ -211,7 +244,7 @@ export class Todo implements ScreenApp {
   private render(): void {
     if (!this.bodyEl || !this.titleEl || !this.statusEl) return;
 
-    this.titleEl.textContent = `  todo · ${this.filename}`;
+    this.titleEl.textContent = `  todo · ${this.filename}${this.readOnly ? "  (read-only)" : ""}`;
 
     this.bodyEl.replaceChildren();
     if (this.items.length === 0 && this.mode !== "add") {
@@ -245,9 +278,11 @@ export class Todo implements ScreenApp {
 
     const open = this.items.filter((i) => !i.done).length;
     const done = this.items.length - open;
-    this.statusEl.textContent =
-      this.mode === "add"
+    const base = this.readOnly
+      ? `${open} open · ${done} done   read-only (viewer) · ↑↓ move · ^X exit`
+      : this.mode === "add"
         ? "type an item · Enter to add · esc to cancel · ^X exit"
         : `${open} open · ${done} done   space toggle · + add · ⌫ del · ^X exit`;
+    this.statusEl.textContent = this.saveError ? `⚠ save failed — change not shared · ${base}` : base;
   }
 }

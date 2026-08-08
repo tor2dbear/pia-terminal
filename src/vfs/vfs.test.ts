@@ -51,6 +51,27 @@ describe("VFS share links", () => {
   });
 });
 
+describe("VFS.canRemove (non-mutating precondition check)", () => {
+  it("mirrors remove()'s preconditions without mutating", () => {
+    const vfs = VFS.seed();
+    vfs.mkdirp("/home/guest/dir");
+    vfs.writeFile("/home/guest/dir/a.txt", "x");
+    vfs.writeFile("/home/guest/file.txt", "y");
+
+    expect(vfs.canRemove("/home/guest/file.txt")).toBe(true);
+    expect(vfs.canRemove("/home/guest/missing")).toBe(false); // doesn't exist
+    expect(vfs.canRemove("/home/guest/dir")).toBe(false); // non-empty, no -r
+    expect(vfs.canRemove("/home/guest/dir", true)).toBe(true); // -r
+    expect(vfs.canRemove("/")).toBe(false); // root has no parent
+    expect(vfs.canRemove("/", true)).toBe(false); // …even with -r
+
+    vfs.protectedPaths = ["/etc"];
+    vfs.runElevated(() => vfs.mkdirp("/etc"));
+    expect(vfs.canRemove("/etc/anything")).toBe(false); // protected, unelevated
+    expect(vfs.getNode("/home/guest/dir")).not.toBeNull(); // nothing was removed
+  });
+});
+
 describe("VFS write protection (protectedPaths + runElevated)", () => {
   it("denies every ordinary write under a protected prefix, but not elsewhere", () => {
     const vfs = VFS.seed();

@@ -11,6 +11,17 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Added
+- **Roles on shared lists** (`owner` / `editor` / `viewer`): sharing is no longer
+  flat co-ownership. Invite read-only with `todo share <list> <email> --ro` (a
+  viewer sees the list and live updates but can't edit or invite); `--rw` (the
+  default) invites an editor. The owner manages the list — `todo members <list>`
+  shows who's on it and as what, `todo unshare <list> <email>` removes someone.
+  The boundary is enforced server-side (Supabase RLS + `SECURITY DEFINER` RPCs),
+  so a viewer's write is refused by the database, not just hidden in the client.
+  Run the updated `supabase/shared_lists.sql` to enable it (it upgrades an
+  existing install in place).
+
 ## [0.12.0] — 2026-08-07
 
 A little Unix underneath: `/etc`, real permissions, and history that persists.

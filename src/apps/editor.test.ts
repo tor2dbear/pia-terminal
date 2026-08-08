@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
+import { Editor } from "./editor.js";
 import { Terminal } from "../terminal/terminal.js";
 import { VFS } from "../vfs/vfs.js";
 import { MemoryStorageAdapter } from "../storage/localStorage.js";
@@ -222,5 +223,33 @@ describe("edit — multiple buffers (nano-style)", () => {
     labels = [...root.querySelectorAll(".term-keybar .kb-key")].map((k) => k.textContent);
     expect(labels).toContain("«");
     expect(labels).toContain("»");
+  });
+
+  it("surfaces a failed/refused save and keeps the buffer dirty", async () => {
+    // A read-only shared file (or a transient cloud error) makes onSave throw —
+    // the editor must show why and not report a phantom "saved".
+    const container = document.createElement("div");
+    document.body.append(container);
+    const app = new Editor(
+      [
+        {
+          filename: "shared.list",
+          content: "[ ] milk",
+          onSave: async () => {
+            throw new Error("permission denied: you have read-only access to this list");
+          },
+        },
+      ],
+      () => {},
+    );
+    app.mount(container);
+    app.onText("!"); // make an edit so the buffer is dirty
+    app.onKey(new KeyboardEvent("keydown", { key: "o", ctrlKey: true })); // ^O save
+    await flush();
+    expect(container.querySelector(".ed-status")?.textContent).toContain("could not save");
+    expect(container.querySelector(".ed-status")?.textContent).toContain("read-only");
+    // Still dirty: a ^X now arms the unsaved-changes guard rather than exiting.
+    app.onKey(new KeyboardEvent("keydown", { key: "x", ctrlKey: true }));
+    expect(container.querySelector(".ed-status")?.textContent).toContain("unsaved changes");
   });
 });

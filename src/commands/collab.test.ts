@@ -182,6 +182,64 @@ describe("share <file> <email> (collaborative)", () => {
     expect((await store.mine()).length).toBe(0); // membership dropped
   });
 
+  it("doesn't leave nested shares when the local removal is rejected (dir without -r)", async () => {
+    const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
+    const root = mount(store);
+    await runLine(root, "mkdir folder");
+    await runLine(root, "echo hi > folder/note.txt");
+    await runLine(root, "share folder/note.txt friend@example.com");
+    expect((await store.mine()).length).toBe(1);
+
+    // `rm folder` (no -r) must fail *before* leaving the nested share — otherwise
+    // we'd drop remote access yet leave the files sitting locally.
+    await runLine(root, "rm folder");
+    expect(root.textContent).toContain("use -r");
+    expect((await store.mine()).length).toBe(1); // share NOT left
+    await runLine(root, "cat folder/note.txt");
+    expect(root.textContent).toContain("hi"); // file still there
+
+    // With -r it leaves and removes as expected.
+    await runLine(root, "rm -r folder");
+    expect((await store.mine()).length).toBe(0);
+  });
+
+  it("shows a viewer that a shared text edit was refused, not silently saved", async () => {
+    const backing = MemoryShareStore.backing();
+    const owner = new MemoryShareStore("owner@example.com", backing);
+    const id = await owner.create("notes.txt", "hello"); // text, not a list
+    await owner.invite(id, "wife@example.com", "viewer");
+
+    const wife = new MemoryShareStore("wife@example.com", backing);
+    await wife.claim();
+    const root = mount(wife);
+    await runLine(root, "shared notes.txt"); // opens the text editor
+    type(root, " world"); // edit it
+    press(root, "o", { ctrlKey: true }); // ^O save → refused by RLS for a viewer
+    await flush();
+    expect(root.querySelector(".ed-status")?.textContent).toContain("could not save");
+    expect(root.querySelector(".ed-status")?.textContent).not.toContain("saved notes");
+    expect((await owner.get(id))?.content).toBe("hello"); // cloud untouched
+  });
+
+  it("refuses rm on a shared list you solely own once another member has joined", async () => {
+    const backing = MemoryShareStore.backing();
+    const me = new MemoryShareStore("me@example.com", backing);
+    const root = mount(me);
+    await runLine(root, "echo hi > note.txt");
+    await runLine(root, "share note.txt friend@example.com");
+    const friend = new MemoryShareStore("friend@example.com", backing);
+    await friend.claim(); // friend is now a real joined member
+
+    // Removing here would orphan the list (sole owner, no transfer yet) — refuse
+    // before mutating instead of deleting locally, failing to leave, and lying.
+    await runLine(root, "rm note.txt");
+    expect(root.textContent).toContain("only owner");
+    expect(root.textContent).not.toContain("left 1 shared file");
+    await runLine(root, "cat note.txt");
+    expect(root.textContent).toContain("hi"); // the file is still there
+    expect((await me.mine()).length).toBe(1); // still a member (owner)
+  });
+
   it("tree shows the structure and marks shared files with @", async () => {
     const store = new MemoryShareStore("me@example.com", MemoryShareStore.backing());
     const root = mount(store);

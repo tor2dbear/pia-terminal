@@ -3,6 +3,7 @@ import { isFile, type FileNode } from "../vfs/types.js";
 import { linkedContent, linkedSave, linkedSubscribe } from "./linked.js";
 import { shareForEditing } from "./share.js";
 import type { Command, CommandContext } from "./registry.js";
+import type { InviteRole, Role } from "../share/store.js";
 
 /** All todo lists live here, under the current user's home. */
 function listsDir(ctx: CommandContext): string {
@@ -19,9 +20,11 @@ function counts(content: string): { open: number; done: number } {
 export const todo: Command = {
   name: "todo",
   help: "manage checklists (in ~/todo/); share them to collaborate",
-  usage: "todo [name] | todo share <name> <email>",
+  usage: "todo [name] | todo share <name> <email> [--ro|--rw] | todo members <name> | todo unshare <name> <email>",
   async run(args, ctx) {
     if (args[0] === "share") return shareList(args.slice(1), ctx);
+    if (args[0] === "members") return listMembers(args.slice(1), ctx);
+    if (args[0] === "unshare") return unshareList(args.slice(1), ctx);
     if (!args[0]) return listLocal(ctx);
     return openList(args[0].replace(/\.list$/, ""), ctx);
   },
@@ -48,6 +51,23 @@ function listLocal(ctx: CommandContext): void {
   }
 }
 
+/** The caller's standing on a linked list, resolved via the share backend:
+ * `member` (with role), `absent` (a *confirmed* non-membership — removed, or the
+ * list was deleted), or `unknown` (offline/guest — can't tell). The distinction
+ * matters: an absent membership means the local link is stale and edits would be
+ * refused by RLS, whereas offline should stay editable (the server still gates). */
+type Membership = { kind: "member"; role: Role } | { kind: "absent" } | { kind: "unknown" };
+
+async function membership(ctx: CommandContext, shareId: string): Promise<Membership> {
+  if (!ctx.share?.available()) return { kind: "unknown" }; // guest / no cloud
+  try {
+    const found = (await ctx.share.mine()).find((l) => l.id === shareId);
+    return found?.role ? { kind: "member", role: found.role } : { kind: "absent" };
+  } catch {
+    return { kind: "unknown" }; // offline/transient — keep it linked, server gates
+  }
+}
+
 /** Open (or create) ~/todo/<name>.list — through the cloud if it's shared. */
 async function openList(name: string, ctx: CommandContext): Promise<void> {
   const path = `${listsDir(ctx)}/${name}.list`;
@@ -55,15 +75,32 @@ async function openList(name: string, ctx: CommandContext): Promise<void> {
   if (existing && !isFile(existing)) return ctx.error(`is a directory: ${path}`);
   ctx.vfs.mkdirp(listsDir(ctx));
 
-  if (existing && isFile(existing) && existing.shareId) {
-    const id = existing.shareId;
-    const content = await linkedContent(ctx, id, existing.content);
-    const save = linkedSave(ctx, path, id);
+  let shareId = existing && isFile(existing) ? existing.shareId : undefined;
+  let readOnly = false;
+  if (shareId) {
+    const m = await membership(ctx, shareId);
+    if (m.kind === "absent") {
+      // Confirmed no longer a member (e.g. an owner ran `todo unshare` on you).
+      // Detach the stale link so this becomes a plain local copy — editable
+      // locally, no phantom edits bouncing off RLS on every save.
+      ctx.vfs.unlink(path);
+      await ctx.persist();
+      ctx.print(`"${name}" is no longer shared with you — kept as a local copy`, "dim");
+      shareId = undefined;
+    } else if (m.kind === "member") {
+      readOnly = m.role === "viewer";
+    }
+  }
+
+  if (shareId) {
+    const id = shareId;
+    const content = await linkedContent(ctx, id, existing && isFile(existing) ? existing.content : "");
+    const save = readOnly ? async () => {} : linkedSave(ctx, path, id);
     let app: Todo | undefined;
     const unsubscribe = linkedSubscribe(ctx, id, (next) => app?.applyExternal(next));
     try {
       await ctx.runApp(
-        (exit) => (app = new Todo(`${name}  👥`, content, save, exit)),
+        (exit) => (app = new Todo(`${name}  👥`, content, save, exit, readOnly)),
       );
     } finally {
       unsubscribe?.();
@@ -86,16 +123,81 @@ async function openList(name: string, ctx: CommandContext): Promise<void> {
   );
 }
 
-/** `todo share <name> <email>` — share a list (in place) and invite someone. */
-async function shareList(args: string[], ctx: CommandContext): Promise<void> {
-  const [name, email] = args;
-  if (!name || !email) return ctx.error("usage: todo share <name> <email>");
+/** Resolve a local list name to its file, or print an error and return null. */
+function requireList(name: string | undefined, ctx: CommandContext): FileNode | null {
+  if (!name) {
+    ctx.error("usage: todo <name>");
+    return null;
+  }
   const path = `${listsDir(ctx)}/${name}.list`;
   const node = ctx.vfs.getNode(path);
   if (!node || !isFile(node)) {
-    return ctx.error(`no such list: ${name} — \`todo ${name}\` to create it first`);
+    ctx.error(`no such list: ${name} — \`todo ${name}\` to create it first`);
+    return null;
   }
-  return shareForEditing(path, email, ctx);
+  return node;
+}
+
+/** `todo share <name> <email> [--ro|--rw]` — share a list and invite someone,
+ * as a viewer (`--ro`, read-only) or an editor (`--rw`, the default). */
+async function shareList(args: string[], ctx: CommandContext): Promise<void> {
+  let role: InviteRole = "editor";
+  const rest: string[] = [];
+  for (const a of args) {
+    if (a === "--ro" || a === "--read-only") role = "viewer";
+    else if (a === "--rw") role = "editor";
+    else rest.push(a);
+  }
+  const [name, email] = rest;
+  if (!name || !email) {
+    return ctx.error("usage: todo share <name> <email> [--ro|--rw]");
+  }
+  if (!requireList(name, ctx)) return;
+  // Pass the list's full path — shareForEditing resolves relative to cwd.
+  return shareForEditing(`${listsDir(ctx)}/${name}.list`, email, ctx, role);
+}
+
+/** `todo members <name>` — who's on a shared list, and as what. */
+async function listMembers(args: string[], ctx: CommandContext): Promise<void> {
+  const node = requireList(args[0], ctx);
+  if (!node) return;
+  if (!node.shareId) return ctx.error(`not shared: ${args[0]} — \`todo share ${args[0]} <email>\` first`);
+  if (!ctx.share?.available()) {
+    return ctx.error("todo: sharing needs an account — run `login` first");
+  }
+  let members;
+  try {
+    members = await ctx.share.members(node.shareId);
+  } catch (e) {
+    return ctx.error(e instanceof Error ? e.message : "todo: could not reach the cloud");
+  }
+  if (members.length === 0) return ctx.print("no members", "dim");
+  // owner first, then editors, then viewers; a stable, readable order.
+  const rank: Record<Role, number> = { owner: 0, editor: 1, viewer: 2 };
+  members.sort((a, b) => rank[a.role] - rank[b.role] || a.email.localeCompare(b.email));
+  ctx.print(`members of ${args[0]}:`, "dim");
+  for (const m of members) {
+    const pending = m.status === "invited" ? "  (invited)" : "";
+    ctx.print(`  ${m.role.padEnd(6)}  ${m.email}${pending}`);
+  }
+}
+
+/** `todo unshare <name> <email>` — remove a member (owner only). */
+async function unshareList(args: string[], ctx: CommandContext): Promise<void> {
+  const [name, email] = args;
+  if (!name || !email) return ctx.error("usage: todo unshare <name> <email>");
+  const node = requireList(name, ctx);
+  if (!node) return;
+  if (!node.shareId) return ctx.error(`not shared: ${name}`);
+  if (!ctx.share?.available()) {
+    return ctx.error("todo: sharing needs an account — run `login` first");
+  }
+  try {
+    await ctx.share.removeMember(node.shareId, email);
+    ctx.print(`removed ${email} from "${name}"`, "accent");
+  } catch (e) {
+    ctx.error(e instanceof Error ? e.message : "todo: could not update members");
+  }
 }
 
 export const todoCommands: Command[] = [todo];

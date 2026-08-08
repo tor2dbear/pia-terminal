@@ -5,7 +5,7 @@ import { folderLink } from "./publish.js";
 import { Todo } from "../apps/todo.js";
 import { Editor } from "../apps/editor.js";
 import type { Command, CommandContext } from "./registry.js";
-import type { SharedList } from "../share/store.js";
+import type { InviteRole, SharedList } from "../share/store.js";
 
 export { kindOf };
 
@@ -101,6 +101,7 @@ export async function shareForEditing(
   name: string,
   email: string,
   ctx: CommandContext,
+  role: InviteRole = "editor",
 ): Promise<void> {
   if (!ctx.share?.available()) {
     return ctx.error("share: co-editing needs an account — run `login` first");
@@ -115,15 +116,16 @@ export async function shareForEditing(
   try {
     if (node.shareId) {
       // Already shared — add another member to the existing link.
-      await ctx.share.invite(node.shareId, email);
+      await ctx.share.invite(node.shareId, email, role);
     } else {
       const id = await ctx.share.create(node.name, node.content);
       ctx.vfs.link(path, id); // link in place — no move
-      await ctx.share.invite(id, email);
+      await ctx.share.invite(id, email, role);
       await ctx.persist();
     }
 
-    ctx.print(`shared "${node.name}" with ${email}`, "accent");
+    const as = role === "viewer" ? " (read-only)" : "";
+    ctx.print(`shared "${node.name}" with ${email}${as}`, "accent");
     const emailed = await notifyInvitee(email, ctx);
     ctx.print(
       emailed
@@ -145,6 +147,11 @@ async function openSharedItem(item: SharedList, ctx: CommandContext): Promise<vo
   } catch {
     /* fall back to the cached copy */
   }
+  // A viewer's role is read-only. The checklist app takes a `readOnly` flag (its
+  // mutations go inert), but the text editor has no such mode — so keep the *real*
+  // save for it: a viewer's write is refused by RLS and the editor surfaces "could
+  // not save" instead of a phantom success that silently drops their edits.
+  const readOnly = item.role === "viewer";
   const save = async (text: string): Promise<void> => {
     await ctx.share?.save(item.id, text);
   };
@@ -157,7 +164,7 @@ async function openSharedItem(item: SharedList, ctx: CommandContext): Promise<vo
     );
     try {
       await ctx.runApp(
-        (exit) => (app = new Todo(`${item.name}  👥`, content, save, exit)),
+        (exit) => (app = new Todo(`${item.name}  👥`, content, save, exit, readOnly)),
       );
     } finally {
       unsubscribe?.();
