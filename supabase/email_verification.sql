@@ -106,7 +106,11 @@ $$;
 insert into public.email_verifications (user_id, email)
   select id, lower(email) from auth.users
   where email is not null
-  on conflict (user_id) do nothing;
+  on conflict (user_id) do update
+    -- On an upgrade, rows that predate the email column have a null email; fill
+    -- them from the account (do NOT overwrite a real, already-recorded email).
+    set email = excluded.email
+    where public.email_verifications.email is null;
 
 -- Grants: mirror shared_lists.sql (RLS still applies on top of the table grant).
 grant select on public.email_verifications to authenticated;
