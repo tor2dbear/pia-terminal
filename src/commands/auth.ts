@@ -193,9 +193,19 @@ export const verify: Command = {
       if (!ok) {
         return ctx.error("verify: could not confirm — run `verify` for a fresh code and try again");
       }
-      ctx.print("email verified ✓", "accent");
-      // Now that you're verified, accept anything already shared with you and
-      // drop it into ~/shared, same as a fresh boot would.
+    } catch (err) {
+      // The code was rejected (or the confirm RPC failed): verification did not
+      // happen, so report it and let them retry.
+      return ctx.error(`verify: ${err instanceof Error ? err.message : "invalid code"}`);
+    }
+
+    // Past this point verification has *succeeded* and the one-time code is
+    // spent — so accepting anything already shared with you is best-effort: a
+    // transient failure here must not report the (completed) verification as
+    // failed or invite a retry with the now-consumed code. The next `shared` or
+    // reload places the list anyway (same as a fresh boot).
+    ctx.print("email verified ✓", "accent");
+    try {
       const claimed = await ctx.share.claim();
       if (claimed > 0) {
         const placed = await materializeShared(ctx.vfs, ctx.share);
@@ -204,8 +214,8 @@ export const verify: Command = {
           ctx.print(`accepted ${placed} shared list${placed === 1 ? "" : "s"} — \`ls ~/shared\``, "dim");
         }
       }
-    } catch (err) {
-      ctx.error(`verify: ${err instanceof Error ? err.message : "invalid code"}`);
+    } catch {
+      ctx.print("(couldn't place shared lists just now — run `shared` in a moment)", "dim");
     }
   },
 };
