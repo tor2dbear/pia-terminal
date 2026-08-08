@@ -16,6 +16,7 @@ import { transferCommands } from "./transfer.js";
 import { pagerCommands } from "./pager.js";
 import { remindCommands } from "./remind.js";
 import { notifyCommands } from "./notify.js";
+import { mcpCommands } from "./mcp.js";
 import { metaCommands } from "./changelog.js";
 import { tmuxCommands } from "./tmux.js";
 import { demoCommands } from "./demo.js";
@@ -44,6 +45,7 @@ export function buildRegistry(): CommandRegistry {
     ...pagerCommands,
     ...remindCommands,
     ...notifyCommands,
+    ...mcpCommands,
     ...metaCommands,
     ...demoCommands,
     ...aboutCommands,

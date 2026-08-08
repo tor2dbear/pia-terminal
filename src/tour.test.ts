@@ -145,6 +145,9 @@ const TOUR: string[] = [
   "at -r 1",
   // Push reminders need a cloud account; as a guest it declines gracefully.
   "remind now+1h standup",
+  // The MCP connector (external AI reads/writes your files) also needs a cloud
+  // account, so as a guest it explains itself rather than minting a token.
+  "mcp",
 
   'echo "# packages (brew)"',
   "brew list",

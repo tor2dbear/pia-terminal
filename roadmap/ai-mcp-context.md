@@ -1,9 +1,37 @@
 ---
 title: AI-kontext via MCP-connector
-status: inbox
+status: now
 tags: [mcp, ai]
 updated: 2026-08-08
 ---
+
+## Levererat (v1 — kod klar, deploy kvar)
+`mcp`-kommandot + en Supabase Edge Function som exponerar användarens
+filsystem-rad som en **remote MCP-server**. Besluten på de öppna frågorna:
+
+- **Host: Supabase Edge Function** (inte Cloudflare Worker som pucken gissade).
+  Skäl: ingen Worker-infra fanns, medan Supabase redan är uppsatt; och
+  `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` injiceras automatiskt i edge
+  functions, så det finns **ingen hemlighet att kopiera in för hand**. Kostnad:
+  free-tier räcker (personligt bruk ≈ 0 kr).
+- **Auth: scoped bearer-token**, inte OAuth (OAuth = senare). `mcp token <label>`
+  myntar, visar plaintext **en gång**, lagrar bara SHA-256-hashen. Edge-funktionen
+  hashar presenterad token likadant och slår upp raden (service role).
+- **Scope: read allt, write bara under `inbox/`.** Löser "AI skriver över filer
+  osett" — allowlisten sitter som konstant i edge-funktionen; write återanvänder
+  filesystems optimistic-concurrency-guard (retry en gång vid krock).
+- **Logged-in-only by design** — guests har ingen delad rad att nå; `mcp` svarar
+  ärligt "run `login`" (speglar `notify`).
+
+Pjäser: `src/mcp/tokens.ts` (söm: Null/Memory + token/hash-helpers),
+`src/supabase/tokens.ts` (Supabase-store), `src/commands/mcp.ts`,
+`supabase/mcp.sql` (tabell `mcp_tokens` + RLS), `supabase/functions/mcp/index.ts`
+(JSON-RPC-server, verktyg `pia_list`/`pia_read`/`pia_write`). Tester + tour-rad
+för guest-vägen.
+
+**Kvar (rör produktion, görs på ägarens ok):** kör `supabase/mcp.sql` mot
+projektet och `supabase functions deploy mcp --no-verify-jwt`. Sen: verifiera från
+en riktig AI-klient (Claude iOS custom connector) mot den deployade URL:en.
 
 ## Mål
 (Research, inte beslutat.) Låta en AI läsa/skriva PIA:s filer från en chatt —
@@ -66,12 +94,15 @@ skäl (*lärande + portfolio + kul*, "chatta med min lilla dator"), inte som
   (t.ex. `inbox/`) *så att* "AI skriver över filer osett" aldrig kan hända i
   `docs/` eller `.pia/`. Motsvarar öppen fråga om skriv-scope + ev. diff-gate.
 
-## Öppna frågor
-- Värt det jämfört med motor-extraktionen (se `terminal-engine-package`)? MCP är
-  troligen billigare och mer aktuellt; motorn visar djupare ingenjörskonst.
-- Läs-först? Skriv öppnar "AI skriver över filer osett" — börja read-only.
-- Om skriv: vilka mappar är skrivbara (t.ex. bara `inbox/`), och behövs en
-  bekräftelse-/diff-gate?
-- Token vs OAuth för v1.
+## Öppna frågor (kvar efter v1)
+- **Per-token scopes.** Idag får varje token samma yta (read allt + write
+  `inbox/`). Nästa steg: välj scope vid `mcp token` (t.ex. read-only, eller andra
+  skrivbara mappar) och lagra det per rad istället för en konstant i funktionen.
+- **Diff-/bekräftelse-gate på write.** v1 skriver rakt (guardad mot krock men utan
+  människa-i-loop). Vill vi ha en förhandsgranskning innan en agent-write landar?
+- **OAuth istället för klistrad token.** "Rätt" men överkurs — bearer räcker för v1.
+- Värt det jämfört med motor-extraktionen (se `terminal-engine-package`)? Bägge
+  kan leva; MCP är mer aktuellt, motorn visar djupare ingenjörskonst.
 
-_Ligger i `inbox` tills det blivit ett beslut. Befordra till `next/later` då._
+_Befordrad till `now` (kod klar). Går till `done` när funktionen är deployad och
+verifierad från en riktig AI-klient._

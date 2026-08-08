@@ -12,6 +12,13 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`mcp` — the Model Context Protocol connector.** Mint a scoped bearer token
+  (`mcp token <label>`, shown once) and paste it — with the connector URL
+  (`mcp url`) — into an external AI client, so it can read your PIA files and
+  write new ones under `inbox/` *as you*. `mcp` shows status, `mcp tokens` lists
+  them, `mcp revoke <label>` cuts one off. Only the token's hash is ever stored;
+  cloud account required (guests get an honest "run `login`"). Backed by a
+  Supabase Edge Function over the same filesystem row the terminal uses.
 - **`verify` — lazy email verification.** Signup stays frictionless (`useradd`
   logs you in immediately, no email round-trip); confirming you control your
   inbox is a separate, optional step (`verify` emails a 6-digit code, `verify
