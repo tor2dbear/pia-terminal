@@ -330,6 +330,9 @@ npm      https://www.npmjs.com/package/pia-terminal-engine
 run `changelog` to see what's new.
 guest@pia:~$ date -u
 Sat Jul 18 12:00:00 UTC 2026
+guest@pia:~$ exit
+this is the last window — close the browser tab to leave.
+(`tmux new` opens another window; `tmux` lists them.)
 guest@pia:~$ help
 available commands:
 
@@ -356,6 +359,7 @@ available commands:
   demo         play a looping, self-running tour of PIA (any key to exit)
   download     download a file from the VFS to your computer
   echo         print the arguments
+  exit         close the current window (like leaving a shell)
   factor       print the prime factors of a number
   figlet       print big ASCII banner text (figlet <text>)
   find         list files and directories recursively
@@ -417,8 +421,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-107  version
 108  about
 109  date -u
-110  help
-111  history | tail -5
+110  exit
+111  help
+112  history | tail -5

@@ -12,6 +12,10 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`exit`**: close the current window, like leaving a shell — with more than one
+  window open it closes the active one (tmux `kill`); on the last window it's
+  honest that the machine lives in a browser tab (close the tab) rather than
+  pretending to quit. It's also the real escape the `:q`/`vi` eggs point at.
 - **Passwordless / magic-link login**: `login <email>` with no password now emails
   a one-time sign-in link — click it to sign in, no password needed. It's also the
   recovery path for a forgotten password: sign in via the link, then `passwd` to

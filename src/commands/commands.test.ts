@@ -745,3 +745,45 @@ describe("text/search commands", () => {
     expect(h.text()).toEqual(["line one", "line two"]);
   });
 });
+
+describe("exit", () => {
+  // A minimal multiplexer stub: only the two methods `exit` touches, cast to
+  // the full TabControl (the command never calls the rest).
+  function stubTabs(windows: number, onKill: () => void): CommandContext["tabs"] {
+    return {
+      list: () =>
+        Array.from({ length: windows }, (_, i) => ({
+          index: i + 1,
+          active: i === 0,
+          title: "~",
+        })),
+      kill: onKill,
+    } as unknown as CommandContext["tabs"];
+  }
+
+  it("closes the current window when more than one is open", async () => {
+    const h = harness();
+    let killed = 0;
+    h.ctx.tabs = stubTabs(2, () => {
+      killed += 1;
+    });
+    await h.run("exit");
+    expect(killed).toBe(1);
+    expect(h.text()).toEqual([]); // no chatter — the window just closes
+  });
+
+  it("is honest on the last window instead of pretending to quit", async () => {
+    const h = harness();
+    h.ctx.tabs = stubTabs(1, () => {
+      throw new Error("must not kill the last window");
+    });
+    await h.run("exit");
+    expect(h.text().join("\n").toLowerCase()).toContain("last window");
+  });
+
+  it("is honest with no multiplexer at all", async () => {
+    const h = harness(); // ctx.tabs is undefined here
+    await h.run("exit");
+    expect(h.text().join("\n").toLowerCase()).toContain("close the browser tab");
+  });
+});

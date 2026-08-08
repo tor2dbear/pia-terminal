@@ -217,6 +217,8 @@ const TOUR: string[] = [
   "version",
   "about",
   "date -u",
+  // No multiplexer in the tour, so `exit` is honest about being the last window.
+  "exit",
   "help",
   "history | tail -5",
 ];

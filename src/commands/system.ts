@@ -189,6 +189,26 @@ export const date: Command = {
   },
 };
 
+// `exit` — leave the current shell. In tmux that closes the active window, so
+// with more than one window open PIA does exactly that. The last window *is* the
+// whole machine, running in a browser tab, and script can't reliably close a tab
+// — so on the last window (or with no multiplexer) `exit` says so honestly rather
+// than pretending to quit. (`logout` is a separate auth command — signing out,
+// not leaving.) This is also the real command the `:q`/`vi` eggs point at.
+export const exit: Command = {
+  name: "exit",
+  help: "close the current window (like leaving a shell)",
+  run(_args, ctx) {
+    const tabs = ctx.tabs;
+    if (tabs && tabs.list().length > 1) {
+      tabs.kill(); // exiting a shell closes its tmux window
+      return;
+    }
+    ctx.print("this is the last window — close the browser tab to leave.", "dim");
+    ctx.print("(`tmux new` opens another window; `tmux` lists them.)", "dim");
+  },
+};
+
 export const history: Command = {
   name: "history",
   help: "list your command history (persists across sessions; -c to clear)",
@@ -215,5 +235,6 @@ export const systemCommands: Command[] = [
   clear,
   neofetch,
   date,
+  exit,
   history,
 ];
