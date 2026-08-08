@@ -11,13 +11,24 @@
 -- APPLY ORDER: apply this file, then (re-)apply the claim_invites change in
 -- shared_lists.sql — that function now references public.email_verifications.
 
--- A row here means: this user proved they control their account's inbox. Unlike
+-- A row here means: this user proved they control *this email*. Unlike
 -- user_metadata (which the user can set via updateUser) this table is *not*
 -- user-writable — only confirm_email_control() writes it.
+--
+-- The `email` is recorded, not just the user_id: with "Confirm email" off a user
+-- can change their account email (their JWT `email` claim changes with it), and a
+-- verification bound only to user_id would silently carry over to the new,
+-- unproven address — so claim_invites would accept invites for it. Binding the
+-- row to the email that was proven, and matching it against the current JWT email
+-- at claim time, means an email change invalidates the verification until the new
+-- inbox is proven too.
 create table if not exists public.email_verifications (
   user_id     uuid primary key references auth.users(id) on delete cascade,
+  email       text not null,
   verified_at timestamptz not null default now()
 );
+-- Upgrade a table created before verification was bound to an email.
+alter table public.email_verifications add column if not exists email text;
 
 alter table public.email_verifications enable row level security;
 
@@ -52,9 +63,12 @@ begin
   ) then
     return false;
   end if;
-  insert into public.email_verifications (user_id)
-    values (auth.uid())
-    on conflict (user_id) do nothing;
+  -- Record the email that was proven. Re-verifying after an email change updates
+  -- the row to the new address (and refreshes verified_at).
+  insert into public.email_verifications (user_id, email)
+    values (auth.uid(), lower(auth.jwt() ->> 'email'))
+    on conflict (user_id) do update
+      set email = excluded.email, verified_at = now();
   return true;
 end;
 $$;
@@ -67,7 +81,9 @@ security definer
 set search_path = ''
 as $$
   select exists (
-    select 1 from public.email_verifications where user_id = auth.uid()
+    select 1 from public.email_verifications
+    where user_id = auth.uid()
+      and lower(email) = lower(auth.jwt() ->> 'email')
   );
 $$;
 
@@ -87,8 +103,9 @@ $$;
 
 -- Grandfather every existing account: they predate this policy, so verify them
 -- once here rather than locking them out of claiming until they re-verify.
-insert into public.email_verifications (user_id)
-  select id from auth.users
+insert into public.email_verifications (user_id, email)
+  select id, lower(email) from auth.users
+  where email is not null
   on conflict (user_id) do nothing;
 
 -- Grants: mirror shared_lists.sql (RLS still applies on top of the table grant).

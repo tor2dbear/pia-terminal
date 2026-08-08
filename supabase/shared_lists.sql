@@ -298,11 +298,16 @@ begin
     return 0;
   end if;
   -- Verification gate (see supabase/email_verification.sql): the invite/claim
-  -- model trusts the email claim, so only a caller who *proved* control of their
-  -- inbox may turn invites addressed to that email into memberships. An
-  -- unverified caller claims nothing (boot nudges them to `verify`). Apply
-  -- email_verification.sql before this function.
-  if not exists (select 1 from public.email_verifications where user_id = v_uid) then
+  -- model trusts the email claim, so only a caller who *proved* control of *this
+  -- email* may turn invites addressed to it into memberships. Matching the stored
+  -- verified email against the current JWT email means a later email change
+  -- doesn't carry the verification to an unproven address. An unverified caller
+  -- claims nothing (boot nudges them to `verify`). Apply email_verification.sql
+  -- before this function.
+  if not exists (
+    select 1 from public.email_verifications
+    where user_id = v_uid and lower(email) = v_email
+  ) then
     return 0;
   end if;
   -- Lock the lists we're about to claim into, so this serializes with a

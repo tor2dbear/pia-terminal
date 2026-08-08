@@ -47,6 +47,7 @@ describe("hasSecret (HISTIGNORE membership test over resolved command names)", (
     expect(hasSecret(["echo", "passwd"])).toBe(true); // a secret command anywhere in a chain
     expect(hasSecret(["useradd"])).toBe(true);
     expect(hasSecret(["register"])).toBe(true);
+    expect(hasSecret(["verify"])).toBe(true); // `verify <code>` carries a one-time code
   });
 
   it("leaves ordinary command sets alone (a `passwd` argument isn't a command)", () => {
