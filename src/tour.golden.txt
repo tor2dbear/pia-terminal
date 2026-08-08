@@ -369,7 +369,7 @@ available commands:
   json_pp      pretty-print and colourise a JSON file
   less         page through a file or piped input
   life         Conway's Game of Life (space pause, s step, r reseed, ^X exit)
-  login        log in (a username locally; email + password with a backend)
+  login        log in — a username locally; email + password, or just an email for a magic link, with a backend
   logout       log out and return to guest
   ls           list the contents of a directory
   man          show the manual page for a command or topic

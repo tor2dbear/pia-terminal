@@ -12,6 +12,10 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **Passwordless / magic-link login**: `login <email>` with no password now emails
+  a one-time sign-in link — click it to sign in, no password needed. It's also the
+  recovery path for a forgotten password: sign in via the link, then `passwd` to
+  set a new one. `login <email> <password>` still logs in directly.
 - **A handful of hidden easter eggs**, in the terminal tradition and never
   advertised in `help` or Tab-completion — you have to already know the name
   (they're still reachable by `man <name>`). `xyzzy` (nothing happens), `coffee`
