@@ -66,4 +66,18 @@ export class MemoryAuthAdapter implements AuthAdapter {
   async inviteByEmail(email: string): Promise<void> {
     this.invitedEmails.push(email);
   }
+
+  /** The code the last {@link sendEmailCheck} "emailed" — tests read it back. */
+  emailCode: string | null = null;
+
+  async sendEmailCheck(): Promise<string> {
+    if (!this.user) throw new Error("verify: log in first");
+    this.emailCode = "424242";
+    return `${this.user}@example.test`;
+  }
+
+  async submitEmailCheck(code: string): Promise<void> {
+    if (code !== this.emailCode) throw new Error("invalid or expired code");
+    this.emailCode = null;
+  }
 }

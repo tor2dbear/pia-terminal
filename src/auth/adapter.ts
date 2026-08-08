@@ -43,4 +43,18 @@ export interface AuthAdapter {
    * one-time onboarding hint. Absent/false for guests and set-up accounts.
    */
   needsSetup?(): Promise<boolean>;
+  /**
+   * Email a one-time code to the current account's address, to prove the user
+   * controls that inbox (lazy email verification — see the `verify` command).
+   * Resolves to the address it was sent to. Optional — only a backend that can
+   * send email implements it.
+   */
+  sendEmailCheck?(): Promise<string>;
+  /**
+   * Consume a code from {@link sendEmailCheck}. On success the current session is
+   * (re)established via the emailed code, which is the proof of inbox control
+   * that {@link ShareStore.confirmEmailControl} then records. Throws on a bad or
+   * expired code. Optional — pairs with {@link sendEmailCheck}.
+   */
+  submitEmailCheck?(code: string): Promise<void>;
 }

@@ -59,8 +59,19 @@ export interface ShareStore {
   deleteList(id: string): Promise<void>;
   /** Leave a shared list (drop your own membership); it stays for the others. */
   leave(id: string): Promise<void>;
-  /** Claim any invites addressed to the current user; resolves to the count. */
+  /** Claim any invites addressed to the current user; resolves to the count.
+   * Server-side this is gated on {@link confirmEmailControl} having recorded
+   * proof of inbox control — an unverified caller claims nothing. */
   claim(): Promise<number>;
+  /** Record that the caller proved control of their inbox (the server checks the
+   * session was established via an emailed code/link). Resolves to whether they
+   * are now verified. Optional — only a cloud backend implements it. */
+  confirmEmailControl?(): Promise<boolean>;
+  /** Whether the caller has verified their email. Optional. */
+  isVerified?(): Promise<boolean>;
+  /** How many pending invites are addressed to the caller's email — for the
+   * "N lists shared with you — run `verify`" nudge. Optional. */
+  pendingInvites?(): Promise<number>;
   /**
    * Watch a list for changes made by other members. `onChange` fires with the
    * new content whenever it's updated in the cloud. Returns an unsubscribe
@@ -104,6 +115,15 @@ export class NullShareStore implements ShareStore {
   async claim(): Promise<number> {
     return 0;
   }
+  async confirmEmailControl(): Promise<boolean> {
+    return false;
+  }
+  async isVerified(): Promise<boolean> {
+    return false;
+  }
+  async pendingInvites(): Promise<number> {
+    return 0;
+  }
 }
 
 /**
@@ -115,12 +135,16 @@ export class NullShareStore implements ShareStore {
  * only an owner can remove members or delete a list.
  */
 export class MemoryShareStore implements ShareStore {
-  static backing(): MemoryBacking {
+  static backing(opts: { requireVerified?: boolean } = {}): MemoryBacking {
     return {
       lists: new Map(),
       members: new Map(),
       invites: new Map(),
       listeners: new Map(),
+      verified: new Set(),
+      // Off by default so the many existing invite/claim tests (which predate
+      // lazy verification) stay unchanged; the gate's own tests opt in.
+      requireVerified: opts.requireVerified ?? false,
       seq: 0,
     };
   }
@@ -231,7 +255,26 @@ export class MemoryShareStore implements ShareStore {
     members.delete(this.key());
   }
 
+  async confirmEmailControl(): Promise<boolean> {
+    // In memory we can't inspect a JWT `amr`, so proof always succeeds — the
+    // point is to model the verified *flag* the claim gate reads.
+    this.db.verified.add(this.key());
+    return true;
+  }
+
+  async isVerified(): Promise<boolean> {
+    return this.db.verified.has(this.key());
+  }
+
+  async pendingInvites(): Promise<number> {
+    let n = 0;
+    for (const emails of this.db.invites.values()) if (emails.has(this.key())) n++;
+    return n;
+  }
+
   async claim(): Promise<number> {
+    // Mirror the server gate: an unverified caller claims nothing.
+    if (this.db.requireVerified && !this.db.verified.has(this.key())) return 0;
     let claimed = 0;
     for (const [id, emails] of this.db.invites) {
       const role = emails.get(this.key());
@@ -267,5 +310,9 @@ interface MemoryBacking {
   invites: Map<string, Map<string, InviteRole>>;
   /** Live-sync listeners per list id, notified on save (shared across users). */
   listeners: Map<string, Set<(content: string) => void>>;
+  /** Emails that have proved inbox control (model of email_verifications). */
+  verified: Set<string>;
+  /** Whether claim() enforces the verification gate (opt-in for the double). */
+  requireVerified: boolean;
   seq: number;
 }

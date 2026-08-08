@@ -308,8 +308,16 @@ async function main(): Promise<void> {
   // into ~/shared/ as real linked files, so files shared with this user show up
   // in their tree (ls/cat/nano/mv) right after they log in.
   if (share.available()) {
+    // Arriving via a share/invite magic link proves inbox control (the session's
+    // `amr`), so record it before claiming — an invited user who clicked the link
+    // is verified automatically and their list appears with no extra step.
     try {
-      await share.claim();
+      await share.confirmEmailControl?.();
+    } catch {
+      /* an ordinary password session isn't proof — that's fine */
+    }
+    try {
+      const claimed = await share.claim();
       const placed = await materializeShared(vfs, share);
       if (placed > 0) {
         await adapter.save(vfs.root);
@@ -317,6 +325,16 @@ async function main(): Promise<void> {
           `(${placed} shared file${placed === 1 ? "" : "s"} in ~/shared — \`ls ~/shared\`)`,
           "dim",
         );
+      } else if (claimed === 0) {
+        // Nothing claimed: if lists are waiting but the email is unverified, the
+        // claim was gated — nudge instead of leaving them wondering.
+        const pending = (await share.pendingInvites?.()) ?? 0;
+        if (pending > 0) {
+          term.print(
+            `(${pending} list${pending === 1 ? "" : "s"} shared with you — run \`verify\` to accept)`,
+            "dim",
+          );
+        }
       }
     } catch {
       /* not logged in / offline — nothing to claim or place */

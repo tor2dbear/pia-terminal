@@ -175,12 +175,45 @@ describe("MemoryShareStore (roles)", () => {
   });
 });
 
+describe("MemoryShareStore (verification gate)", () => {
+  it("blocks claim until the invitee proves email control", async () => {
+    const backing = MemoryShareStore.backing({ requireVerified: true });
+    const owner = new MemoryShareStore("owner@example.com", backing);
+    const guest = new MemoryShareStore("guest@example.com", backing);
+    const id = await owner.create("handla", "");
+    await owner.invite(id, "guest@example.com", "viewer");
+
+    // Unverified: the invite is visible as pending, but claims nothing.
+    expect(await guest.pendingInvites()).toBe(1);
+    expect(await guest.isVerified()).toBe(false);
+    expect(await guest.claim()).toBe(0);
+    expect((await guest.mine()).length).toBe(0);
+
+    // Proving inbox control lets the same claim through, keeping the role.
+    expect(await guest.confirmEmailControl()).toBe(true);
+    expect(await guest.isVerified()).toBe(true);
+    expect(await guest.claim()).toBe(1);
+    expect((await guest.mine())[0].role).toBe("viewer");
+  });
+
+  it("does not gate when the backend doesn't require verification (default)", async () => {
+    const backing = MemoryShareStore.backing();
+    const owner = new MemoryShareStore("o@example.com", backing);
+    const g = new MemoryShareStore("g@example.com", backing);
+    const id = await owner.create("h", "");
+    await owner.invite(id, "g@example.com");
+    expect(await g.claim()).toBe(1); // ungated: existing behaviour preserved
+  });
+});
+
 describe("NullShareStore", () => {
   it("reports unavailable and stays empty", async () => {
     const s = new NullShareStore();
     expect(s.available()).toBe(false);
     expect(await s.mine()).toEqual([]);
     expect(await s.claim()).toBe(0);
+    expect(await s.confirmEmailControl()).toBe(false);
+    expect(await s.pendingInvites()).toBe(0);
     await expect(s.create()).rejects.toThrow();
   });
 });

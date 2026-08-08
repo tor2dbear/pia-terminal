@@ -171,6 +171,27 @@ export class SupabaseShareStore implements ShareStore {
     return typeof data === "number" ? data : Number(data ?? 0);
   }
 
+  async confirmEmailControl(): Promise<boolean> {
+    if (!(await this.uid())) return false;
+    const { data, error } = await this.db.rpc("confirm_email_control");
+    if (error) throw new Error(error.message);
+    return data === true;
+  }
+
+  async isVerified(): Promise<boolean> {
+    if (!(await this.uid())) return false;
+    const { data, error } = await this.db.rpc("is_email_verified");
+    if (error) throw new Error(error.message);
+    return data === true;
+  }
+
+  async pendingInvites(): Promise<number> {
+    if (!(await this.uid())) return 0;
+    const { data, error } = await this.db.rpc("my_pending_invites");
+    if (error) throw new Error(error.message);
+    return typeof data === "number" ? data : Number(data ?? 0);
+  }
+
   subscribe(id: string, onChange: (content: string) => void): () => void {
     // Realtime "postgres_changes" respects RLS, so only fellow members of this
     // list receive its UPDATE events.
