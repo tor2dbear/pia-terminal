@@ -10,6 +10,20 @@
 --
 -- APPLY ORDER: apply this file, then (re-)apply the claim_invites change in
 -- shared_lists.sql — that function now references public.email_verifications.
+--
+-- SECURITY DEPENDENCY — keep "Secure email change" ENABLED (Auth → Providers →
+-- Email; it's the Supabase default, confirmed on for this project). Proof of
+-- inbox control leans on the session's JWT `email`; `amr` shows *that* an OTP
+-- login happened but not *which* address it was for, so it survives a token
+-- refresh. If a user could change their account email to an address they don't
+-- control, a stale `amr` could re-verify that address (and claim invites for
+-- it). "Secure email change" is what forbids that: changing the email requires
+-- confirming a link sent to the *new* address, so the JWT `email` is always an
+-- address the user has proven — which is the invariant this whole gate rests on.
+-- Disabling it (as "Confirm email" was disabled for frictionless signup) would
+-- reopen the hole; if you ever need to, replace this with a proof bound to the
+-- OTP's target address (e.g. an `auth.users` email-change trigger that
+-- invalidates verification, or a per-invite token).
 
 -- A row here means: this user proved they control *this email*. Unlike
 -- user_metadata (which the user can set via updateUser) this table is *not*
