@@ -11,6 +11,17 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Added
+- **A handful of hidden easter eggs**, in the terminal tradition and never
+  advertised in `help` or Tab-completion — you have to already know the name
+  (they're still reachable by `man <name>`). `xyzzy` (nothing happens), `coffee`
+  (HTTP 418, a teapot — distinct from the real `brew`), `vi`/`vim`/`emacs`/`pico`
+  and `:q`/`:wq`/`:x` (friendly redirects for editor muscle memory → `nano` /
+  `exit`), and `ed` ("ed is the standard text editor"). The line held throughout:
+  an egg never lies about the machine — PIA's `sudo` really elevates, so there's
+  no fake permission-denied gag. Commands can now be marked `hidden` to stay off
+  the `help` list and Tab-completion.
+
 ## [0.13.0] — 2026-08-08
 
 Shared files grow up: roles on collaborative lists.

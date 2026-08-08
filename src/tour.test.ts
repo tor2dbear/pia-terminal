@@ -198,6 +198,13 @@ const TOUR: string[] = [
   "ping google.com",
   "ping cloud",
 
+  'echo "# easter eggs (hidden — never in help/Tab, reachable if you know them)"',
+  "xyzzy",
+  "coffee",
+  "vim",
+  "ed",
+  ":wq",
+
   'echo "# system"',
   "whoami",
   "sudo make me a sandwich",

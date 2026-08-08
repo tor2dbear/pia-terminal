@@ -15,8 +15,11 @@ export const help: Command = {
     }
     ctx.print("available commands:", "dim");
     ctx.print();
-    const width = Math.max(...ctx.registry.all().map((c) => c.name.length));
-    for (const cmd of ctx.registry.all()) {
+    // Hidden commands (easter eggs) stay off the list — they're a discovery,
+    // not a menu — but `help <name>` still resolves them for the curious.
+    const visible = ctx.registry.all().filter((c) => !c.hidden);
+    const width = Math.max(...visible.map((c) => c.name.length));
+    for (const cmd of visible) {
       ctx.print(`  ${cmd.name.padEnd(width)}  ${cmd.help}`);
     }
     ctx.print();

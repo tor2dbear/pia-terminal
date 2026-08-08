@@ -281,6 +281,19 @@ PIA's CSP only allows its own origin and the cloud backend.
 try `ping self` or `ping cloud`.
 guest@pia:~$ ping cloud
 ping: cloud is not configured — PIA is running fully local (no backend to reach).
+guest@pia:~$ echo "# easter eggs (hidden — never in help/Tab, reachable if you know them)"
+# easter eggs (hidden — never in help/Tab, reachable if you know them)
+guest@pia:~$ xyzzy
+Nothing happens.
+guest@pia:~$ coffee
+HTTP 418: I'm a teapot.
+guest@pia:~$ vim
+this machine ships `nano` — try that (alias `edit`).
+guest@pia:~$ ed
+ed is the standard text editor.
+(this machine ships `nano`, though — try that.)
+guest@pia:~$ :wq
+you're at the shell, not in vi — type `exit` to leave.
 guest@pia:~$ echo "# system"
 # system
 guest@pia:~$ whoami
@@ -404,8 +417,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-101  version
-102  about
-103  date -u
-104  help
-105  history | tail -5
+107  version
+108  about
+109  date -u
+110  help
+111  history | tail -5
