@@ -183,7 +183,9 @@ install with `brew install <name>`
 guest@pia:~$ mines
 mines: not installed — run `brew install minesweeper`
 guest@pia:~$ brew install cowsay
-installed cowsay — commands: cowsay, cowthink
+==> Fetching cowsay…
+==> Registering: cowsay, cowthink
+installed cowsay ✓
 guest@pia:~$ cowsay hello from a package
  ______________________
 < hello from a package >
@@ -196,7 +198,9 @@ guest@pia:~$ cowsay hello from a package
 guest@pia:~$ brew uninstall cowsay
 uninstalled cowsay
 guest@pia:~$ brew install cal
-installed cal — commands: cal
+==> Fetching cal…
+==> Registering: cal
+installed cal ✓
 guest@pia:~$ cal 7 2026
      July 2026
 Su Mo Tu We Th Fr Sa
@@ -206,18 +210,24 @@ Su Mo Tu We Th Fr Sa
 19 20 21 22 23 24 25
 26 27 28 29 30 31
 guest@pia:~$ brew install bc
-installed bc — commands: bc
+==> Fetching bc…
+==> Registering: bc
+installed bc ✓
 guest@pia:~$ bc "2 + 3 * 4"
 14
 guest@pia:~$ echo 6*7 | bc
 42
 guest@pia:~$ brew install fortune
-installed fortune — commands: fortune
+==> Fetching fortune…
+==> Registering: fortune
+installed fortune ✓
 guest@pia:~$ fortune
 Programs must be written for people to read, and only incidentally for machines to execute.
     — Harold Abelson
 guest@pia:~$ brew install figlet
-installed figlet — commands: figlet
+==> Fetching figlet…
+==> Registering: figlet
+installed figlet ✓
 guest@pia:~$ figlet pia
 ###  ###  ## 
 #  #  #  #  #
@@ -225,7 +235,9 @@ guest@pia:~$ figlet pia
 #     #  #  #
 #    ### #  #
 guest@pia:~$ brew install coreutils
-installed coreutils — commands: rev, base64, factor, xxd
+==> Fetching coreutils…
+==> Registering: rev, base64, factor, xxd
+installed coreutils ✓
 guest@pia:~$ echo hello | rev
 olleh
 guest@pia:~$ echo pia | base64
@@ -254,23 +266,41 @@ ping - measure round-trip latency to the app or cloud
 guest@pia:~$ man nope
 No manual entry for nope
 guest@pia:~$ brew install sl
-installed sl — commands: sl
+==> Fetching sl…
+==> Registering: sl
+installed sl ✓
 guest@pia:~$ brew install cmatrix
-installed cmatrix — commands: cmatrix
+==> Fetching cmatrix…
+==> Registering: cmatrix
+installed cmatrix ✓
 guest@pia:~$ brew install life
-installed life — commands: life
+==> Fetching life…
+==> Registering: life
+installed life ✓
 guest@pia:~$ brew install tetris
-installed tetris — commands: tetris
+==> Fetching tetris…
+==> Registering: tetris
+installed tetris ✓
 guest@pia:~$ brew install wordle
-installed wordle — commands: wordle
+==> Fetching wordle…
+==> Registering: wordle
+installed wordle ✓
 guest@pia:~$ brew install piano
-installed piano — commands: piano
+==> Fetching piano…
+==> Registering: piano
+installed piano ✓
 guest@pia:~$ brew install minesweeper
-installed minesweeper — commands: minesweeper
+==> Fetching minesweeper…
+==> Registering: minesweeper
+installed minesweeper ✓
 guest@pia:~$ brew install qr
-installed qr — commands: qr
+==> Fetching qr…
+==> Registering: qr
+installed qr ✓
 guest@pia:~$ brew install python
-installed python — commands: python
+==> Fetching python…
+==> Registering: python
+installed python ✓
 guest@pia:~$ python nope.py
 python: can't open file 'nope.py'
 guest@pia:~$ echo "# ping (honest HTTP round-trip)"

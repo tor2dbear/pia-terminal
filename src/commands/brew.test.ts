@@ -60,7 +60,10 @@ describe("brew", () => {
     expect(textOf()).toContain("unknown command: cowsay");
 
     await run("brew install cowsay");
-    expect(textOf()).toContain("installed cowsay");
+    // The install shows the real stages (honest ceremony), not just one line.
+    expect(textOf()).toContain("==> Fetching cowsay…");
+    expect(textOf()).toContain("==> Registering: cowsay, cowthink");
+    expect(textOf()).toContain("installed cowsay ✓");
     expect(vfs.readFile("/home/guest/.pia/packages")).toContain("cowsay");
 
     // Now the command works.
