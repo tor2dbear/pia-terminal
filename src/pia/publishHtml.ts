@@ -26,9 +26,10 @@ export function escapeHtml(s: string): string {
  *  (javascript:, data:, …) collapses to `#`. */
 function safeHref(url: string): string {
   const u = url.trim();
-  if (/^https?:\/\//i.test(u)) return u;
-  if (/^\/(?![/\\])/.test(u) || /^(\.{1,2}\/|#|\?)/.test(u)) return u; // relative
-  return "#";
+  if (/^https?:\/\//i.test(u)) return u; // absolute http(s)
+  if (/^\/\//.test(u)) return "#"; // protocol-relative (//host) — reject
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return "#"; // any other scheme (javascript:, data:, mailto:) — reject
+  return u; // relative: /abs, ./rel, ../rel, bare `about`, `#frag`, `?q`
 }
 
 /** Render inline spans on an already-block-split line. Order matters: code spans

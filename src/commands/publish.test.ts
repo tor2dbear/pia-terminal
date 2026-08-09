@@ -170,6 +170,16 @@ describe("publish ~/public_html (web)", () => {
     expect(lines(root).join("\n")).toContain("unpublished");
   });
 
+  it("refuses when two files collide onto the same routable path", async () => {
+    const { root, vfs, pages } = mountWeb();
+    vfs.writeFile("/home/tor/public_html/post.md", "# a");
+    vfs.writeFile("/home/tor/public_html/post.MD", "# b");
+    await run(root, "publish");
+    expect(lines(root).join("\n")).toContain("map to the same page");
+    // Nothing was published (the collision is caught before the store is touched).
+    expect(await pages.list("tor")).toEqual([]);
+  });
+
   it("normalises filename case to a routable path (Index.MD → index.md)", async () => {
     const { root, vfs, pages } = mountWeb();
     vfs.remove("/home/tor/public_html/index.md");

@@ -110,7 +110,15 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
   if (!match) return next(); // not a tilde URL — let static assets handle it
 
   const handle = match[1];
-  const rest = (match[2] ?? "").replace(/\/+$/, "");
+  // Decode the slug: the browser percent-encodes spaces/non-ASCII in the path
+  // (`/~tor/trip%20notes`), but pages are stored under the decoded filename
+  // (`trip notes.md`). A malformed escape can't match any page → 404.
+  let rest: string;
+  try {
+    rest = decodeURIComponent((match[2] ?? "").replace(/\/+$/, ""));
+  } catch {
+    return notFound();
+  }
   const path = rest === "" ? "index.md" : `${rest}.md`;
 
   const baseUrl = env.VITE_SUPABASE_URL ?? FALLBACK_URL;

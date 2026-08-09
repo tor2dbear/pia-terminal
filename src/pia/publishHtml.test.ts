@@ -75,6 +75,10 @@ describe("renderMarkdownHtml — safety", () => {
     );
     expect(renderMarkdownHtml("[x](/about)")).toBe('<p><a href="/about">x</a></p>');
     expect(renderMarkdownHtml("[x](javascript:alert)")).toBe('<p><a href="#">x</a></p>');
+    // Protocol-relative is rejected; bare relative links between pages are kept.
+    expect(renderMarkdownHtml("[x](//evil.example)")).toBe('<p><a href="#">x</a></p>');
+    expect(renderMarkdownHtml("[About](about)")).toBe('<p><a href="about">About</a></p>');
+    expect(renderMarkdownHtml("[x](posts/one)")).toBe('<p><a href="posts/one">x</a></p>');
   });
 
   it("escapes an ampersand in a link target exactly once (regression: &amp;amp;)", () => {

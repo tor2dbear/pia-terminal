@@ -166,9 +166,14 @@ begin
   if v_uid is null then
     raise exception 'not logged in';
   end if;
-  if not exists (
-    select 1 from public.handles where handle = p_handle and user_id = v_uid
-  ) then
+  -- Verify ownership AND lock the handle row for this transaction. The lock
+  -- serialises concurrent publishes of the same handle, so two disjoint
+  -- replace-alls can't each miss the other's uncommitted rows under READ
+  -- COMMITTED and commit their union instead of a clean replacement.
+  perform 1 from public.handles
+    where handle = p_handle and user_id = v_uid
+    for update;
+  if not found then
     raise exception 'not your handle: ~%', p_handle;
   end if;
 

@@ -185,6 +185,17 @@ async function publishToWeb(ctx: CommandContext, dirAbs: string): Promise<void> 
     return ctx.error("publish: ~/public_html has no .md pages to publish");
   }
 
+  // Two files that differ only by case or extension case (`post.md` vs
+  // `post.MD`, `index.md` vs `Index.md`) normalise to one routable path — the
+  // publish RPC would reject the whole batch. Catch it here with a clear message.
+  const collision = pages.find((p, i) => pages.findIndex((q) => q.path === p.path) !== i);
+  if (collision) {
+    return ctx.error(
+      `publish: two files map to the same page "${collision.path}" — ` +
+        "rename one (names that differ only by case or .md/.MD collide)",
+    );
+  }
+
   let handle: string;
   try {
     handle = await ensureHandle(ctx);
@@ -204,7 +215,9 @@ async function publishToWeb(ctx: CommandContext, dirAbs: string): Promise<void> 
   ctx.print(base, "accent");
   for (const page of pages) {
     const slug = /^index\.md$/i.test(page.path) ? "" : page.path.replace(/\.md$/i, "");
-    ctx.print(`  ${base}${slug}`, "dim");
+    // Encode so a slug with spaces/non-ASCII prints a URL that resolves (the
+    // route decodes it back to the stored filename).
+    ctx.print(`  ${base}${encodeURIComponent(slug)}`, "dim");
   }
 }
 
