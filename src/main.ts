@@ -18,12 +18,14 @@ import { createScheduler } from "./pia/scheduler.js";
 import { commandPackage, registerInstalled, seedDefaultPackages } from "./packages/catalog.js";
 import { NullShareStore } from "./share/store.js";
 import { NullReminderStore, pushSupported, ensureServiceWorker } from "./pia/reminders.js";
+import { NullTokenStore } from "./mcp/tokens.js";
 import { materializeShared } from "./share/materialize.js";
 import { loadAnalytics } from "./analytics.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
 import type { ShareStore } from "./share/store.js";
 import type { ReminderStore } from "./pia/reminders.js";
+import type { TokenStore } from "./mcp/tokens.js";
 
 /**
  * Choose the storage + auth adapters. With Supabase configured, guests stay on
@@ -36,6 +38,7 @@ async function makeAdapters(): Promise<{
   auth: AuthAdapter;
   share: ShareStore;
   reminders: ReminderStore;
+  tokens: TokenStore;
 }> {
   if (!cloudConfig) {
     return {
@@ -43,6 +46,7 @@ async function makeAdapters(): Promise<{
       auth: new FakeAuthAdapter(),
       share: new NullShareStore(),
       reminders: new NullReminderStore(),
+      tokens: new NullTokenStore(),
     };
   }
   const [
@@ -52,6 +56,7 @@ async function makeAdapters(): Promise<{
     { HybridStorageAdapter },
     { SupabaseShareStore },
     { SupabaseReminderStore },
+    { SupabaseTokenStore },
   ] = await Promise.all([
     import("./supabase/client.js"),
     import("./supabase/auth.js"),
@@ -59,6 +64,7 @@ async function makeAdapters(): Promise<{
     import("./supabase/hybrid.js"),
     import("./supabase/share.js"),
     import("./supabase/reminders.js"),
+    import("./supabase/tokens.js"),
   ]);
   const client = await createSupabase(cloudConfig);
   return {
@@ -70,6 +76,7 @@ async function makeAdapters(): Promise<{
     ),
     share: new SupabaseShareStore(client),
     reminders: new SupabaseReminderStore(client),
+    tokens: new SupabaseTokenStore(client, cloudConfig.url),
   };
 }
 
@@ -97,7 +104,7 @@ async function main(): Promise<void> {
   if (!root) throw new Error("missing #screen element");
 
   migrateLegacyKeys();
-  const { adapter, auth, share, reminders } = await makeAdapters();
+  const { adapter, auth, share, reminders, tokens } = await makeAdapters();
 
   // Register the service worker so PIA is installable (a PWA) and can receive
   // push. Best-effort and non-blocking — it never gates boot.
@@ -264,7 +271,7 @@ async function main(): Promise<void> {
       // PIA's half of the command context — the auth backend, share store, app
       // URL for share links, and the window multiplexer (for `tmux`). The engine
       // supplies the core (fs, io, config, file bridges); this adds PIA's fields.
-      extendContext: piaExtendContext(auth, share, undefined, reminders, tabs),
+      extendContext: piaExtendContext(auth, share, undefined, reminders, tabs, tokens),
       // login/logout/usermod mutate the shared session + VFS; re-home the other
       // windows so their cwd/config follow the account too.
       onAccountChange: () => {

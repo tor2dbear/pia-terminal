@@ -2,6 +2,7 @@ import type { CommandContext, CoreCommandContext } from "../commands/registry.js
 import type { AuthAdapter } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
 import type { ReminderStore } from "./reminders.js";
+import type { TokenStore } from "../mcp/tokens.js";
 import type { TabControl } from "../terminal/tabcontrol.js";
 
 /**
@@ -20,6 +21,7 @@ export function piaExtendContext(
   baseUrl: string = `${location.origin}${location.pathname}`,
   reminders?: ReminderStore,
   tabs?: TabControl,
+  tokens?: TokenStore,
 ): (core: CoreCommandContext) => CommandContext {
-  return (core) => ({ ...core, auth, baseUrl, share, reminders, tabs });
+  return (core) => ({ ...core, auth, baseUrl, share, reminders, tokens, tabs });
 }
