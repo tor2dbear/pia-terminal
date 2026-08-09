@@ -410,9 +410,12 @@ async function handleAuthorizePost(db: SupabaseClient, req: Request): Promise<Re
   // Mark the client active so the retention sweep keeps it (see supabase/mcp.sql).
   await db.from("oauth_clients").update({ last_used_at: new Date().toISOString() }).eq("client_id", clientId);
 
-  const sep = redirectUri.includes("?") ? "&" : "?";
-  const location = `${redirectUri}${sep}code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
-  return new Response(null, { status: 302, headers: { Location: location } });
+  // Send the code back to the APP, which performs the final navigation to the
+  // client's callback via window.location. A form-submission redirect chain is
+  // constrained by the app's form-action CSP (which can't allowlist arbitrary
+  // client callbacks), but a script navigation is not — so the app does that hop.
+  const q = new URLSearchParams({ mcp_redirect: redirectUri, code, state });
+  return new Response(null, { status: 302, headers: { Location: `${APP_URL}/?${q.toString()}` } });
 }
 
 async function handleToken(db: SupabaseClient, req: Request): Promise<Response> {

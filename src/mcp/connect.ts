@@ -18,6 +18,35 @@ export function isConnectRequest(search: string = location.search): boolean {
   return p.get("response_type") === "code" && p.has("client_id") && p.has("code_challenge");
 }
 
+/** True when the app was sent back from `/authorize` with an issued code to hand
+ * to the client. The final hop to the client's callback is done here, by the app,
+ * because a form-submission redirect chain is constrained by `form-action` (which
+ * can't allowlist arbitrary client callbacks) but a script navigation is not. */
+export function isConnectCallback(search: string = location.search): boolean {
+  const p = new URLSearchParams(search);
+  return p.has("mcp_redirect") && p.has("code");
+}
+
+/** Hand the authorization code to the client by navigating to its callback.
+ * Uses `location.replace` (script navigation — not governed by `form-action`).
+ * Only http(s) targets are allowed, so a crafted param can't run `javascript:`. */
+export function finishConnect(
+  search: string = location.search,
+  navigate: (url: string) => void = (url) => location.replace(url),
+): void {
+  const p = new URLSearchParams(search);
+  try {
+    const target = new URL(p.get("mcp_redirect") ?? "");
+    if (target.protocol !== "https:" && target.protocol !== "http:") throw new Error("bad scheme");
+    target.searchParams.set("code", p.get("code") ?? "");
+    const state = p.get("state");
+    if (state) target.searchParams.set("state", state);
+    navigate(target.toString());
+  } catch {
+    document.body.textContent = "Invalid connect callback.";
+  }
+}
+
 const STYLE = `
 .mcp-connect { max-width: 34rem; margin: 0 auto; padding: 2rem 1.25rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #c9d1d9; line-height: 1.55; }

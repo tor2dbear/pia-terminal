@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, beforeEach } from "vitest";
-import { isConnectRequest, renderConnect } from "./connect.js";
+import { finishConnect, isConnectCallback, isConnectRequest, renderConnect } from "./connect.js";
 
 describe("isConnectRequest", () => {
   it("recognises an OAuth authorization request", () => {
@@ -11,6 +11,34 @@ describe("isConnectRequest", () => {
     expect(isConnectRequest("?response_type=code&client_id=abc")).toBe(false); // no challenge
     expect(isConnectRequest("?client_id=abc&code_challenge=xyz")).toBe(false); // no response_type
     expect(isConnectRequest("?foo=bar")).toBe(false);
+  });
+});
+
+describe("isConnectCallback", () => {
+  it("recognises the code-bearing callback hop", () => {
+    expect(isConnectCallback("?mcp_redirect=https%3A%2F%2Fclaude.ai%2Fcb&code=abc")).toBe(true);
+    expect(isConnectCallback("?response_type=code&client_id=a&code_challenge=b")).toBe(false);
+    expect(isConnectCallback("?mcp_redirect=x")).toBe(false); // no code
+  });
+});
+
+describe("finishConnect", () => {
+  it("navigates to the client callback with the code (and state)", () => {
+    let dest = "";
+    finishConnect(
+      "?mcp_redirect=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code=THECODE&state=ST",
+      (u) => (dest = u),
+    );
+    const url = new URL(dest);
+    expect(url.origin + url.pathname).toBe("https://claude.ai/api/mcp/auth_callback");
+    expect(url.searchParams.get("code")).toBe("THECODE");
+    expect(url.searchParams.get("state")).toBe("ST");
+  });
+
+  it("refuses a non-http(s) callback target (no javascript: navigation)", () => {
+    let called = false;
+    finishConnect("?mcp_redirect=javascript%3Aalert(1)&code=x", () => (called = true));
+    expect(called).toBe(false);
   });
 });
 
