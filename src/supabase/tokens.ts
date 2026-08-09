@@ -1,4 +1,5 @@
 import {
+  DEFAULT_WRITE_SCOPE,
   generateToken,
   hashToken,
   type TokenInfo,
@@ -16,6 +17,7 @@ interface TokenRow {
   label: string;
   created_at: string;
   last_used_at: string | null;
+  write_scope: string[] | null;
 }
 
 /** A chainable, awaitable filter builder — the slice of supabase-js we use. */
@@ -67,7 +69,7 @@ export class SupabaseTokenStore implements TokenStore {
     return data.user?.id ?? null;
   }
 
-  async create(label: string): Promise<string> {
+  async create(label: string, writeScope: string[] = DEFAULT_WRITE_SCOPE): Promise<string> {
     const uid = await this.uid();
     if (!uid) throw new Error("log in to mint a token (run `login`)");
     const token = generateToken();
@@ -75,6 +77,7 @@ export class SupabaseTokenStore implements TokenStore {
       user_id: uid,
       label,
       token_hash: await hashToken(token),
+      write_scope: writeScope,
     });
     if (error) {
       // The (user_id, label) unique constraint turns a duplicate into a clear
@@ -90,13 +93,15 @@ export class SupabaseTokenStore implements TokenStore {
   async list(): Promise<TokenInfo[]> {
     const { data, error } = await this.db
       .from("mcp_tokens")
-      .select("label, created_at, last_used_at")
+      .select("label, created_at, last_used_at, write_scope")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []).map((r) => ({
       label: r.label,
       createdAt: r.created_at,
       lastUsedAt: r.last_used_at ?? undefined,
+      // Rows minted before the column existed read back null → the safe default.
+      writeScope: r.write_scope ?? DEFAULT_WRITE_SCOPE,
     }));
   }
 

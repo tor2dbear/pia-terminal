@@ -5,6 +5,15 @@ tags: [mcp, ai]
 updated: 2026-08-09
 ---
 
+## Levererat (v3 — per-token scopes)
+Skrivytan är inte längre en konstant. Varje token läser hela hemmet men *skriver*
+bara där du säger: `mcp token <label>` defaultar till `inbox/` (safe by default),
+`--write <dir>` vidgar (repeterbar; `--write .` = hela hemmet), `--read-only`
+förbjuder skrivning helt. Scopet lagras per rad (`mcp_tokens.write_scope`), edge-
+funktionen enforcar det (parity med `src/mcp/tokens.ts`), `mcp tokens` visar det,
+och en read-only token får inte ens `pia_write` i verktygslistan. Löser öppna
+frågan "per-token scopes" och US 3.
+
 ## Levererat (v2 — OAuth 2.1, live)
 Bearer-tokenen (v1) räckte inte för **Claudes connector-UI**, som bara stödjer
 **OAuth** (det försöker göra Dynamic Client Registration, inte ta en inklistrad
@@ -114,9 +123,8 @@ skäl (*lärande + portfolio + kul*, "chatta med min lilla dator"), inte som
   `docs/` eller `.pia/`. Motsvarar öppen fråga om skriv-scope + ev. diff-gate.
 
 ## Öppna frågor (kvar efter v1)
-- **Per-token scopes.** Idag får varje token samma yta (read allt + write
-  `inbox/`). Nästa steg: välj scope vid `mcp token` (t.ex. read-only, eller andra
-  skrivbara mappar) och lagra det per rad istället för en konstant i funktionen.
+- **Per-token scopes.** ✅ Levererat i v3 (se ovan) — `--write`/`--read-only`,
+  lagrat per rad, enforced i edge-funktionen.
 - **Diff-/bekräftelse-gate på write.** v1 skriver rakt (guardad mot krock men utan
   människa-i-loop). Vill vi ha en förhandsgranskning innan en agent-write landar?
 - **OAuth istället för klistrad token.** "Rätt" men överkurs — bearer räcker för v1.

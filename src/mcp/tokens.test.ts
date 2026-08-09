@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeWriteScope,
   generateToken,
   hashToken,
   MemoryTokenStore,
+  normalizeScopeDir,
   NullTokenStore,
   type TokenStore,
 } from "./tokens.js";
@@ -67,5 +69,38 @@ describe("MemoryTokenStore", () => {
     await store.create("one");
     await store.create("two");
     expect((await store.list()).map((t) => t.label)).toEqual(["two", "one"]);
+  });
+
+  it("defaults a token's write scope to inbox, and records a custom one", async () => {
+    const store = new MemoryTokenStore();
+    await store.create("default");
+    await store.create("wide", ["docs", "notes"]);
+    await store.create("readonly", []);
+    const byLabel = Object.fromEntries((await store.list()).map((t) => [t.label, t.writeScope]));
+    expect(byLabel.default).toEqual(["inbox"]);
+    expect(byLabel.wide).toEqual(["docs", "notes"]);
+    expect(byLabel.readonly).toEqual([]);
+  });
+});
+
+describe("normalizeScopeDir", () => {
+  it("maps home-ish inputs to '.' and cleans real dirs", () => {
+    for (const whole of ["", ".", "~", "/", "~/"]) expect(normalizeScopeDir(whole)).toBe(".");
+    expect(normalizeScopeDir("docs")).toBe("docs");
+    expect(normalizeScopeDir("/docs/")).toBe("docs");
+    expect(normalizeScopeDir("~/docs/notes")).toBe("docs/notes");
+  });
+  it("rejects traversal segments", () => {
+    expect(normalizeScopeDir("../etc")).toBeNull();
+    expect(normalizeScopeDir("docs/../secret")).toBeNull();
+  });
+});
+
+describe("describeWriteScope", () => {
+  it("phrases each shape", () => {
+    expect(describeWriteScope(["inbox"])).toMatch(/write inbox\//);
+    expect(describeWriteScope([])).toMatch(/read-only/);
+    expect(describeWriteScope(["."])).toMatch(/all of home/);
+    expect(describeWriteScope(["docs", "notes"])).toMatch(/docs\/, notes\//);
   });
 });
