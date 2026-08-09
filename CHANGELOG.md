@@ -12,6 +12,12 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`mcp scope <label>` — change a token's write scope in place.** Widen or lock
+  down an existing connector without re-minting: `mcp scope claude --full`,
+  `--write docs`, or `--read-only` (same flags as `mcp token`). The secret is
+  unchanged, so there's nothing to re-paste; the Edge Function reads the scope
+  per request, so it takes effect on the connector's next call. It's the `chmod`
+  of a token.
 - **On-brand MCP connector URL (`pia.tor2dbear.com/mcp`).** The connector is now
   served from PIA's own origin via a small Cloudflare Pages Function that
   reverse-proxies `/mcp/*` to the Supabase Edge Function — so an AI client shows
