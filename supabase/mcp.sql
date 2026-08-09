@@ -30,9 +30,13 @@ alter table public.mcp_tokens enable row level security;
 
 -- The owner manages their own tokens from the browser (mint / list / revoke).
 -- There is deliberately NO update policy: last_used_at is bumped only by the
--- Edge Function via the service role, never by the client.
+-- Edge Function via the service role, never by the client. `drop … if exists`
+-- first so the whole file re-runs cleanly (create policy is not idempotent).
+drop policy if exists "own tokens - select" on public.mcp_tokens;
 create policy "own tokens - select" on public.mcp_tokens for select using (auth.uid() = user_id);
+drop policy if exists "own tokens - insert" on public.mcp_tokens;
 create policy "own tokens - insert" on public.mcp_tokens for insert with check (auth.uid() = user_id);
+drop policy if exists "own tokens - delete" on public.mcp_tokens;
 create policy "own tokens - delete" on public.mcp_tokens for delete using (auth.uid() = user_id);
 
 -- Fast lookup on the hot path: every connector request hashes its bearer token
@@ -73,3 +77,13 @@ create table if not exists public.oauth_codes (
 );
 alter table public.oauth_codes enable row level security;
 create index if not exists oauth_codes_expiry_idx on public.oauth_codes (expires_at);
+
+-- Sweep expired auth codes independently of /token traffic: an abandoned flow
+-- (authorize submitted, token never exchanged) must not leave its short-lived
+-- raw token sitting past its 10-min expiry. Runs every minute (pg_cron, same as
+-- the reminders tick). cron.schedule upserts by job name, so this is rerunnable.
+create extension if not exists pg_cron;
+select cron.schedule(
+  'oauth-codes-cleanup', '* * * * *',
+  $$ delete from public.oauth_codes where expires_at < now() $$
+);

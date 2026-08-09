@@ -15,8 +15,11 @@
 // concurrency guard in src/supabase/storage.ts.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-// The deployed function's own base URL — used to build absolute OAuth endpoints.
-const BASE = "https://fmamkwyiaojwgayhbdyk.supabase.co/functions/v1/mcp";
+// The project's own base URL, derived from the injected env — so discovery,
+// redirects, and the authorize form always point at the project this function is
+// deployed to (dev / staging / self-hosted), not a hardcoded one.
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const BASE = `${SUPABASE_URL}/functions/v1/mcp`;
 
 // ── Filesystem tree (mirror of src/vfs/types.ts) ─────────────────────────────
 interface FileNode {
@@ -489,12 +492,11 @@ async function handleToken(db: SupabaseClient, req: Request): Promise<Response> 
   const verifier = params.get("code_verifier") ?? "";
   const redirectUri = params.get("redirect_uri") ?? "";
 
-  // Opportunistic cleanup of expired codes.
-  await db.from("oauth_codes").delete().lt("expires_at", new Date().toISOString());
-
-  const { data: row } = await db.from("oauth_codes").select("*").eq("code", code).maybeSingle();
-  // One-time use: remove it whether or not the checks below pass.
-  if (row) await db.from("oauth_codes").delete().eq("code", code);
+  // Atomic one-time redemption: DELETE … RETURNING. Only the request that
+  // actually removes the row gets it back, so a concurrent exchange with the same
+  // code gets nothing. Expired/abandoned codes are swept by a pg_cron job, so
+  // redemption doesn't depend on later /token traffic (see supabase/mcp.sql).
+  const { data: row } = await db.from("oauth_codes").delete().eq("code", code).select("*").maybeSingle();
   if (!row) return jsonRes({ error: "invalid_grant", error_description: "unknown code" }, 400);
   if (new Date(row.expires_at).getTime() < Date.now()) return jsonRes({ error: "invalid_grant", error_description: "code expired" }, 400);
   if (row.redirect_uri !== redirectUri) return jsonRes({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
@@ -510,7 +512,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const url = new URL(req.url);
   const path = url.pathname;
-  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const db = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   // OAuth discovery — served at the function sub-path; some clients also probe
   // the OpenID configuration URL, so answer that with the same AS metadata.
