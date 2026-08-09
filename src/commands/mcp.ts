@@ -89,6 +89,9 @@ const mcp: Command<CommandContext> = {
     if (sub === "token") {
       // Parse the label (free-form words) alongside scope flags, which may be
       // interspersed: `mcp token my phone --write docs --write notes`.
+      const isFlag = (s: string | undefined): boolean =>
+        s === "--read-only" || s === "-r" || s === "--full" || s === "--all" ||
+        s === "--write" || s === "-w";
       let readOnly = false;
       const writeDirs: string[] = [];
       const words: string[] = [];
@@ -100,11 +103,15 @@ const mcp: Command<CommandContext> = {
           // Whole home — shorthand for `--write .` (the `.` collapse below wins).
           writeDirs.push(".");
         } else if (a === "--write" || a === "-w") {
-          const dir = rest[++i];
-          if (dir === undefined) {
+          // Don't swallow a following flag (or nothing) as the directory —
+          // `--write --read-only` is a malformed invocation, not a dir named
+          // "--read-only", and consuming it would drop the flag silently.
+          const dir = rest[i + 1];
+          if (dir === undefined || isFlag(dir)) {
             ctx.error("mcp: --write needs a directory — e.g. mcp token <label> --write docs");
             return;
           }
+          i++;
           writeDirs.push(dir);
         } else {
           words.push(a);

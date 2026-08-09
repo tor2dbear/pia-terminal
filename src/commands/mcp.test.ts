@@ -121,6 +121,11 @@ describe("mcp", () => {
     err.length = 0;
     await mcp.run(["token", "x", "--write"], ctx);
     expect(err[0]).toMatch(/--write needs a directory/);
+
+    // A following flag must not be swallowed as the directory value.
+    err.length = 0;
+    await mcp.run(["token", "x", "--write", "--read-only"], ctx);
+    expect(err[0]).toMatch(/--write needs a directory/);
   });
 
   it("requires a label to mint", async () => {
