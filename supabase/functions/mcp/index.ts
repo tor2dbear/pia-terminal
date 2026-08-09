@@ -20,6 +20,10 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 // deployed to (dev / staging / self-hosted), not a hardcoded one.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const BASE = `${SUPABASE_URL}/functions/v1/mcp`;
+// The PIA web app's public origin, which renders the OAuth connect form (Supabase
+// forces text/plain on any HTML a function returns, so it can't live here). This
+// is its own config, not derivable from SUPABASE_URL.
+const APP_URL = "https://pia.tor2dbear.com";
 
 // ── Filesystem tree (mirror of src/vfs/types.ts) ─────────────────────────────
 interface FileNode {
@@ -296,9 +300,6 @@ function rpcError(id: unknown, code: number, message: string, status = 200, extr
 function jsonRes(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: CORS });
 }
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 // ── OAuth 2.1 ────────────────────────────────────────────────────────────────
 // Discovery: tell the client we're a protected resource and where our AS lives.
@@ -352,82 +353,11 @@ async function handleRegister(db: SupabaseClient, req: Request): Promise<Respons
   }, 201);
 }
 
-// The terminal-styled authorize page: a token you minted in PIA is the credential.
-function authorizePage(f: {
-  clientId: string;
-  redirectUri: string;
-  codeChallenge: string;
-  state: string;
-  clientName: string;
-  error: string;
-}): Response {
-  const who = f.clientName ? esc(f.clientName) : "An AI client";
-  const html = `<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>pia — connect</title>
-<style>
-  :root { color-scheme: dark; }
-  body { background:#0b0e14; color:#c9d1d9; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-         margin:0; min-height:100vh; box-sizing:border-box; padding:2rem 1.25rem;
-         display:flex; align-items:center; justify-content:center; }
-  .box { width:100%; max-width:34rem; }
-  .prompt { color:#7ee787; margin:0 0 1.25rem; }
-  .prompt b { color:#c9d1d9; font-weight:600; }
-  p { line-height:1.55; }
-  code { color:#79c0ff; }
-  .dim { color:#8b949e; font-size:.92rem; }
-  .err { color:#ff7b72; }
-  input { width:100%; box-sizing:border-box; background:#010409; border:1px solid #30363d; border-radius:6px;
-          color:#c9d1d9; font-family:inherit; font-size:1rem; padding:.65rem .75rem; margin:1rem 0; }
-  input:focus { outline:none; border-color:#2f81f7; }
-  button { background:#238636; color:#fff; border:0; border-radius:6px; font-family:inherit; font-size:1rem;
-           padding:.6rem 1.4rem; cursor:pointer; }
-  button:hover { background:#2ea043; }
-</style></head><body><div class="box">
-  <p class="prompt">user@pia:~$ <b>mcp connect</b></p>
-  <p>${who} wants to connect to your PIA as an MCP connector. It will be able to
-     <b>read</b> your home and <b>write</b> under <code>~/inbox/</code>.</p>
-  <p class="dim">Paste a token you minted in the terminal with <code>mcp token &lt;name&gt;</code>.
-     Nothing else stores your credentials — the terminal is the source of truth.</p>
-  ${f.error ? `<p class="err">${esc(f.error)}</p>` : ""}
-  <form method="POST" action="${BASE}/authorize">
-    <input type="hidden" name="client_id" value="${esc(f.clientId)}">
-    <input type="hidden" name="redirect_uri" value="${esc(f.redirectUri)}">
-    <input type="hidden" name="code_challenge" value="${esc(f.codeChallenge)}">
-    <input type="hidden" name="state" value="${esc(f.state)}">
-    <input name="token" type="password" placeholder="pia_..." autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
-    <button type="submit">Connect</button>
-  </form>
-</div></body></html>`;
-  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
-}
-
-function htmlError(message: string): Response {
-  const html = `<!doctype html><meta charset="utf-8"><body style="background:#0b0e14;color:#ff7b72;font-family:ui-monospace,monospace;padding:2rem">${esc(message)}</body>`;
-  return new Response(html, { status: 400, headers: { "content-type": "text/html; charset=utf-8" } });
-}
-
-async function handleAuthorizeGet(db: SupabaseClient, url: URL): Promise<Response> {
-  const p = url.searchParams;
-  if (p.get("response_type") !== "code") return htmlError("unsupported response_type (only 'code')");
-  if (p.get("code_challenge_method") !== "S256") return htmlError("PKCE with S256 is required");
-  const clientId = p.get("client_id") ?? "";
-  const redirectUri = p.get("redirect_uri") ?? "";
-  const { data: client } = await db
-    .from("oauth_clients")
-    .select("redirect_uris, client_name")
-    .eq("client_id", clientId)
-    .maybeSingle();
-  if (!client) return htmlError("unknown client — register first");
-  if (!(client.redirect_uris as string[]).includes(redirectUri)) return htmlError("redirect_uri mismatch");
-  return authorizePage({
-    clientId,
-    redirectUri,
-    codeChallenge: p.get("code_challenge") ?? "",
-    state: p.get("state") ?? "",
-    clientName: (client.client_name as string) ?? "",
-    error: "",
-  });
+// The connect FORM is rendered by the PIA app (Supabase forces text/plain on any
+// HTML a function returns), so GET /authorize just forwards the OAuth query to
+// the app; the app POSTs the pasted token back to handleAuthorizePost below.
+function handleAuthorizeGet(url: URL): Response {
+  return new Response(null, { status: 302, headers: { Location: `${APP_URL}/${url.search}` } });
 }
 
 async function handleAuthorizePost(db: SupabaseClient, req: Request): Promise<Response> {
@@ -438,21 +368,32 @@ async function handleAuthorizePost(db: SupabaseClient, req: Request): Promise<Re
   const state = String(form.get("state") ?? "");
   const token = String(form.get("token") ?? "").trim();
 
+  // Re-prompt in the app (carrying an error) for a recoverable failure.
+  const reprompt = (error: string): Response => {
+    const q = new URLSearchParams({
+      response_type: "code",
+      code_challenge_method: "S256",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code_challenge: codeChallenge,
+      state,
+      mcp_error: error,
+    });
+    return new Response(null, { status: 302, headers: { Location: `${APP_URL}/?${q.toString()}` } });
+  };
+
   const { data: client } = await db
     .from("oauth_clients")
-    .select("redirect_uris, client_name")
+    .select("redirect_uris")
     .eq("client_id", clientId)
     .maybeSingle();
   if (!client || !(client.redirect_uris as string[]).includes(redirectUri)) {
-    return htmlError("invalid client or redirect_uri");
+    return new Response("invalid client or redirect_uri", { status: 400 });
   }
 
-  const page = (error: string) =>
-    authorizePage({ clientId, redirectUri, codeChallenge, state, clientName: (client.client_name as string) ?? "", error });
-
-  if (!token) return page("Paste a token to connect.");
+  if (!token) return reprompt("Paste a token to connect.");
   const { data: row } = await db.from("mcp_tokens").select("user_id").eq("token_hash", await sha256hex(token)).maybeSingle();
-  if (!row) return page("That token wasn't recognised. Mint one in PIA with `mcp token <name>` and paste it here.");
+  if (!row) return reprompt("That token wasn't recognised. Mint one with `mcp token <name>` and paste it here.");
 
   const code = randomId("pia-code-");
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -465,7 +406,9 @@ async function handleAuthorizePost(db: SupabaseClient, req: Request): Promise<Re
     client_id: clientId,
     expires_at: expiresAt,
   });
-  if (error) return page("Something went wrong issuing the code — try again.");
+  if (error) return reprompt("Something went wrong issuing the code - try again.");
+  // Mark the client active so the retention sweep keeps it (see supabase/mcp.sql).
+  await db.from("oauth_clients").update({ last_used_at: new Date().toISOString() }).eq("client_id", clientId);
 
   const sep = redirectUri.includes("?") ? "&" : "?";
   const location = `${redirectUri}${sep}code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
@@ -521,7 +464,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (path.endsWith("/.well-known/openid-configuration")) return authServerMetadata();
   if (path.endsWith("/register") && req.method === "POST") return handleRegister(db, req);
   if (path.endsWith("/authorize")) {
-    if (req.method === "GET") return handleAuthorizeGet(db, url);
+    if (req.method === "GET") return handleAuthorizeGet(url);
     if (req.method === "POST") return handleAuthorizePost(db, req);
   }
   if (path.endsWith("/token") && req.method === "POST") return handleToken(db, req);

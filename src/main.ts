@@ -13,6 +13,7 @@ import { parseConfig } from "./pia/rc.js";
 import { appendHistory, hasSecret, parseHistory, serializeHistory } from "./pia/history.js";
 import { seedSystemFiles, readMotd } from "./pia/etc.js";
 import { cloudConfig } from "./config.js";
+import { isConnectRequest, renderConnect } from "./mcp/connect.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
 import { commandPackage, registerInstalled, seedDefaultPackages } from "./packages/catalog.js";
@@ -102,6 +103,14 @@ async function main(): Promise<void> {
 
   const root = document.getElementById("screen");
   if (!root) throw new Error("missing #screen element");
+
+  // MCP connector OAuth: when the connector's `/authorize` redirects the browser
+  // here (Supabase can't serve the form itself), render the connect screen — the
+  // terminal handling connect — instead of booting the terminal.
+  if (cloudConfig && isConnectRequest()) {
+    renderConnect(root, `${cloudConfig.url.replace(/\/$/, "")}/functions/v1/mcp/authorize`);
+    return;
+  }
 
   migrateLegacyKeys();
   const { adapter, auth, share, reminders, tokens } = await makeAdapters();

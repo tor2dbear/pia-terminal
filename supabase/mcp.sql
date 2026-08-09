@@ -61,7 +61,8 @@ create table if not exists public.oauth_clients (
   client_id     text primary key,
   redirect_uris text[] not null,
   client_name   text,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  last_used_at  timestamptz  -- bumped when a code is issued for this client
 );
 alter table public.oauth_clients enable row level security;
 
@@ -86,4 +87,13 @@ create extension if not exists pg_cron;
 select cron.schedule(
   'oauth-codes-cleanup', '* * * * *',
   $$ delete from public.oauth_codes where expires_at < now() $$
+);
+
+-- Dynamic Client Registration is public by the MCP/OAuth spec (any client may
+-- register), so bound the retention: sweep clients not used in 7 days (an active
+-- connector re-registers freely). Keeps an anonymous /register spammer from
+-- growing the table without bound. Runs hourly.
+select cron.schedule(
+  'oauth-clients-cleanup', '0 * * * *',
+  $$ delete from public.oauth_clients where coalesce(last_used_at, created_at) < now() - interval '7 days' $$
 );
