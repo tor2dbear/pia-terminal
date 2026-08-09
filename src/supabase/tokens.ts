@@ -48,7 +48,7 @@ export class SupabaseTokenStore implements TokenStore {
 
   // Same narrow-interface trick the other adapters use: accept the shared client
   // type, then treat it as the slice this store needs. `supabaseUrl` is the
-  // project origin, from which the connector endpoint is derived.
+  // project origin, the fallback connector endpoint where no proxy is present.
   constructor(
     client: SupabaseLike,
     private readonly supabaseUrl: string,
@@ -61,7 +61,17 @@ export class SupabaseTokenStore implements TokenStore {
   }
 
   connectorUrl(): string | null {
-    return `${this.supabaseUrl.replace(/\/$/, "")}/functions/v1/mcp`;
+    // On a Cloudflare Pages deploy of this app (the custom domain or a
+    // *.pages.dev preview) the functions/mcp proxy is present, so hand out the
+    // on-brand same-origin URL — the client shows PIA's favicon and the URL
+    // reads as PIA's. Everywhere else (npm run dev, a non-Pages static host)
+    // there is no proxy, so fall back to the Edge Function's own reachable URL
+    // rather than an origin/mcp that would 404.
+    const host = location.hostname;
+    const onPages = host === "pia.tor2dbear.com" || host.endsWith(".pages.dev");
+    return onPages
+      ? `${location.origin}/mcp`
+      : `${this.supabaseUrl.replace(/\/$/, "")}/functions/v1/mcp`;
   }
 
   private async uid(): Promise<string | null> {

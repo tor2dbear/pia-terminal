@@ -19,7 +19,23 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 // redirects, and the authorize form always point at the project this function is
 // deployed to (dev / staging / self-hosted), not a hardcoded one.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const BASE = `${SUPABASE_URL}/functions/v1/mcp`;
+const DIRECT_BASE = `${SUPABASE_URL}/functions/v1/mcp`;
+
+/** The public base URL for discovery/metadata. When the request came through the
+ * PIA app's reverse proxy (functions/mcp on Cloudflare Pages), it carries
+ * `x-pia-public-base` so discovery advertises the on-brand origin's /mcp; a
+ * direct hit to this function falls back to the supabase.co URL. Only the trusted
+ * proxy sets the header, and it only shapes this request's own response, so a
+ * forged header has no cross-user effect (standard X-Forwarded-* handling). */
+function baseFor(req: Request): string {
+  const pub = req.headers.get("x-pia-public-base");
+  if (pub) {
+    try {
+      if (new URL(pub).protocol === "https:") return pub.replace(/\/$/, "");
+    } catch { /* malformed header — fall back */ }
+  }
+  return DIRECT_BASE;
+}
 // The PIA web app's public origin, which renders the OAuth connect form (Supabase
 // forces text/plain on any HTML a function returns, so it can't live here). This
 // is its own config, not derivable from SUPABASE_URL.
@@ -333,7 +349,6 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 const PROTOCOL_VERSION = "2024-11-05";
-const RESOURCE_METADATA_URL = `${BASE}/.well-known/oauth-protected-resource`;
 
 function rpcResult(id: unknown, result: unknown): Response {
   return Response.json({ jsonrpc: "2.0", id, result }, { headers: CORS });
@@ -347,15 +362,16 @@ function jsonRes(body: unknown, status = 200): Response {
 
 // ── OAuth 2.1 ────────────────────────────────────────────────────────────────
 // Discovery: tell the client we're a protected resource and where our AS lives.
-function protectedResourceMetadata(): Response {
-  return jsonRes({ resource: BASE, authorization_servers: [BASE] });
+// `base` is the public base for this request (proxy origin's /mcp, or supabase).
+function protectedResourceMetadata(base: string): Response {
+  return jsonRes({ resource: base, authorization_servers: [base] });
 }
-function authServerMetadata(): Response {
+function authServerMetadata(base: string): Response {
   return jsonRes({
-    issuer: BASE,
-    authorization_endpoint: `${BASE}/authorize`,
-    token_endpoint: `${BASE}/token`,
-    registration_endpoint: `${BASE}/register`,
+    issuer: base,
+    authorization_endpoint: `${base}/authorize`,
+    token_endpoint: `${base}/token`,
+    registration_endpoint: `${base}/register`,
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code"],
     code_challenge_methods_supported: ["S256"],
@@ -502,13 +518,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const url = new URL(req.url);
   const path = url.pathname;
+  const base = baseFor(req);
   const db = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   // OAuth discovery — served at the function sub-path; some clients also probe
   // the OpenID configuration URL, so answer that with the same AS metadata.
-  if (path.endsWith("/.well-known/oauth-protected-resource")) return protectedResourceMetadata();
-  if (path.endsWith("/.well-known/oauth-authorization-server")) return authServerMetadata();
-  if (path.endsWith("/.well-known/openid-configuration")) return authServerMetadata();
+  if (path.endsWith("/.well-known/oauth-protected-resource")) return protectedResourceMetadata(base);
+  if (path.endsWith("/.well-known/oauth-authorization-server")) return authServerMetadata(base);
+  if (path.endsWith("/.well-known/openid-configuration")) return authServerMetadata(base);
   if (path.endsWith("/register") && req.method === "POST") return handleRegister(db, req);
   if (path.endsWith("/authorize")) {
     if (req.method === "GET") return handleAuthorizeGet(url);
@@ -523,7 +540,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!caller) {
     // Point OAuth clients at our resource metadata so they can start the flow.
     return rpcError(null, -32001, "unauthorized: unknown or missing bearer token", 401, {
-      "WWW-Authenticate": `Bearer resource_metadata="${RESOURCE_METADATA_URL}"`,
+      "WWW-Authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
     });
   }
   // Best-effort "last used" bump. Awaited so the (lazy) PostgREST request issues.

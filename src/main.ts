@@ -113,7 +113,10 @@ async function main(): Promise<void> {
     return;
   }
   if (cloudConfig && isConnectRequest()) {
-    renderConnect(root, `${cloudConfig.url.replace(/\/$/, "")}/functions/v1/mcp/authorize`);
+    // POST the pasted token to the connector's /authorize on *this* origin — the
+    // Cloudflare Pages proxy (functions/mcp) forwards it to the Edge Function.
+    // Same-origin, so `form-action 'self'` covers it and the flow stays on-brand.
+    renderConnect(root, `${location.origin}/mcp/authorize`);
     return;
   }
 

@@ -12,6 +12,14 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **On-brand MCP connector URL (`pia.tor2dbear.com/mcp`).** The connector is now
+  served from PIA's own origin via a small Cloudflare Pages Function that
+  reverse-proxies `/mcp/*` to the Supabase Edge Function — so an AI client shows
+  PIA's favicon (not Supabase's) and the URL reads as PIA's. `mcp url` / `mcp
+  token` print the new URL; the OAuth authorize form now POSTs same-origin.
+  Discovery advertises whichever origin the request arrived on. The old
+  supabase.co URL keeps working. (This is the app's first server-side piece —
+  everything else stays static.)
 - **Per-token write scopes for the `mcp` connector.** A token still reads your
   whole home, but you now choose what it may *write*: `mcp token <label>` defaults
   to `inbox/` (safe by default), `--write <dir>` widens it (repeatable; `--full`

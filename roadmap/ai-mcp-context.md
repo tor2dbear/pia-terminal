@@ -5,6 +5,15 @@ tags: [mcp, ai]
 updated: 2026-08-09
 ---
 
+## Levererat (v4 — on-brand URL + PIA-ikon)
+Connectorn nås nu på **PIA:s egen origin** (`pia.tor2dbear.com/mcp`) via en liten
+Cloudflare Pages Function (`functions/mcp`) som reverse-proxar `/mcp/*` till edge-
+funktionen. Klienten (Claude) hämtar då PIA:s favicon i stället för Supabases, och
+URL:en blir on-brand. Edge-funktionen härleder sin publika bas från proxyns
+`x-pia-public-base`-header så discovery/authorize/token annonserar rätt origin;
+authorize-formuläret POST:ar same-origin. Gamla supabase.co-URL:en fortsätter funka.
+Appens första server-sido-bit — allt annat är fortsatt statiskt.
+
 ## Levererat (v3 — per-token scopes)
 Skrivytan är inte längre en konstant. Varje token läser hela hemmet men *skriver*
 bara där du säger: `mcp token <label>` defaultar till `inbox/` (safe by default),
