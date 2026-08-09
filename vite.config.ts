@@ -38,11 +38,16 @@ function securityHeaders(mode: string): Plugin {
   // the strict CSP blocks the script and its RUM POST — leaving analytics empty.
   const connect = ["'self'", "https://cloudflareinsights.com"];
   const script = ["'self'", "https://static.cloudflareinsights.com"];
+  // The MCP connector's OAuth authorize form (rendered by the app) POSTs the
+  // pasted token to the Supabase Edge Function, so form-action must allow that
+  // origin — otherwise the browser silently blocks the submit.
+  const formAction = ["'self'"];
   const supabase = env.VITE_SUPABASE_URL?.trim();
   if (supabase) {
     try {
       const { host } = new URL(supabase);
       connect.push(`https://${host}`, `wss://${host}`);
+      formAction.push(`https://${host}`);
     } catch {
       // Malformed URL — stay local-only rather than emit a broken directive.
     }
@@ -66,7 +71,7 @@ function securityHeaders(mode: string): Plugin {
     "frame-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    `form-action ${formAction.join(" ")}`,
     "upgrade-insecure-requests",
   ];
   const metaCsp = base.join("; ");
