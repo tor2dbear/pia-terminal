@@ -295,19 +295,22 @@ function toolsFor(scope: string[]) {
   return list;
 }
 
-/** One line stating what this token may write right now — woven into the
- * server instructions so the connected model knows its current permissions. */
+/** One line stating what this token could write *at connect time* — woven into
+ * the server instructions. Framed as a snapshot, not a live value: the client
+ * caches `instructions` for the connection, so this can go stale if the owner
+ * re-scopes mid-session (enforcement stays live; see buildInstructions). */
 function scopeSentence(scope: string[]): string {
-  if (scope.length === 0) return "Right now this token is read-only — pia_write is disabled.";
-  if (scope.includes(".")) return "Right now this token may write anywhere in the home.";
-  return `Right now this token may write only under ${scope.map((s) => `~/${s}/`).join(", ")}.`;
+  if (scope.length === 0) return "When you connected, this token was read-only (pia_write disabled).";
+  if (scope.includes(".")) return "When you connected, it could write anywhere in the home.";
+  return `When you connected, it could write under ${scope.map((s) => `~/${s}/`).join(", ")}.`;
 }
 
 /** The MCP `initialize` `instructions` string — a hint the client may add to the
  * model's system prompt. Weaves PIA's persona with a practical brief: the
- * filesystem, this token's live scope, and the exact `mcp` commands the owner
- * uses to change what the connector may do (so the model can answer "how do I
- * give you full access?" with the real token name). Non-sensitive by design. */
+ * filesystem, this token's connect-time scope (with the live-enforcement caveat,
+ * since clients cache instructions), and the exact `mcp` commands the owner uses
+ * to change what the connector may do (so the model can answer "how do I give you
+ * full access?" with the real token name). Non-sensitive by design. */
 function buildInstructions(scope: string[], label: string): string {
   const tok = label || "<name>";
   return [
@@ -315,14 +318,14 @@ function buildInstructions(scope: string[], label: string): string {
     ``,
     `The filesystem: paths are relative to their home (~). Places worth knowing — ~/inbox/ is the safe landing zone for new notes and ideas; ~/docs/ for documents; ~/todo/ and ~/shared/ for checklists; ~/.pia/ is config (leave it alone). You can read anywhere in the home.`,
     ``,
-    `Tools: pia_list (browse a directory), pia_read (read a file), pia_write (create or overwrite a file within this token's write scope). ${scopeSentence(scope)}`,
+    `Tools: pia_list (browse a directory), pia_read (read a file), pia_write (create or overwrite a file within this token's write scope). ${scopeSentence(scope)} Enforcement is live and per-request, so trust what pia_write actually does over this note — a refused write means the scope was narrowed. This brief is a snapshot from when you connected; after a scope change the owner may need to reconnect you for it to reflect here.`,
     ``,
     `The owner runs this connector from the PIA terminal with the \`mcp\` command, so if they ask how to change what you can do, tell them exactly:`,
     `  • give you full write access:  mcp scope ${tok} --full`,
     `  • limit you to a folder:       mcp scope ${tok} --write docs`,
     `  • make you read-only:          mcp scope ${tok} --read-only`,
     `  • list / mint / revoke tokens: mcp tokens · mcp token <name> · mcp revoke <name>`,
-    `A scope change takes effect on your very next call — nothing to re-paste.`,
+    `Those changes apply to enforcement immediately; reconnecting refreshes what this brief says.`,
     ``,
     `Be a good guest: prefer writing under ~/inbox/, don't overwrite files you didn't create unless asked, and keep new files tidy (clear names, Markdown when it fits).`,
   ].join("\n");
