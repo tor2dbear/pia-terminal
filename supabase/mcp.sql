@@ -43,3 +43,33 @@ create index if not exists mcp_tokens_hash_idx on public.mcp_tokens (token_hash)
 -- Deploy the Edge Function with JWT verification OFF — it authenticates with our
 -- own opaque bearer token, not a Supabase JWT:
 --   supabase functions deploy mcp --no-verify-jwt
+
+-- ── OAuth 2.1 (so OAuth-only clients like Claude's connector can connect) ─────
+-- The same Edge Function also speaks OAuth 2.1 (discovery / register / authorize
+-- / token), routed by path. The authorize step authenticates the user by a token
+-- they minted with `mcp token` — the terminal stays the source of truth, no
+-- separate login page. These two tables are touched ONLY by the Edge Function
+-- (service role); RLS is enabled with NO policies so anon/authenticated can't
+-- read them (oauth_codes briefly holds a raw access token between authorize and
+-- the token exchange, then deletes it).
+
+create table if not exists public.oauth_clients (
+  client_id     text primary key,
+  redirect_uris text[] not null,
+  client_name   text,
+  created_at    timestamptz not null default now()
+);
+alter table public.oauth_clients enable row level security;
+
+create table if not exists public.oauth_codes (
+  code           text primary key,
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  access_token   text not null,   -- the minted token, returned once at exchange
+  code_challenge text not null,   -- PKCE S256 challenge
+  redirect_uri   text not null,
+  client_id      text not null,
+  expires_at     timestamptz not null,
+  created_at     timestamptz not null default now()
+);
+alter table public.oauth_codes enable row level security;
+create index if not exists oauth_codes_expiry_idx on public.oauth_codes (expires_at);
