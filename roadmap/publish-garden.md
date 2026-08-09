@@ -1,9 +1,27 @@
 ---
 title: publish → ~/public_html (tilde-URL:er, index, RSS)
-status: now
+status: next
 tags: [share, web]
 updated: 2026-08-09
 ---
+
+## Levererat (Slice A)
+MVP:n står: `publish` (utan arg, eller på `~/public_html`) lägger mappens
+`.md`-filer på webben på `<origin>/~<handle>/`, med `index.md` som omslag.
+- **Handle-namnrymd** — `handles`-tabell (unik, en per konto), `claim_handle`-RPC
+  (atomisk, reserverad-ord-guard, en-identitet, race-säker). Claimas **lat vid
+  första publish**, förifyllt från visningsnamnet (`handle.ts` +
+  `HandleStore`/`Null`/`Memory`/Supabase).
+- **Publik projektion** — `public_pages`-tabell (materialiserad, anon-läsbar,
+  ägar-skrivbar, skild från privata `filesystems`). Replace-all vid publish,
+  `createdAt` bevaras (`PublicPagesStore`/`Null`/`Memory`/Supabase).
+- **Rendering** — CSP-säker md→HTML (`publishHtml.ts`), förrenderad vid publish.
+- **Servering** — Cloudflare Pages Function `functions/[[path]].ts` serverar
+  `/~<handle>/<slug>`, wrappar fragmentet i en tema-shell; scopad via `_routes.json`.
+- **`publish`-kommandot** — webb-väg för `~/public_html`, `#p=`-länk för andra
+  mappar (oförändrat). Täckt av tester (handle, render, replace-all, claim,
+  tomt/saknat) + tour-rad. **Kräver att `supabase/public_pages.sql` körs i
+  Supabase**, och att Pages-routen verifieras på en preview-deploy.
 
 ## Mål
 Lyfta `publish` (levererad, se `publish-folder`) från "en mapp landar i mottagarens
@@ -116,5 +134,5 @@ inte unik/validerad/reserverad — duger för prompten, inte för en publik namn
   `~/public_html` som en riktig webbserver (mod_userdir, rent Unix) + `publish`-
   verbet blir bekvämlighet ovanpå en filsystem-plats.
 
-_Befordrad till `now` 2026-08-09: serverval + handle-modell spikade till förslag.
-Bygget startar på Slice A._
+_Slice A byggd 2026-08-09 (bakom seamerna + Pages Function; SQL körs manuellt).
+Status `next` för Slice B (autoindex + RSS) och C (tema/OG/undermappar)._

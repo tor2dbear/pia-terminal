@@ -33,6 +33,14 @@ use (signup stays frictionless).
 `whoareyou` (alias `whoru`) is a deliberate **coinage** — no Unix equivalent —
 accepted as *persona*, not utility: the little computer introducing itself (the
 line the `og.png` social preview shows), distinct from `whoami` (your login).
+`publish` (put `~/public_html` on the web at `/~<handle>/`) is grounded in the
+**`mod_userdir` / tilde-URL** idiom — publishing is *writing a file to a
+well-known place*, not a new verb — so serving it like a real web server is an
+accepted, on-idiom web divergence (`publish` has always returned a URL). The
+`publish` command is a convenience over that filesystem place; the public
+`~handle` is a unique namespace claimed lazily on first publish (never a signup
+gate, same frictionless-signup principle as `verify`). Distinct from `share`
+(one person / anyone-with-the-link), which stays serverless.
 Window tabs are a **tmux-lite** multiplexer (`tmux`, alias `tab`): one machine
 (shared VFS + account), several *windows* — the Unix idiom is tmux, driven by the
 `Ctrl-B` prefix. The visible tab strip is an intentional GUI/emulator concession

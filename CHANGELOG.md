@@ -12,6 +12,18 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **Publish to the web from the terminal (`~/public_html`).** Write Markdown in
+  `~/public_html` and run `publish` — your pages go live at
+  `pia.tor2dbear.com/~<handle>/`, the Unix `mod_userdir` idiom (publishing is
+  putting a file in a well-known place). `index.md` is the home page; each other
+  page is `/~<handle>/<name>`. A public `~handle` is claimed the first time you
+  publish (pre-filled from your username, never a signup step), so signup stays
+  frictionless. Re-publishing mirrors the folder (removed files drop off).
+  Publishing any *other* folder still makes the original portable `#p=` link.
+  Requires an account (guests use the portable link). Run `supabase/public_pages.sql`
+  to enable the cloud side. This distinguishes three intents that used to blur:
+  `~/public_html` (public to the world), `share <file> <email>` (one named
+  person), and `share <file>` (anyone with the link).
 - **On-brand MCP connector URL (`pia.tor2dbear.com/mcp`).** The connector is now
   served from PIA's own origin via a small Cloudflare Pages Function that
   reverse-proxies `/mcp/*` to the Supabase Edge Function — so an AI client shows
