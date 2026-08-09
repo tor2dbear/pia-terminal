@@ -24,6 +24,8 @@ export interface TokenInfo {
   createdAt: string;
   /** ISO timestamp the connector last authenticated with it, if ever. */
   lastUsedAt?: string;
+  /** Where this token may write (see {@link describeWriteScope}). */
+  writeScope: string[];
 }
 
 export interface TokenStore {
@@ -31,13 +33,45 @@ export interface TokenStore {
   available(): boolean;
   /** The MCP endpoint to hand an agent, or null when cloud is off. */
   connectorUrl(): string | null;
-  /** Mint a token under `label`; resolves to the plaintext secret, shown *once*.
+  /** Mint a token under `label`, scoped to `writeScope` (defaults to
+   * {@link DEFAULT_WRITE_SCOPE}); resolves to the plaintext secret, shown *once*.
    * Rejects a duplicate label so `revoke` stays unambiguous. */
-  create(label: string): Promise<string>;
+  create(label: string, writeScope?: string[]): Promise<string>;
   /** The user's active tokens, newest first. */
   list(): Promise<TokenInfo[]>;
   /** Revoke the token named `label`; resolves to whether one was removed. */
   revoke(label: string): Promise<boolean>;
+}
+
+// ── Write scope ──────────────────────────────────────────────────────────────
+// A token can always *read* the whole home; what it may *write* is a per-token
+// list of home-relative directory prefixes. `["inbox"]` (the default) keeps the
+// original "safe by default" behaviour; `[]` is read-only; `["."]` is the whole
+// home; `["docs", "notes"]` widens to named dirs. The Edge Function enforces the
+// same shape (parity, like {@link hashToken}) — see supabase/functions/mcp.
+
+/** The default write scope for a new token: only under `~/inbox/`. */
+export const DEFAULT_WRITE_SCOPE: string[] = ["inbox"];
+
+/** Normalise a user-supplied `--write` dir to a home-relative scope prefix, or
+ * null if it's malformed (contains `.`/`..` segments). `.`/`~`/`/`/empty all
+ * mean the whole home, represented as `"."`. */
+export function normalizeScopeDir(dir: string): string | null {
+  const t = dir.trim();
+  if (t === "" || t === "." || t === "~" || t === "/" || t === "~/") return ".";
+  const cleaned = t.replace(/^~\//, "").replace(/^\/+/, "");
+  const segs = cleaned.split("/").map((s) => s.trim()).filter((s) => s.length > 0);
+  if (segs.length === 0) return ".";
+  if (segs.some((s) => s === "." || s === "..")) return null;
+  return segs.join("/");
+}
+
+/** A human phrase for a token's write scope — shared by `mcp token`'s output and
+ * `mcp tokens`. The Edge Function keeps a parallel copy for its refusals. */
+export function describeWriteScope(scope: string[]): string {
+  if (scope.length === 0) return "read all; no write (read-only)";
+  const dirs = scope.map((s) => (s === "." ? "~/ (all of home)" : `${s}/`)).join(", ");
+  return `read all; write ${dirs}`;
 }
 
 // ── Token + hash helpers (shared contract with the Edge Function) ────────────
@@ -77,7 +111,7 @@ export class NullTokenStore implements TokenStore {
   connectorUrl(): string | null {
     return null;
   }
-  async create(): Promise<string> {
+  async create(_label?: string, _writeScope?: string[]): Promise<string> {
     throw new Error("the MCP connector needs a cloud account — run `login`");
   }
   async list(): Promise<TokenInfo[]> {
@@ -95,7 +129,13 @@ export class NullTokenStore implements TokenStore {
  * deployed Edge Function.
  */
 export class MemoryTokenStore implements TokenStore {
-  private rows: { label: string; hash: string; createdAt: string; lastUsedAt?: string }[] = [];
+  private rows: {
+    label: string;
+    hash: string;
+    createdAt: string;
+    lastUsedAt?: string;
+    writeScope: string[];
+  }[] = [];
   private seq = 0;
 
   available(): boolean {
@@ -104,18 +144,23 @@ export class MemoryTokenStore implements TokenStore {
   connectorUrl(): string | null {
     return "https://example.test/functions/v1/mcp";
   }
-  async create(label: string): Promise<string> {
+  async create(label: string, writeScope: string[] = DEFAULT_WRITE_SCOPE): Promise<string> {
     if (this.rows.some((r) => r.label === label)) {
       throw new Error(`a token named "${label}" already exists — revoke it first`);
     }
     const token = generateToken();
     // A monotonic, deterministic timestamp so tests stay stable without a clock.
     const createdAt = `2026-01-01T00:00:${String(this.seq++).padStart(2, "0")}.000Z`;
-    this.rows.unshift({ label, hash: await hashToken(token), createdAt });
+    this.rows.unshift({ label, hash: await hashToken(token), createdAt, writeScope: [...writeScope] });
     return token;
   }
   async list(): Promise<TokenInfo[]> {
-    return this.rows.map(({ label, createdAt, lastUsedAt }) => ({ label, createdAt, lastUsedAt }));
+    return this.rows.map(({ label, createdAt, lastUsedAt, writeScope }) => ({
+      label,
+      createdAt,
+      lastUsedAt,
+      writeScope: [...writeScope],
+    }));
   }
   async revoke(label: string): Promise<boolean> {
     const before = this.rows.length;

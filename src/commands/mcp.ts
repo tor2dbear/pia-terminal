@@ -1,4 +1,5 @@
 import type { Command, CommandContext } from "./registry.js";
+import { describeWriteScope, normalizeScopeDir, DEFAULT_WRITE_SCOPE } from "../mcp/tokens.js";
 
 /**
  * `mcp` — manage the Model Context Protocol connector: the bridge that lets an
@@ -10,8 +11,14 @@ import type { Command, CommandContext } from "./registry.js";
  *   mcp                 show connector status + URL
  *   mcp url             print just the connector URL (for scripting)
  *   mcp token <label>   mint a token named <label> (shown once)
- *   mcp tokens          list your active tokens
+ *     --write <dir>       widen writes to <dir> (repeatable; `.` = all of home)
+ *     --read-only         no writes at all
+ *   mcp tokens          list your active tokens (with their scopes)
  *   mcp revoke <label>  revoke a token
+ *
+ * A token can always read the whole home; `--write`/`--read-only` choose what it
+ * may write. Default (no flags) is write only under `inbox/` — safe by default,
+ * so an agent can't overwrite `docs/` or `.pia/` unless you say so.
  *
  * `mcp` is the protocol's real name (a proper noun, like `ssh`/`git`), not a
  * friendly coinage. Minting a token is an API-key flow with no Unix equivalent —
@@ -19,15 +26,18 @@ import type { Command, CommandContext } from "./registry.js";
  */
 
 const SUB = ["url", "token", "tokens", "revoke"];
+const TOKEN_FLAGS = ["--write", "--read-only"];
 
 const mcp: Command<CommandContext> = {
   name: "mcp",
   help: "manage the MCP connector — mint tokens so an AI client can read/write your files (mcp [token|tokens|revoke|url])",
-  usage: "mcp [url | token <label> | tokens | revoke <label>]",
+  usage: "mcp [url | token <label> [--write <dir>] [--read-only] | tokens | revoke <label>]",
   complete(args) {
-    // First operand: offer the subcommands. Beyond that the operand is a
-    // free-form label, so nothing to suggest.
-    return args.length === 0 ? SUB : [];
+    // First operand: offer the subcommands. After `token <label>` the remaining
+    // operands are a free-form label plus scope flags, so offer the flags.
+    if (args.length === 0) return SUB;
+    if (args[0] === "token") return TOKEN_FLAGS;
+    return [];
   },
   async run(args, ctx) {
     const store = ctx.tokens;
@@ -76,14 +86,57 @@ const mcp: Command<CommandContext> = {
     }
 
     if (sub === "token") {
-      const label = rest.join(" ").trim();
+      // Parse the label (free-form words) alongside scope flags, which may be
+      // interspersed: `mcp token my phone --write docs --write notes`.
+      let readOnly = false;
+      const writeDirs: string[] = [];
+      const words: string[] = [];
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        if (a === "--read-only" || a === "-r") {
+          readOnly = true;
+        } else if (a === "--write" || a === "-w") {
+          const dir = rest[++i];
+          if (dir === undefined) {
+            ctx.error("mcp: --write needs a directory — e.g. mcp token <label> --write docs");
+            return;
+          }
+          writeDirs.push(dir);
+        } else {
+          words.push(a);
+        }
+      }
+      const label = words.join(" ").trim();
       if (!label) {
         ctx.error("mcp: name the token — mcp token <label>");
         return;
       }
+      if (readOnly && writeDirs.length > 0) {
+        ctx.error("mcp: --read-only can't be combined with --write");
+        return;
+      }
+      let scope: string[];
+      if (readOnly) {
+        scope = [];
+      } else if (writeDirs.length > 0) {
+        scope = [];
+        for (const dir of writeDirs) {
+          const norm = normalizeScopeDir(dir);
+          if (norm === null) {
+            ctx.error(`mcp: bad --write path "${dir}" (no . or .. segments)`);
+            return;
+          }
+          if (!scope.includes(norm)) scope.push(norm);
+        }
+        // Whole-home write subsumes any named dirs — collapse to just that.
+        if (scope.includes(".")) scope = ["."];
+      } else {
+        scope = [...DEFAULT_WRITE_SCOPE];
+      }
+
       let token: string;
       try {
-        token = await store.create(label);
+        token = await store.create(label, scope);
       } catch (e) {
         ctx.error(`mcp: ${(e as Error).message}`);
         return;
@@ -92,7 +145,7 @@ const mcp: Command<CommandContext> = {
       ctx.print(`  ${token}`);
       ctx.print("");
       ctx.print(`  endpoint  ${url ?? "(unavailable)"}`, "dim");
-      ctx.print("  scope     read all; write only under inbox/", "dim");
+      ctx.print(`  scope     ${describeWriteScope(scope)}`, "dim");
       ctx.print("Add these to your AI client as a custom MCP connector.", "dim");
       return;
     }
@@ -106,6 +159,7 @@ const mcp: Command<CommandContext> = {
       for (const t of tokens) {
         const used = t.lastUsedAt ? `last used ${t.lastUsedAt}` : "never used";
         ctx.print(`${t.label}  —  created ${t.createdAt}, ${used}`);
+        ctx.print(`    ${describeWriteScope(t.writeScope)}`, "dim");
       }
       return;
     }

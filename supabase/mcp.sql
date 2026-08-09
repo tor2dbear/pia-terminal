@@ -24,9 +24,16 @@ create table if not exists public.mcp_tokens (
   token_hash   text not null unique,
   created_at   timestamptz not null default now(),
   last_used_at timestamptz,
+  -- Per-token write scope: home-relative dir prefixes the token may write. The
+  -- default keeps the original "safe by default" behaviour (only ~/inbox/); `{}`
+  -- is read-only, `{.}` is the whole home. Read access is always the full home.
+  -- The Edge Function enforces this shape (parity with src/mcp/tokens.ts).
+  write_scope  text[] not null default '{inbox}',
   unique (user_id, label)   -- labels are unique per user, so `mcp revoke` is unambiguous
 );
 alter table public.mcp_tokens enable row level security;
+-- Idempotent add for projects created before write_scope existed (rerunnable).
+alter table public.mcp_tokens add column if not exists write_scope text[] not null default '{inbox}';
 
 -- The owner manages their own tokens from the browser (mint / list / revoke).
 -- There is deliberately NO update policy: last_used_at is bumped only by the

@@ -84,8 +84,35 @@ describe("mcp", () => {
     const joined = out.join("\n");
     expect(joined).toMatch(/created/);
     expect(joined).toMatch(/pia_/); // the secret is printed
-    expect(joined).toMatch(/write only under inbox\//); // scope is spelled out
-    expect((await store.list()).map((t) => t.label)).toEqual(["iphone"]);
+    expect(joined).toMatch(/write inbox\//); // default scope is spelled out
+    const tokens = await store.list();
+    expect(tokens.map((t) => t.label)).toEqual(["iphone"]);
+    expect(tokens[0].writeScope).toEqual(["inbox"]); // safe default
+  });
+
+  it("mints a scoped token: --write widens, --read-only forbids writes", async () => {
+    const store = new MemoryTokenStore();
+    const { ctx, out } = makeCtx(store);
+    await mcp.run(["token", "agent", "--write", "docs", "--write", "notes"], ctx);
+    expect(out.join("\n")).toMatch(/write docs\/, notes\//);
+
+    out.length = 0;
+    await mcp.run(["token", "reader", "--read-only"], ctx);
+    expect(out.join("\n")).toMatch(/read-only/);
+
+    const byLabel = Object.fromEntries((await store.list()).map((t) => [t.label, t.writeScope]));
+    expect(byLabel.agent).toEqual(["docs", "notes"]);
+    expect(byLabel.reader).toEqual([]);
+  });
+
+  it("rejects combining --read-only with --write, and a missing --write dir", async () => {
+    const { ctx, err } = makeCtx(new MemoryTokenStore());
+    await mcp.run(["token", "x", "--read-only", "--write", "docs"], ctx);
+    expect(err[0]).toMatch(/can't be combined/);
+
+    err.length = 0;
+    await mcp.run(["token", "x", "--write"], ctx);
+    expect(err[0]).toMatch(/--write needs a directory/);
   });
 
   it("requires a label to mint", async () => {
@@ -105,6 +132,8 @@ describe("mcp", () => {
     await mcp.run(["tokens"], ctx);
     expect(out[0]).toMatch(/laptop/);
     expect(out[0]).toMatch(/never used/);
+    // The scope is shown on the following line.
+    expect(out.join("\n")).toMatch(/write inbox\//);
   });
 
   it("revokes a token, and errors on an unknown label", async () => {

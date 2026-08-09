@@ -60,11 +60,31 @@ function resolve(root: DirNode, parts: string[]): VNode | null {
   return node;
 }
 
-/** Write `content` at `<home>/inbox/…`, creating parent dirs as needed. Returns a
- * status string starting with "wrote " on success, or a refusal reason. */
-function writeFile(root: DirNode, homeParts: string[], parts: string[], content: string): string {
-  if (parts.length < 2 || parts[0] !== "inbox") {
-    return "write refused: only paths under inbox/ are writable";
+/** Is a home-relative path (dirs + filename) within the token's write scope?
+ * Scope entries are home-relative dir prefixes; `"."` means the whole home, `[]`
+ * means read-only. Mirrors src/mcp/tokens.ts (kept in sync by parity). */
+function writeAllowed(scope: string[], parts: string[]): boolean {
+  if (parts.length < 1) return false; // must name a file, not the dir itself
+  for (const s of scope) {
+    const pref = s === "." ? [] : s.split("/").filter((p) => p.length > 0);
+    if (parts.length <= pref.length) continue; // no filename beyond the scope dir
+    let ok = true;
+    for (let i = 0; i < pref.length; i++) {
+      if (parts[i] !== pref[i]) { ok = false; break; }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
+/** Write `content` at `<home>/<parts>`, if `parts` is within `scope`, creating
+ * parent dirs as needed. Returns a status starting with "wrote " on success, or
+ * a refusal reason. */
+function writeFile(root: DirNode, homeParts: string[], parts: string[], content: string, scope: string[]): string {
+  if (!writeAllowed(scope, parts)) {
+    if (scope.length === 0) return "write refused: this token is read-only";
+    const dirs = scope.map((s) => (s === "." ? "~/" : `${s}/`)).join(", ");
+    return `write refused: this token may only write under ${dirs}`;
   }
   const full = [...homeParts, ...parts];
   let dir: DirNode = root;
@@ -133,6 +153,7 @@ function randomId(prefix: string): string {
 interface Caller {
   userId: string;
   tokenId: string;
+  writeScope: string[];
 }
 
 /** Resolve the Authorization bearer token to a user, or null if unknown. */
@@ -141,9 +162,10 @@ async function authenticate(db: SupabaseClient, req: Request): Promise<Caller | 
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) return null;
   const hash = await sha256hex(match[1].trim());
-  const { data } = await db.from("mcp_tokens").select("id, user_id").eq("token_hash", hash).maybeSingle();
+  const { data } = await db.from("mcp_tokens").select("id, user_id, write_scope").eq("token_hash", hash).maybeSingle();
   if (!data) return null;
-  return { userId: data.user_id, tokenId: data.id };
+  // Rows minted before write_scope existed read back null → the safe default.
+  return { userId: data.user_id, tokenId: data.id, writeScope: (data.write_scope as string[] | null) ?? ["inbox"] };
 }
 
 // ── Filesystem row access (service role, scoped to the caller) ───────────────
@@ -218,17 +240,38 @@ const TOOLS = [
   },
   {
     name: "pia_write",
-    description: "Create or overwrite a file under the home inbox/ (i.e. ~/inbox/). Writing anywhere else is refused.",
+    description: "Create or overwrite a file in the user's PIA home, within this token's write scope (~/inbox/ by default).",
     inputSchema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "File path under inbox/, relative to home, e.g. 'inbox/idea.md'." },
+        path: { type: "string", description: "File path relative to home, e.g. 'inbox/idea.md'." },
         content: { type: "string", description: "The file's full new text content." },
       },
       required: ["path", "content"],
     },
   },
 ];
+
+/** A human phrase for a token's write scope — parity with describeWriteScope in
+ * src/mcp/tokens.ts, phrased for the tool description an agent reads. */
+function describeScope(scope: string[]): string {
+  if (scope.length === 0) return "This token is read-only; writes are refused.";
+  const dirs = scope.map((s) => (s === "." ? "anywhere in home (~/)" : `~/${s}/`)).join(", ");
+  return `Writes are limited to ${dirs}; writing elsewhere is refused.`;
+}
+
+/** The tool list a given token sees: read tools always, plus pia_write (with a
+ * scope-accurate description) only when the token may write at all. */
+function toolsFor(scope: string[]) {
+  const list: typeof TOOLS = [TOOLS[0], TOOLS[1]];
+  if (scope.length > 0) {
+    list.push({
+      ...TOOLS[2],
+      description: `Create or overwrite a file in the user's PIA home. ${describeScope(scope)}`,
+    });
+  }
+  return list;
+}
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 const text = (s: string, isError = false): ToolResult => ({ content: [{ type: "text", text: s }], isError });
@@ -238,6 +281,7 @@ async function callTool(
   userId: string,
   name: string,
   args: Record<string, unknown>,
+  writeScope: string[],
 ): Promise<ToolResult> {
   const home = await homeSegments(db, userId);
   if (!home) return text("could not resolve your account - please try again", true);
@@ -272,7 +316,7 @@ async function callTool(
     if (!parts) return text("write refused: invalid path", true);
     for (let attempt = 0; attempt < 2; attempt++) {
       const { tree, version } = await loadTree(db, userId);
-      const status = writeFile(tree, home, parts, content);
+      const status = writeFile(tree, home, parts, content, writeScope);
       if (!status.startsWith("wrote")) return text(status, true);
       if (await saveTree(db, userId, tree, version)) return text(status);
     }
@@ -502,12 +546,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
   if (method === "ping") return rpcResult(id, {});
-  if (method === "tools/list") return rpcResult(id, { tools: TOOLS });
+  if (method === "tools/list") return rpcResult(id, { tools: toolsFor(caller.writeScope) });
   if (method === "tools/call") {
     const name = params?.name as string;
     const args = (params?.arguments as Record<string, unknown>) ?? {};
     try {
-      return rpcResult(id, await callTool(db, caller.userId, name, args));
+      return rpcResult(id, await callTool(db, caller.userId, name, args, caller.writeScope));
     } catch (e) {
       return rpcResult(id, text(`error: ${(e as Error).message}`, true));
     }

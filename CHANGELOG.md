@@ -12,6 +12,13 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **Per-token write scopes for the `mcp` connector.** A token still reads your
+  whole home, but you now choose what it may *write*: `mcp token <label>` defaults
+  to `inbox/` (safe by default), `--write <dir>` widens it (repeatable; `--write .`
+  is the whole home), and `--read-only` forbids writes entirely. `mcp tokens`
+  shows each token's scope, and the connector advertises a read-only token without
+  the write tool at all. Run `supabase/mcp.sql` (adds `mcp_tokens.write_scope`)
+  and redeploy the function.
 - **`mcp` connector speaks OAuth 2.1**, so OAuth-only AI clients (Claude's custom
   connector UI, which can't take a pasted bearer token) can connect. The `mcp`
   Edge Function now also serves discovery, dynamic client registration,
