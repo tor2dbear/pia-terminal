@@ -282,7 +282,7 @@ async function callTool(
 // ── JSON-RPC dispatch ────────────────────────────────────────────────────────
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Headers": "authorization, content-type, mcp-protocol-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const PROTOCOL_VERSION = "2024-11-05";
