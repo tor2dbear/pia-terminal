@@ -82,13 +82,15 @@ describe("publish command", () => {
   });
 });
 
-function mountWeb(): { root: HTMLElement; vfs: VFS; pages: MemoryPublicPagesStore } {
+function mountWeb(loggedIn = true): { root: HTMLElement; vfs: VFS; pages: MemoryPublicPagesStore } {
   const vfs = VFS.seed();
   vfs.mkdirp("/home/tor/public_html");
   vfs.writeFile("/home/tor/public_html/index.md", "# My site\n\nHello **world**.");
   vfs.writeFile("/home/tor/public_html/solresor.md", "# Solresor\n\nNotes.");
   vfs.writeFile("/home/tor/public_html/draft.txt", "not markdown");
   const pages = new MemoryPublicPagesStore();
+  const auth = new MemoryAuthAdapter();
+  if (loggedIn) void auth.login("tor"); // represent a signed-in cloud user
   const root = document.createElement("div");
   document.body.append(root);
   term = new Terminal(root, {
@@ -97,7 +99,7 @@ function mountWeb(): { root: HTMLElement; vfs: VFS; pages: MemoryPublicPagesStor
     registry: buildRegistry(),
     session: { user: "tor" },
     extendContext: piaExtendContext(
-      new MemoryAuthAdapter(),
+      auth,
       undefined,
       "https://pia.example/",
       undefined,
@@ -146,6 +148,38 @@ describe("publish ~/public_html (web)", () => {
     vfs.remove("/home/tor/public_html/solresor.md");
     await run(root, "publish");
     expect(lines(root).join("\n")).toContain("no .md pages");
+  });
+
+  it("tells a signed-out user to log in — even with a folder present (not just 'make a folder')", async () => {
+    const { root } = mountWeb(false); // cloud wired but nobody logged in
+    await run(root, "publish");
+    const text = lines(root).join("\n");
+    expect(text).toContain("needs an account");
+    expect(text).not.toContain("no ~/public_html");
+  });
+
+  it("unpublishes an existing site when the folder is emptied (mirror)", async () => {
+    const { root, vfs, pages } = mountWeb();
+    await run(root, "publish");
+    expect((await pages.list("tor")).length).toBe(2);
+    // Empty the folder and republish → the live set is cleared.
+    vfs.remove("/home/tor/public_html/index.md");
+    vfs.remove("/home/tor/public_html/solresor.md");
+    await run(root, "publish");
+    expect(await pages.list("tor")).toEqual([]);
+    expect(lines(root).join("\n")).toContain("unpublished");
+  });
+
+  it("normalises filename case to a routable path (Index.MD → index.md)", async () => {
+    const { root, vfs, pages } = mountWeb();
+    vfs.remove("/home/tor/public_html/index.md");
+    vfs.remove("/home/tor/public_html/solresor.md");
+    vfs.writeFile("/home/tor/public_html/Index.MD", "# Home");
+    vfs.writeFile("/home/tor/public_html/Post.MD", "# Post");
+    await run(root, "publish");
+    const paths = (await pages.list("tor")).map((p) => p.path).sort();
+    // Extension lowercased; index normalised so the bare /~handle/ resolves.
+    expect(paths).toEqual(["Post.md", "index.md"]);
   });
 });
 

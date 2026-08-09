@@ -78,35 +78,22 @@ create policy "handles - public read"
   on public.handles for select
   using (true);
 
--- Published pages: anyone may READ (that's the point — the world sees them);
--- only the owner may write. The owner must also own the handle they publish
--- under, so you can't scribble pages into someone else's namespace.
+-- Published pages: anyone may READ (that's the point — the world sees them).
+-- There is deliberately NO direct insert/update/delete policy: all writes go
+-- through publish_pages() below. Direct writes were unsafe — the update path
+-- could not re-check handle ownership, so a user could PATCH a row's `handle`
+-- to a victim's namespace; routing writes through one SECURITY DEFINER function
+-- lets us check ownership once and keep the replace-all atomic.
 drop policy if exists "public_pages - public read" on public.public_pages;
 create policy "public_pages - public read"
   on public.public_pages for select
   using (true);
 
+-- Retire the old direct-write policies if a prior version of this migration
+-- created them (they're superseded by publish_pages()).
 drop policy if exists "public_pages - owner insert" on public.public_pages;
-create policy "public_pages - owner insert"
-  on public.public_pages for insert
-  with check (
-    owner = auth.uid()
-    and exists (
-      select 1 from public.handles h
-      where h.handle = public_pages.handle and h.user_id = auth.uid()
-    )
-  );
-
 drop policy if exists "public_pages - owner update" on public.public_pages;
-create policy "public_pages - owner update"
-  on public.public_pages for update
-  using (owner = auth.uid())
-  with check (owner = auth.uid());
-
 drop policy if exists "public_pages - owner delete" on public.public_pages;
-create policy "public_pages - owner delete"
-  on public.public_pages for delete
-  using (owner = auth.uid());
 
 -- ---- claim RPC (the only write path for handles) ---------------------------
 -- Atomic lazy claim. Enforces, server-side: the caller is logged in; the name
@@ -160,6 +147,52 @@ exception
 end;
 $$;
 
+-- ---- publish RPC (the only write path for pages) ---------------------------
+-- Replace-all publish, atomic and ownership-checked. The caller must own
+-- p_handle; the given pages are upserted (created_at preserved on conflict) and
+-- any page no longer present is deleted — all in one transaction, so concurrent
+-- publishes from two tabs can't interleave into a half-empty site. Returns the
+-- number of pages now live. p_pages is a JSON array of {path, content, html}.
+create or replace function public.publish_pages(p_handle text, p_pages jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid   uuid := auth.uid();
+  v_count integer;
+begin
+  if v_uid is null then
+    raise exception 'not logged in';
+  end if;
+  if not exists (
+    select 1 from public.handles where handle = p_handle and user_id = v_uid
+  ) then
+    raise exception 'not your handle: ~%', p_handle;
+  end if;
+
+  -- Upsert the given pages; keep created_at on an existing row.
+  insert into public.public_pages (owner, handle, path, content, html)
+  select v_uid, p_handle, e->>'path', e->>'content', e->>'html'
+  from jsonb_array_elements(coalesce(p_pages, '[]'::jsonb)) as e
+  on conflict (handle, path) do update
+    set content = excluded.content, html = excluded.html;
+
+  -- Delete pages no longer present (an empty p_pages clears the site).
+  delete from public.public_pages pp
+  where pp.handle = p_handle
+    and pp.path not in (
+      select e->>'path' from jsonb_array_elements(coalesce(p_pages, '[]'::jsonb)) as e
+    );
+
+  select count(*) into v_count from public.public_pages where handle = p_handle;
+  return v_count;
+end;
+$$;
+
 -- ---- grants ----------------------------------------------------------------
-grant execute on function public.claim_handle(text) to authenticated;
-revoke execute on function public.claim_handle(text) from public, anon;
+grant execute on function public.claim_handle(text)          to authenticated;
+grant execute on function public.publish_pages(text, jsonb)  to authenticated;
+revoke execute on function public.claim_handle(text)         from public, anon;
+revoke execute on function public.publish_pages(text, jsonb) from public, anon;

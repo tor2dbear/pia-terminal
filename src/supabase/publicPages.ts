@@ -19,30 +19,14 @@ interface PageRow {
   updated_at: string;
 }
 
-/** The row we write (owner + handle + payload; timestamps are DB-managed). */
-interface WriteRow {
-  owner: string;
-  handle: string;
-  path: string;
-  content: string;
-  html: string;
-}
-
 /**
- * The slice of the Supabase client the projection touches: an upsert, a
- * scoped delete, and a select on `public_pages`. Cast to at construction.
+ * The slice of the Supabase client the projection touches: the `publish_pages`
+ * RPC (the only write path) and a select on `public_pages` for reads. Cast to at
+ * construction.
  */
 interface PagesClient {
-  auth: {
-    getSession(): Promise<{ data: { session: { user: { id: string } } | null } }>;
-  };
+  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<Result<unknown>>;
   from(table: string): {
-    upsert(rows: WriteRow[], opts: { onConflict: string }): PromiseLike<Result<unknown>>;
-    delete(): {
-      eq(column: string, value: string): {
-        in(column: string, values: string[]): PromiseLike<Result<unknown>>;
-      };
-    };
     select(columns: string): {
       eq(column: string, value: string): PromiseLike<Result<PageRow[] | null>>;
     };
@@ -52,11 +36,14 @@ interface PagesClient {
 const TABLE = "public_pages";
 
 /**
- * Cloud-backed published-pages projection. Publishing is replace-all: upsert the
- * pages present (an upsert that omits `created_at`, so the DB keeps the original
- * on a republish) and delete the paths no longer there. RLS makes the rows
- * anon-readable (the Pages Function serves them) and owner-writable — the owner
- * must also own the handle, enforced by the insert policy (see the SQL).
+ * Cloud-backed published-pages projection. Publishing goes through the
+ * `publish_pages` SECURITY DEFINER RPC, which does the whole replace-all in one
+ * transaction — verifies the caller owns the handle, upserts the given pages
+ * (preserving `created_at`), and deletes the ones no longer present. Doing it
+ * server-side keeps it atomic (concurrent publishes can't interleave into a
+ * half-empty site) and closes the direct-write hole where an UPDATE couldn't
+ * re-check handle ownership (see `supabase/public_pages.sql`). Reads are a plain
+ * anon-readable select — that's what the Pages Function serves.
  */
 export class SupabasePublicPagesStore implements PublicPagesStore {
   private readonly db: PagesClient;
@@ -69,39 +56,13 @@ export class SupabasePublicPagesStore implements PublicPagesStore {
     return true;
   }
 
-  private async uid(): Promise<string | null> {
-    const { data } = await this.db.auth.getSession();
-    return data.session?.user?.id ?? null;
-  }
-
   async publish(handle: string, pages: PublicPageInput[]): Promise<number> {
-    const uid = await this.uid();
-    if (!uid) throw new Error("publishing needs an account — run `login` first");
-
-    if (pages.length > 0) {
-      const rows: WriteRow[] = pages.map((p) => ({
-        owner: uid,
-        handle,
-        path: p.path,
-        content: p.content,
-        html: p.html,
-      }));
-      const { error } = await this.db.from(TABLE).upsert(rows, { onConflict: "handle,path" });
-      if (error) throw new Error(error.message);
-    }
-
-    // Remove the pages that are no longer part of the folder. Delete only the
-    // truly-absent paths (by exact list, so the SDK escapes them) rather than a
-    // hand-built `not in` filter — publishing an empty folder still clears all.
-    const live = await this.list(handle);
-    const keep = new Set(pages.map((p) => p.path));
-    const removed = live.filter((p) => !keep.has(p.path)).map((p) => p.path);
-    if (removed.length > 0) {
-      const { error } = await this.db.from(TABLE).delete().eq("handle", handle).in("path", removed);
-      if (error) throw new Error(error.message);
-    }
-
-    return pages.length;
+    const { data, error } = await this.db.rpc("publish_pages", {
+      p_handle: handle,
+      p_pages: pages.map((p) => ({ path: p.path, content: p.content, html: p.html })),
+    });
+    if (error) throw new Error(error.message);
+    return Number(data ?? pages.length);
   }
 
   async list(handle: string): Promise<PublicPage[]> {

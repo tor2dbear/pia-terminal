@@ -31,6 +31,15 @@ describe("renderMarkdownHtml — blocks", () => {
     const html = renderMarkdownHtml("```\n**not bold** <tag>\n```");
     expect(html).toBe("<pre><code>**not bold** &lt;tag&gt;</code></pre>");
   });
+
+  it("handles an indented heading without spinning (regression: infinite loop)", () => {
+    // A heading with leading whitespace used to start no block and consume no
+    // line, freezing the renderer. It must terminate and render as a heading.
+    expect(renderMarkdownHtml("  # Title")).toBe("<h1>Title</h1>");
+    expect(renderMarkdownHtml("intro\n\n   ## Sub\nbody")).toBe(
+      "<p>intro</p>\n<h2>Sub</h2>\n<p>body</p>",
+    );
+  });
 });
 
 describe("renderMarkdownHtml — inline", () => {
@@ -66,6 +75,12 @@ describe("renderMarkdownHtml — safety", () => {
     );
     expect(renderMarkdownHtml("[x](/about)")).toBe('<p><a href="/about">x</a></p>');
     expect(renderMarkdownHtml("[x](javascript:alert)")).toBe('<p><a href="#">x</a></p>');
+  });
+
+  it("escapes an ampersand in a link target exactly once (regression: &amp;amp;)", () => {
+    expect(renderMarkdownHtml("[x](https://e.test/?a=1&b=2)")).toBe(
+      '<p><a href="https://e.test/?a=1&amp;b=2">x</a></p>',
+    );
     expect(renderMarkdownHtml("[x](data:text/html,hi)")).toBe('<p><a href="#">x</a></p>');
   });
 });

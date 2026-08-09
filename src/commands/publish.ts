@@ -67,6 +67,18 @@ export function folderLink(
  *  (mod_userdir) idiom. Files here are served at `<origin>/~<handle>/…`. */
 const PUBLIC_HTML = "~/public_html";
 
+/**
+ * The stored path for a published file, in step with how the Pages Function
+ * reconstructs it from a URL (`<slug>.md`, empty slug → `index.md`). The route
+ * hardcodes a lowercase `.md`, so the extension is lowercased here too; `index`
+ * is normalised so `Index.md` still answers the bare `/~handle/`. The base name's
+ * case is otherwise preserved — the URL slug carries it verbatim.
+ */
+function routablePath(name: string): string {
+  const base = name.replace(/\.md$/i, "");
+  return (base.toLowerCase() === "index" ? "index" : base) + ".md";
+}
+
 /** Collect the top-level `.md` files of `~/public_html` as pages to publish,
  *  `index.md` first (the home page) then the rest alphabetically. Only Markdown
  *  for now — the web view renders prose; other file types come later. */
@@ -79,7 +91,7 @@ function collectWebPages(ctx: CommandContext, dirAbs: string): PublicPageInput[]
     .map((e) => {
       const node = ctx.vfs.getNode(ctx.vfs.resolve(dirAbs, e.name));
       const content = node && isFile(node) ? node.content : "";
-      return { path: e.name, content, html: renderMarkdownHtml(content) };
+      return { path: routablePath(e.name), content, html: renderMarkdownHtml(content) };
     });
 }
 
@@ -105,8 +117,19 @@ async function ensureHandle(ctx: CommandContext): Promise<string> {
       await store.claim(candidate);
       ctx.print(`claimed ~${candidate} as your public handle`, "dim");
       return candidate;
-    } catch {
-      /* raced to the same name — try the next candidate */
+    } catch (e) {
+      // A concurrent publish (another tab/device) may have claimed a handle for
+      // this account meanwhile — reuse it rather than churning through numbered
+      // fallbacks that would all fail with "you already publish as ~…".
+      const now = await store.mine();
+      if (now) return now;
+      // Not a race for this *name* — a fatal condition (e.g. not logged in).
+      // Surface it instead of retrying 30 unauthenticated calls.
+      const message = e instanceof Error ? e.message : "";
+      if (/not logged in|log in/i.test(message)) {
+        throw new Error("publishing to the web needs an account — run `login` first");
+      }
+      // Otherwise the name was taken by someone else — try the next candidate.
     }
   }
   throw new Error("could not find a free handle — pick one and claim it manually");
@@ -115,7 +138,12 @@ async function ensureHandle(ctx: CommandContext): Promise<string> {
 /** Publish `~/public_html` to the web: render its Markdown to HTML and push it
  *  to the public projection, then print the tilde-URL. */
 async function publishToWeb(ctx: CommandContext, dirAbs: string): Promise<void> {
-  if (!ctx.publicPages?.available() || !ctx.handles?.available()) {
+  // Publishing to the web needs a logged-in cloud account. `available()` only
+  // says the cloud is wired (it's true for a guest in a cloud build too), so
+  // check the session itself — and check it *first*, before the folder, so a
+  // guest gets the login hint rather than "make a folder".
+  const loggedIn = ctx.handles?.available() && ctx.publicPages?.available() && (await ctx.auth.current());
+  if (!loggedIn) {
     return ctx.error(
       "publish: publishing to the web needs an account — run `login` first\n" +
         "(any other folder still makes a portable link: `publish <folder>`)",
@@ -128,7 +156,32 @@ async function publishToWeb(ctx: CommandContext, dirAbs: string): Promise<void> 
   }
 
   const pages = collectWebPages(ctx, dirAbs);
+
+  // Nothing to publish. If there's already a live site, an empty folder means
+  // "take it all down" (the mirror promise) — clear it. Otherwise there's just
+  // nothing to do, and claiming a handle for an empty site would be pointless.
   if (pages.length === 0) {
+    const existing = await ctx.handles!.mine();
+    if (existing) {
+      let live;
+      try {
+        live = await ctx.publicPages!.list(existing);
+      } catch (e) {
+        return ctx.error(`publish: ${e instanceof Error ? e.message : "publish failed"}`);
+      }
+      if (live.length > 0) {
+        try {
+          await ctx.publicPages!.publish(existing, []);
+        } catch (e) {
+          return ctx.error(`publish: ${e instanceof Error ? e.message : "publish failed"}`);
+        }
+        ctx.print(
+          `unpublished ${live.length} page${live.length === 1 ? "" : "s"} — ~${existing} is now empty`,
+          "dim",
+        );
+        return;
+      }
+    }
     return ctx.error("publish: ~/public_html has no .md pages to publish");
   }
 
@@ -141,7 +194,7 @@ async function publishToWeb(ctx: CommandContext, dirAbs: string): Promise<void> 
 
   let count: number;
   try {
-    count = await ctx.publicPages.publish(handle, pages);
+    count = await ctx.publicPages!.publish(handle, pages);
   } catch (e) {
     return ctx.error(`publish: ${e instanceof Error ? e.message : "publish failed"}`);
   }

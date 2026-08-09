@@ -47,9 +47,11 @@ function renderInline(src: string): string {
 
   text = escapeHtml(text);
 
-  // [label](url) — label is already escaped; sanitise the href.
+  // [label](url) — both label and url were already escaped once by the
+  // escapeHtml(text) pass above, so only sanitise the target here (escaping it
+  // again would turn a real `&amp;` into `&amp;amp;`).
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label: string, url: string) => {
-    return `<a href="${escapeHtml(safeHref(url))}">${label}</a>`;
+    return `<a href="${safeHref(url)}">${label}</a>`;
   });
 
   // **bold** / *italic* (bold first so it isn't eaten by the italic rule).
@@ -109,8 +111,11 @@ export function renderMarkdownHtml(src: string): string {
       continue;
     }
 
-    // Heading.
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    // Heading. Tolerate leading whitespace so the handler matches exactly what
+    // the paragraph block-starter predicate below treats as a heading — if the
+    // two disagreed, an indented `  # x` would start no block and consume no
+    // line, spinning the loop forever.
+    const heading = /^\s*(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
       const level = heading[1].length;
       out.push(`<h${level}>${renderInline(heading[2].trim())}</h${level}>`);
@@ -151,8 +156,12 @@ export function renderMarkdownHtml(src: string): string {
       continue;
     }
 
-    // Paragraph — gather until a blank line or a block starter.
-    const para: string[] = [];
+    // Paragraph — always consume the current line, then gather until a blank
+    // line or a block starter. Taking the first line unconditionally guarantees
+    // the loop advances even if some block starter has no matching handler, so
+    // the renderer can never spin.
+    const para: string[] = [lines[i]];
+    i++;
     while (
       i < lines.length &&
       !/^\s*$/.test(lines[i]) &&
@@ -172,7 +181,7 @@ export function renderMarkdownHtml(src: string): string {
  *  without extension. Used by the Pages Function for `<title>` and the index. */
 export function pageTitle(src: string, filename: string): string {
   for (const line of src.split("\n")) {
-    const h = /^#\s+(.*)$/.exec(line);
+    const h = /^\s*#\s+(.*)$/.exec(line);
     if (h) return h[1].trim();
   }
   return filename.replace(/\.[^.]+$/, "");
