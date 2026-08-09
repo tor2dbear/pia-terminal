@@ -18,6 +18,8 @@ import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
 import { commandPackage, registerInstalled, seedDefaultPackages } from "./packages/catalog.js";
 import { NullShareStore } from "./share/store.js";
+import { NullHandleStore } from "./share/handleStore.js";
+import { NullPublicPagesStore } from "./share/publicPages.js";
 import { NullReminderStore, pushSupported, ensureServiceWorker } from "./pia/reminders.js";
 import { NullTokenStore } from "./mcp/tokens.js";
 import { materializeShared } from "./share/materialize.js";
@@ -25,6 +27,8 @@ import { loadAnalytics } from "./analytics.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import type { AuthAdapter } from "./auth/adapter.js";
 import type { ShareStore } from "./share/store.js";
+import type { HandleStore } from "./share/handleStore.js";
+import type { PublicPagesStore } from "./share/publicPages.js";
 import type { ReminderStore } from "./pia/reminders.js";
 import type { TokenStore } from "./mcp/tokens.js";
 
@@ -38,6 +42,8 @@ async function makeAdapters(): Promise<{
   adapter: StorageAdapter;
   auth: AuthAdapter;
   share: ShareStore;
+  handles: HandleStore;
+  publicPages: PublicPagesStore;
   reminders: ReminderStore;
   tokens: TokenStore;
 }> {
@@ -46,6 +52,8 @@ async function makeAdapters(): Promise<{
       adapter: new LocalStorageAdapter(),
       auth: new FakeAuthAdapter(),
       share: new NullShareStore(),
+      handles: new NullHandleStore(),
+      publicPages: new NullPublicPagesStore(),
       reminders: new NullReminderStore(),
       tokens: new NullTokenStore(),
     };
@@ -56,6 +64,8 @@ async function makeAdapters(): Promise<{
     { SupabaseStorageAdapter },
     { HybridStorageAdapter },
     { SupabaseShareStore },
+    { SupabaseHandleStore },
+    { SupabasePublicPagesStore },
     { SupabaseReminderStore },
     { SupabaseTokenStore },
   ] = await Promise.all([
@@ -64,6 +74,8 @@ async function makeAdapters(): Promise<{
     import("./supabase/storage.js"),
     import("./supabase/hybrid.js"),
     import("./supabase/share.js"),
+    import("./supabase/handles.js"),
+    import("./supabase/publicPages.js"),
     import("./supabase/reminders.js"),
     import("./supabase/tokens.js"),
   ]);
@@ -76,6 +88,8 @@ async function makeAdapters(): Promise<{
       client,
     ),
     share: new SupabaseShareStore(client),
+    handles: new SupabaseHandleStore(client),
+    publicPages: new SupabasePublicPagesStore(client),
     reminders: new SupabaseReminderStore(client),
     tokens: new SupabaseTokenStore(client, cloudConfig.url),
   };
@@ -121,7 +135,8 @@ async function main(): Promise<void> {
   }
 
   migrateLegacyKeys();
-  const { adapter, auth, share, reminders, tokens } = await makeAdapters();
+  const { adapter, auth, share, handles, publicPages, reminders, tokens } =
+    await makeAdapters();
 
   // Register the service worker so PIA is installable (a PWA) and can receive
   // push. Best-effort and non-blocking — it never gates boot.
@@ -288,7 +303,16 @@ async function main(): Promise<void> {
       // PIA's half of the command context — the auth backend, share store, app
       // URL for share links, and the window multiplexer (for `tmux`). The engine
       // supplies the core (fs, io, config, file bridges); this adds PIA's fields.
-      extendContext: piaExtendContext(auth, share, undefined, reminders, tabs, tokens),
+      extendContext: piaExtendContext(
+        auth,
+        share,
+        undefined,
+        reminders,
+        tabs,
+        tokens,
+        handles,
+        publicPages,
+      ),
       // login/logout/usermod mutate the shared session + VFS; re-home the other
       // windows so their cwd/config follow the account too.
       onAccountChange: () => {
