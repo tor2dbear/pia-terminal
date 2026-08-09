@@ -12,6 +12,13 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **The MCP connector introduces PIA to the AI.** `initialize` now returns an
+  `instructions` brief (a hint clients add to the model's system prompt) that
+  weaves PIA's persona with a practical guide: the filesystem layout, the token's
+  *live* write scope, and the exact `mcp scope <name> --full` / `--write` /
+  `--read-only` commands the owner runs to change what the connector may do — so
+  the connected AI can answer "how do I give you full access?" with the real
+  token name. Edge Function only; redeploy to apply.
 - **`mcp scope <label>` — change a token's write scope in place.** Widen or lock
   down an existing connector without re-minting: `mcp scope claude --full`,
   `--write docs`, or `--read-only` (same flags as `mcp token`). The secret is

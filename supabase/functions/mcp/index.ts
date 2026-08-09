@@ -170,6 +170,7 @@ interface Caller {
   userId: string;
   tokenId: string;
   writeScope: string[];
+  label: string;
 }
 
 /** Resolve the Authorization bearer token to a user, or null if unknown. */
@@ -178,10 +179,15 @@ async function authenticate(db: SupabaseClient, req: Request): Promise<Caller | 
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) return null;
   const hash = await sha256hex(match[1].trim());
-  const { data } = await db.from("mcp_tokens").select("id, user_id, write_scope").eq("token_hash", hash).maybeSingle();
+  const { data } = await db.from("mcp_tokens").select("id, user_id, write_scope, label").eq("token_hash", hash).maybeSingle();
   if (!data) return null;
   // Rows minted before write_scope existed read back null → the safe default.
-  return { userId: data.user_id, tokenId: data.id, writeScope: (data.write_scope as string[] | null) ?? ["inbox"] };
+  return {
+    userId: data.user_id,
+    tokenId: data.id,
+    writeScope: (data.write_scope as string[] | null) ?? ["inbox"],
+    label: (data.label as string | null) ?? "",
+  };
 }
 
 // ── Filesystem row access (service role, scoped to the caller) ───────────────
@@ -287,6 +293,39 @@ function toolsFor(scope: string[]) {
     });
   }
   return list;
+}
+
+/** One line stating what this token may write right now — woven into the
+ * server instructions so the connected model knows its current permissions. */
+function scopeSentence(scope: string[]): string {
+  if (scope.length === 0) return "Right now this token is read-only — pia_write is disabled.";
+  if (scope.includes(".")) return "Right now this token may write anywhere in the home.";
+  return `Right now this token may write only under ${scope.map((s) => `~/${s}/`).join(", ")}.`;
+}
+
+/** The MCP `initialize` `instructions` string — a hint the client may add to the
+ * model's system prompt. Weaves PIA's persona with a practical brief: the
+ * filesystem, this token's live scope, and the exact `mcp` commands the owner
+ * uses to change what the connector may do (so the model can answer "how do I
+ * give you full access?" with the real token name). Non-sensitive by design. */
+function buildInstructions(scope: string[], label: string): string {
+  const tok = label || "<name>";
+  return [
+    `You're connected to PIA — "Personal Integrated Applications", a little computer that lives in a web browser: a Unix-flavoured terminal with a real, persistent filesystem, owned by one person (this account). You're acting as them — act with care.`,
+    ``,
+    `The filesystem: paths are relative to their home (~). Places worth knowing — ~/inbox/ is the safe landing zone for new notes and ideas; ~/docs/ for documents; ~/todo/ and ~/shared/ for checklists; ~/.pia/ is config (leave it alone). You can read anywhere in the home.`,
+    ``,
+    `Tools: pia_list (browse a directory), pia_read (read a file), pia_write (create or overwrite a file within this token's write scope). ${scopeSentence(scope)}`,
+    ``,
+    `The owner runs this connector from the PIA terminal with the \`mcp\` command, so if they ask how to change what you can do, tell them exactly:`,
+    `  • give you full write access:  mcp scope ${tok} --full`,
+    `  • limit you to a folder:       mcp scope ${tok} --write docs`,
+    `  • make you read-only:          mcp scope ${tok} --read-only`,
+    `  • list / mint / revoke tokens: mcp tokens · mcp token <name> · mcp revoke <name>`,
+    `A scope change takes effect on your very next call — nothing to re-paste.`,
+    ``,
+    `Be a good guest: prefer writing under ~/inbox/, don't overwrite files you didn't create unless asked, and keep new files tidy (clear names, Markdown when it fits).`,
+  ].join("\n");
 }
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -560,6 +599,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "pia", version: "1.0.0" },
+      instructions: buildInstructions(caller.writeScope, caller.label),
     });
   }
   if (method === "ping") return rpcResult(id, {});

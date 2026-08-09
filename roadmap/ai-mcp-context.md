@@ -5,6 +5,16 @@ tags: [mcp, ai]
 updated: 2026-08-09
 ---
 
+## Levererat (v6 — server `instructions` / PIA presenterar sig)
+`initialize` returnerar nu ett `instructions`-fält (en hint klienten lägger i
+modellens system-prompt) som väver ihop PIA:s persona med en bruksanvisning:
+filsystemet, token:ns *live*-scope, och de exakta `mcp scope`-kommandona ägaren
+kör för att ändra rättigheter — så den uppkopplade AI:n kan svara "kör `mcp scope
+<namn> --full`" med rätt token-namn. Scope-meningen och token-labeln interpoleras
+per anslutning (auth finns redan vid `initialize`). Edge-only, ingen migration.
+Delvis leverans av `ai-host-persona`. Nästa nivå vore MCP-*resurser* (läsbar
+hjälp/changelog on demand).
+
 ## Levererat (v5 — `mcp scope`)
 Ändra en befintlig tokens skrivscope in place: `mcp scope <label> --full` /
 `--write <dir>` / `--read-only` (samma flaggor som `token`). Samma hemlighet →
