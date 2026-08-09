@@ -39,6 +39,9 @@ export interface TokenStore {
   create(label: string, writeScope?: string[]): Promise<string>;
   /** The user's active tokens, newest first. */
   list(): Promise<TokenInfo[]>;
+  /** Change the write scope of the token named `label` in place (the secret is
+   * unchanged, so no reconnect); resolves to whether one matched. */
+  updateScope(label: string, writeScope: string[]): Promise<boolean>;
   /** Revoke the token named `label`; resolves to whether one was removed. */
   revoke(label: string): Promise<boolean>;
 }
@@ -117,6 +120,9 @@ export class NullTokenStore implements TokenStore {
   async list(): Promise<TokenInfo[]> {
     return [];
   }
+  async updateScope(): Promise<boolean> {
+    return false;
+  }
   async revoke(): Promise<boolean> {
     return false;
   }
@@ -161,6 +167,12 @@ export class MemoryTokenStore implements TokenStore {
       lastUsedAt,
       writeScope: [...writeScope],
     }));
+  }
+  async updateScope(label: string, writeScope: string[]): Promise<boolean> {
+    const row = this.rows.find((r) => r.label === label);
+    if (!row) return false;
+    row.writeScope = [...writeScope];
+    return true;
   }
   async revoke(label: string): Promise<boolean> {
     const before = this.rows.length;

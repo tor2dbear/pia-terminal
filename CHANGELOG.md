@@ -24,6 +24,28 @@ log and grouped into milestones.
   to enable the cloud side. This distinguishes three intents that used to blur:
   `~/public_html` (public to the world), `share <file> <email>` (one named
   person), and `share <file>` (anyone with the link).
+
+## [0.15.0] — 2026-08-09
+
+The MCP connector grows up. An external AI client (Claude's OAuth-only connector
+included) can read your files and write within a per-token scope, reached
+on-brand at `pia.tor2dbear.com/mcp` with PIA's own icon — and on connect the
+connector introduces PIA to the AI so it knows what it's talking to.
+
+### Added
+- **The MCP connector introduces PIA to the AI.** `initialize` now returns an
+  `instructions` brief (a hint clients add to the model's system prompt) that
+  weaves PIA's persona with a practical guide: the filesystem layout, the token's
+  *live* write scope, and the exact `mcp scope <name> --full` / `--write` /
+  `--read-only` commands the owner runs to change what the connector may do — so
+  the connected AI can answer "how do I give you full access?" with the real
+  token name. Edge Function only; redeploy to apply.
+- **`mcp scope <label>` — change a token's write scope in place.** Widen or lock
+  down an existing connector without re-minting: `mcp scope claude --full`,
+  `--write docs`, or `--read-only` (same flags as `mcp token`). The secret is
+  unchanged, so there's nothing to re-paste; the Edge Function reads the scope
+  per request, so it takes effect on the connector's next call. It's the `chmod`
+  of a token.
 - **On-brand MCP connector URL (`pia.tor2dbear.com/mcp`).** The connector is now
   served from PIA's own origin via a small Cloudflare Pages Function that
   reverse-proxies `/mcp/*` to the Supabase Edge Function — so an AI client shows
@@ -316,7 +338,8 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.15.0
 [0.14.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.14.0
 [0.13.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.13.0
 [0.12.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.12.0

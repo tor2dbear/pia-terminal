@@ -35,14 +35,19 @@ alter table public.mcp_tokens enable row level security;
 -- Idempotent add for projects created before write_scope existed (rerunnable).
 alter table public.mcp_tokens add column if not exists write_scope text[] not null default '{inbox}';
 
--- The owner manages their own tokens from the browser (mint / list / revoke).
--- There is deliberately NO update policy: last_used_at is bumped only by the
--- Edge Function via the service role, never by the client. `drop … if exists`
--- first so the whole file re-runs cleanly (create policy is not idempotent).
+-- The owner manages their own tokens from the browser: mint / list / re-scope
+-- (`mcp scope`) / revoke. Every policy is owner-scoped both ways, so a client
+-- can only touch its own rows and can't reassign user_id. `last_used_at` is
+-- still bumped by the Edge Function via the service role (which bypasses RLS).
+-- `drop … if exists` first so the whole file re-runs cleanly (create policy is
+-- not idempotent).
 drop policy if exists "own tokens - select" on public.mcp_tokens;
 create policy "own tokens - select" on public.mcp_tokens for select using (auth.uid() = user_id);
 drop policy if exists "own tokens - insert" on public.mcp_tokens;
 create policy "own tokens - insert" on public.mcp_tokens for insert with check (auth.uid() = user_id);
+-- update: `mcp scope` changes write_scope in place (same secret, no reconnect).
+drop policy if exists "own tokens - update" on public.mcp_tokens;
+create policy "own tokens - update" on public.mcp_tokens for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 drop policy if exists "own tokens - delete" on public.mcp_tokens;
 create policy "own tokens - delete" on public.mcp_tokens for delete using (auth.uid() = user_id);
 

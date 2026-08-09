@@ -24,7 +24,7 @@ describe("meta commands", () => {
   it("changelog shows the latest release by default, not the whole history", async () => {
     const out = (await run("changelog")).join("\n");
     expect(out).toContain("Changelog"); // the header/intro
-    expect(out).toContain("0.14.0"); // the newest release
+    expect(out).toContain("0.15.0"); // the newest release
     expect(out).not.toContain("Foundations"); // 0.1.0 is trimmed away…
     expect(out).toContain("changelog --all"); // …with a pointer to the rest
   });

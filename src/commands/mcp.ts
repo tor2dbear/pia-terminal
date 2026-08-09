@@ -14,30 +14,90 @@ import { describeWriteScope, normalizeScopeDir, DEFAULT_WRITE_SCOPE } from "../m
  *     --write <dir>       widen writes to <dir> (repeatable; `.` = all of home)
  *     --full / --all      writes to the whole home (shorthand for `--write .`)
  *     --read-only         no writes at all
+ *   mcp scope <label>   change an existing token's write scope in place (same
+ *                       flags as `token`) — no new secret, so no reconnect
  *   mcp tokens          list your active tokens (with their scopes)
  *   mcp revoke <label>  revoke a token
  *
  * A token can always read the whole home; `--write`/`--read-only` choose what it
  * may write. Default (no flags) is write only under `inbox/` — safe by default,
- * so an agent can't overwrite `docs/` or `.pia/` unless you say so.
+ * so an agent can't overwrite `docs/` or `.pia/` unless you say so. `scope` is
+ * the `chmod` of a token: the Edge Function reads the scope per request, so a
+ * change takes effect on the connector's next call without re-pasting anything.
  *
  * `mcp` is the protocol's real name (a proper noun, like `ssh`/`git`), not a
  * friendly coinage. Minting a token is an API-key flow with no Unix equivalent —
  * an accepted web divergence, flagged like share→URL.
  */
 
-const SUB = ["url", "token", "tokens", "revoke"];
+const SUB = ["url", "token", "scope", "tokens", "revoke"];
 const TOKEN_FLAGS = ["--write", "--full", "--read-only"];
+
+/** Parse the free-form label words and scope flags shared by `token`/`scope`.
+ * Flags may be interspersed with the label: `my phone --write docs --full`. */
+function parseLabelAndScopeFlags(
+  rest: string[],
+): { label: string; readOnly: boolean; writeDirs: string[] } | { error: string } {
+  const isFlag = (s: string | undefined): boolean =>
+    s === "--read-only" || s === "-r" || s === "--full" || s === "--all" ||
+    s === "--write" || s === "-w";
+  let readOnly = false;
+  const writeDirs: string[] = [];
+  const words: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === "--read-only" || a === "-r") {
+      readOnly = true;
+    } else if (a === "--full" || a === "--all") {
+      // Whole home — shorthand for `--write .` (the `.` collapse below wins).
+      writeDirs.push(".");
+    } else if (a === "--write" || a === "-w") {
+      // Don't swallow a following flag (or nothing) as the directory —
+      // `--write --read-only` is a malformed invocation, not a dir named
+      // "--read-only", and consuming it would drop the flag silently.
+      const dir = rest[i + 1];
+      if (dir === undefined || isFlag(dir)) {
+        return { error: "--write needs a directory — e.g. --write docs" };
+      }
+      i++;
+      writeDirs.push(dir);
+    } else {
+      words.push(a);
+    }
+  }
+  return { label: words.join(" ").trim(), readOnly, writeDirs };
+}
+
+/** Resolve parsed flags to a concrete write scope (a list of home-relative dir
+ * prefixes), or an error. Rejects `--read-only` + `--write`, validates each dir,
+ * and collapses a whole-home `.` so it subsumes any named dirs. */
+function scopeFromFlags(
+  readOnly: boolean,
+  writeDirs: string[],
+): { scope: string[] } | { error: string } {
+  if (readOnly && writeDirs.length > 0) {
+    return { error: "--read-only can't be combined with --write" };
+  }
+  if (readOnly) return { scope: [] };
+  const scope: string[] = [];
+  for (const dir of writeDirs) {
+    const norm = normalizeScopeDir(dir);
+    if (norm === null) return { error: `bad --write path "${dir}" (no . or .. segments)` };
+    if (!scope.includes(norm)) scope.push(norm);
+  }
+  if (scope.includes(".")) return { scope: ["."] };
+  return { scope };
+}
 
 const mcp: Command<CommandContext> = {
   name: "mcp",
   help: "manage the MCP connector — mint tokens so an AI client can read/write your files (mcp [token|tokens|revoke|url])",
-  usage: "mcp [url | token <label> [--write <dir>] [--full] [--read-only] | tokens | revoke <label>]",
+  usage: "mcp [url | token <label> [--write <dir>] [--full] [--read-only] | scope <label> <flags> | tokens | revoke <label>]",
   complete(args) {
-    // First operand: offer the subcommands. After `token <label>` the remaining
+    // First operand: offer the subcommands. After `token`/`scope` the remaining
     // operands are a free-form label plus scope flags, so offer the flags.
     if (args.length === 0) return SUB;
-    if (args[0] === "token") return TOKEN_FLAGS;
+    if (args[0] === "token" || args[0] === "scope") return TOKEN_FLAGS;
     return [];
   },
   async run(args, ctx) {
@@ -87,67 +147,29 @@ const mcp: Command<CommandContext> = {
     }
 
     if (sub === "token") {
-      // Parse the label (free-form words) alongside scope flags, which may be
-      // interspersed: `mcp token my phone --write docs --write notes`.
-      const isFlag = (s: string | undefined): boolean =>
-        s === "--read-only" || s === "-r" || s === "--full" || s === "--all" ||
-        s === "--write" || s === "-w";
-      let readOnly = false;
-      const writeDirs: string[] = [];
-      const words: string[] = [];
-      for (let i = 0; i < rest.length; i++) {
-        const a = rest[i];
-        if (a === "--read-only" || a === "-r") {
-          readOnly = true;
-        } else if (a === "--full" || a === "--all") {
-          // Whole home — shorthand for `--write .` (the `.` collapse below wins).
-          writeDirs.push(".");
-        } else if (a === "--write" || a === "-w") {
-          // Don't swallow a following flag (or nothing) as the directory —
-          // `--write --read-only` is a malformed invocation, not a dir named
-          // "--read-only", and consuming it would drop the flag silently.
-          const dir = rest[i + 1];
-          if (dir === undefined || isFlag(dir)) {
-            ctx.error("mcp: --write needs a directory — e.g. mcp token <label> --write docs");
-            return;
-          }
-          i++;
-          writeDirs.push(dir);
-        } else {
-          words.push(a);
-        }
+      const parsed = parseLabelAndScopeFlags(rest);
+      if ("error" in parsed) {
+        ctx.error(`mcp: ${parsed.error}`);
+        return;
       }
-      const label = words.join(" ").trim();
+      const { label, readOnly, writeDirs } = parsed;
       if (!label) {
         ctx.error("mcp: name the token — mcp token <label>");
         return;
       }
-      if (readOnly && writeDirs.length > 0) {
-        ctx.error("mcp: --read-only can't be combined with --write");
+      // No scope flags → the safe default (write only under inbox/).
+      const resolved =
+        !readOnly && writeDirs.length === 0
+          ? { scope: [...DEFAULT_WRITE_SCOPE] }
+          : scopeFromFlags(readOnly, writeDirs);
+      if ("error" in resolved) {
+        ctx.error(`mcp: ${resolved.error}`);
         return;
-      }
-      let scope: string[];
-      if (readOnly) {
-        scope = [];
-      } else if (writeDirs.length > 0) {
-        scope = [];
-        for (const dir of writeDirs) {
-          const norm = normalizeScopeDir(dir);
-          if (norm === null) {
-            ctx.error(`mcp: bad --write path "${dir}" (no . or .. segments)`);
-            return;
-          }
-          if (!scope.includes(norm)) scope.push(norm);
-        }
-        // Whole-home write subsumes any named dirs — collapse to just that.
-        if (scope.includes(".")) scope = ["."];
-      } else {
-        scope = [...DEFAULT_WRITE_SCOPE];
       }
 
       let token: string;
       try {
-        token = await store.create(label, scope);
+        token = await store.create(label, resolved.scope);
       } catch (e) {
         ctx.error(`mcp: ${(e as Error).message}`);
         return;
@@ -156,8 +178,39 @@ const mcp: Command<CommandContext> = {
       ctx.print(`  ${token}`);
       ctx.print("");
       ctx.print(`  endpoint  ${url ?? "(unavailable)"}`, "dim");
-      ctx.print(`  scope     ${describeWriteScope(scope)}`, "dim");
+      ctx.print(`  scope     ${describeWriteScope(resolved.scope)}`, "dim");
       ctx.print("Add these to your AI client as a custom MCP connector.", "dim");
+      return;
+    }
+
+    if (sub === "scope") {
+      const parsed = parseLabelAndScopeFlags(rest);
+      if ("error" in parsed) {
+        ctx.error(`mcp: ${parsed.error}`);
+        return;
+      }
+      const { label, readOnly, writeDirs } = parsed;
+      if (!label) {
+        ctx.error("mcp: name the token — mcp scope <label> [--write <dir> | --full | --read-only]");
+        return;
+      }
+      // Unlike `token`, `scope` has nothing to change without an explicit flag.
+      if (!readOnly && writeDirs.length === 0) {
+        ctx.error("mcp: specify a scope — --full, --write <dir>, or --read-only");
+        return;
+      }
+      const resolved = scopeFromFlags(readOnly, writeDirs);
+      if ("error" in resolved) {
+        ctx.error(`mcp: ${resolved.error}`);
+        return;
+      }
+      const updated = await store.updateScope(label, resolved.scope);
+      if (!updated) {
+        ctx.error(`mcp: no token named "${label}"`);
+        return;
+      }
+      ctx.print(`token "${label}" scope updated — takes effect on the next call.`);
+      ctx.print(`  scope     ${describeWriteScope(resolved.scope)}`, "dim");
       return;
     }
 
@@ -187,7 +240,7 @@ const mcp: Command<CommandContext> = {
       return;
     }
 
-    ctx.error(`mcp: unknown subcommand "${sub}" — try mcp [token|tokens|revoke|url]`);
+    ctx.error(`mcp: unknown subcommand "${sub}" — try mcp [token|scope|tokens|revoke|url]`);
   },
 };
 

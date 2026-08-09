@@ -81,6 +81,14 @@ describe("MemoryTokenStore", () => {
     expect(byLabel.wide).toEqual(["docs", "notes"]);
     expect(byLabel.readonly).toEqual([]);
   });
+
+  it("updates an existing token's scope in place, reporting whether one matched", async () => {
+    const store = new MemoryTokenStore();
+    await store.create("claude"); // defaults to inbox
+    expect(await store.updateScope("claude", ["."])).toBe(true);
+    expect((await store.list())[0].writeScope).toEqual(["."]);
+    expect(await store.updateScope("ghost", ["docs"])).toBe(false);
+  });
 });
 
 describe("normalizeScopeDir", () => {

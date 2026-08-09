@@ -5,6 +5,23 @@ tags: [mcp, ai]
 updated: 2026-08-09
 ---
 
+## Levererat (v6 — server `instructions` / PIA presenterar sig)
+`initialize` returnerar nu ett `instructions`-fält (en hint klienten lägger i
+modellens system-prompt) som väver ihop PIA:s persona med en bruksanvisning:
+filsystemet, token:ns *live*-scope, och de exakta `mcp scope`-kommandona ägaren
+kör för att ändra rättigheter — så den uppkopplade AI:n kan svara "kör `mcp scope
+<namn> --full`" med rätt token-namn. Scope-meningen och token-labeln interpoleras
+per anslutning (auth finns redan vid `initialize`). Edge-only, ingen migration.
+Delvis leverans av `ai-host-persona`. Nästa nivå vore MCP-*resurser* (läsbar
+hjälp/changelog on demand).
+
+## Levererat (v5 — `mcp scope`)
+Ändra en befintlig tokens skrivscope in place: `mcp scope <label> --full` /
+`--write <dir>` / `--read-only` (samma flaggor som `token`). Samma hemlighet →
+ingen omkoppling; edge-funktionen läser `write_scope` per request så det slår
+igenom direkt. `token`/`scope` delar nu flagg-parsningen. Rent klient-lager
+(`updateScope` på TokenStore-seamen) — ingen edge-deploy eller migration.
+
 ## Levererat (v4 — on-brand URL + PIA-ikon)
 Connectorn nås nu på **PIA:s egen origin** (`pia.tor2dbear.com/mcp`) via en liten
 Cloudflare Pages Function (`functions/mcp`) som reverse-proxar `/mcp/*` till edge-
