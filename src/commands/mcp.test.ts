@@ -105,6 +105,14 @@ describe("mcp", () => {
     expect(byLabel.reader).toEqual([]);
   });
 
+  it("--full grants the whole home (shorthand for --write .)", async () => {
+    const store = new MemoryTokenStore();
+    const { ctx, out } = makeCtx(store);
+    await mcp.run(["token", "trusted", "--full"], ctx);
+    expect(out.join("\n")).toMatch(/all of home/);
+    expect((await store.list())[0].writeScope).toEqual(["."]);
+  });
+
   it("rejects combining --read-only with --write, and a missing --write dir", async () => {
     const { ctx, err } = makeCtx(new MemoryTokenStore());
     await mcp.run(["token", "x", "--read-only", "--write", "docs"], ctx);

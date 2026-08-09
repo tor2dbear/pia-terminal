@@ -12,6 +12,7 @@ import { describeWriteScope, normalizeScopeDir, DEFAULT_WRITE_SCOPE } from "../m
  *   mcp url             print just the connector URL (for scripting)
  *   mcp token <label>   mint a token named <label> (shown once)
  *     --write <dir>       widen writes to <dir> (repeatable; `.` = all of home)
+ *     --full / --all      writes to the whole home (shorthand for `--write .`)
  *     --read-only         no writes at all
  *   mcp tokens          list your active tokens (with their scopes)
  *   mcp revoke <label>  revoke a token
@@ -26,12 +27,12 @@ import { describeWriteScope, normalizeScopeDir, DEFAULT_WRITE_SCOPE } from "../m
  */
 
 const SUB = ["url", "token", "tokens", "revoke"];
-const TOKEN_FLAGS = ["--write", "--read-only"];
+const TOKEN_FLAGS = ["--write", "--full", "--read-only"];
 
 const mcp: Command<CommandContext> = {
   name: "mcp",
   help: "manage the MCP connector — mint tokens so an AI client can read/write your files (mcp [token|tokens|revoke|url])",
-  usage: "mcp [url | token <label> [--write <dir>] [--read-only] | tokens | revoke <label>]",
+  usage: "mcp [url | token <label> [--write <dir>] [--full] [--read-only] | tokens | revoke <label>]",
   complete(args) {
     // First operand: offer the subcommands. After `token <label>` the remaining
     // operands are a free-form label plus scope flags, so offer the flags.
@@ -95,6 +96,9 @@ const mcp: Command<CommandContext> = {
         const a = rest[i];
         if (a === "--read-only" || a === "-r") {
           readOnly = true;
+        } else if (a === "--full" || a === "--all") {
+          // Whole home — shorthand for `--write .` (the `.` collapse below wins).
+          writeDirs.push(".");
         } else if (a === "--write" || a === "-w") {
           const dir = rest[++i];
           if (dir === undefined) {
