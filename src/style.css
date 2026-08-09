@@ -1229,3 +1229,64 @@ body {
 .ms-cell.n6 { color: #5ad6d6; }
 .ms-cell.n7 { color: var(--fg); }
 .ms-cell.n8 { color: var(--dim); }
+
+/* ── MCP connect (OAuth authorize) page ──────────────────────────────────────
+   Rendered by the app itself (see src/mcp/connect.ts) as a full-page takeover
+   before the terminal boots. These rules must live in this bundled stylesheet,
+   not a runtime-injected <style> — the app's CSP is `style-src 'self'`, which
+   blocks inline styles, so an injected <style> would be silently dropped and
+   the page would fall back to a default password box + visible button. */
+.mcp-connect {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+  color: var(--fg);
+  line-height: 1.6;
+  font-size: 1rem;
+}
+.mcp-connect .prompt { color: var(--accent); margin: 0 0 1.25rem; }
+.mcp-connect .prompt b { color: var(--fg); font-weight: 600; }
+.mcp-connect code { color: var(--accent); }
+.mcp-connect .dim { color: var(--dim); }
+.mcp-connect .err { color: #ff7a7a; }
+/* A readline prompt — 'token: ' then the masked value typed inline, no box, no
+   button. Enter submits (an off-screen submit button is the mechanism). */
+/* A <label> so the whole line focuses the input; `cursor: text` reads as a field
+   on desktop, and on mobile a tap here is the gesture that summons the keyboard. */
+.mcp-connect .readline {
+  display: block;
+  margin-top: 1.5rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  cursor: text;
+}
+/* min-width gives the empty field a real, tappable area — otherwise it's only as
+   wide as the single block-cursor glyph, and the overlaid input inherits that. */
+.mcp-connect .field { position: relative; display: inline-block; min-width: 12rem; }
+.mcp-connect .mask { pointer-events: none; }
+.mcp-connect .cursor { color: var(--fg); animation: mcp-blink 1.1s steps(1) infinite; }
+.mcp-connect input.real {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font: inherit;
+}
+.mcp-connect input.real:focus { outline: none; }
+.mcp-connect .offscreen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+@keyframes mcp-blink { 50% { opacity: 0; } }

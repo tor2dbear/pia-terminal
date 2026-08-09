@@ -47,26 +47,14 @@ export function finishConnect(
   }
 }
 
-const STYLE = `
-.mcp-connect { max-width: 34rem; margin: 0 auto; padding: 2rem 1.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #c9d1d9; line-height: 1.55; }
-.mcp-connect .prompt { color: #7ee787; margin: 0 0 1.25rem; }
-.mcp-connect .prompt b { color: #c9d1d9; font-weight: 600; }
-.mcp-connect code { color: #79c0ff; }
-.mcp-connect .dim { color: #8b949e; font-size: .92rem; }
-.mcp-connect .err { color: #ff7b72; }
-.mcp-connect input[type=password] { width: 100%; box-sizing: border-box; background: #010409;
-  border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-family: inherit; font-size: 1rem;
-  padding: .65rem .75rem; margin: 1rem 0; }
-.mcp-connect input[type=password]:focus { outline: none; border-color: #2f81f7; }
-.mcp-connect button { background: #238636; color: #fff; border: 0; border-radius: 6px; font-family: inherit;
-  font-size: 1rem; padding: .6rem 1.4rem; cursor: pointer; }
-.mcp-connect button:hover { background: #2ea043; }
-`;
-
-/** Render the connect form into `root`, posting to the connector's `/authorize`.
- * Values from the query string are set as element properties (never innerHTML),
- * so a crafted `state`/`redirect_uri` can't inject markup. */
+/** Render the connect prompt into `root`, posting to the connector's `/authorize`.
+ * Modelled on a shell password read: `token:` then the value typed inline (masked
+ * dots + a blinking block cursor), Enter to submit — no boxed input, no button.
+ * Styling lives in the bundled `src/style.css` (`.mcp-connect …`), not a runtime
+ * `<style>`: the app's CSP is `style-src 'self'`, which would drop an injected
+ * inline stylesheet and leave a default password box + button.
+ * Query values are set as element properties (never innerHTML), so a crafted
+ * `state`/`redirect_uri` can't inject markup. */
 export function renderConnect(
   root: HTMLElement,
   authorizePostUrl: string,
@@ -74,10 +62,6 @@ export function renderConnect(
 ): void {
   const p = new URLSearchParams(search);
   root.textContent = "";
-
-  const style = document.createElement("style");
-  style.textContent = STYLE;
-  root.appendChild(style);
 
   const box = document.createElement("div");
   box.className = "mcp-connect";
@@ -102,7 +86,7 @@ export function renderConnect(
   const cmd = document.createElement("code");
   cmd.textContent = "mcp token <name>";
   help.append("Paste a token you minted in the terminal with ", cmd,
-    ". It's held briefly (up to 10 minutes) only to complete the connection, then discarded.");
+    ", then press Enter. It's held briefly (up to 10 minutes) only to complete the connection, then discarded.");
   box.append(help);
 
   const error = p.get("mcp_error");
@@ -123,21 +107,54 @@ export function renderConnect(
     hidden.value = p.get(key) ?? "";
     form.append(hidden);
   }
+
+  // The readline is a <label>: 'token:' then a field where a transparent password
+  // input (which captures paste/typing) overlays a mask that renders the dots +
+  // block cursor. A label makes the whole line one hit target and, crucially on
+  // mobile, tapping it is the user gesture that summons the keyboard (a load-time
+  // focus() alone doesn't) — the empty field is otherwise one glyph wide.
+  const readline = document.createElement("label");
+  readline.className = "readline";
+  readline.append("token: ");
+
+  const field = document.createElement("span");
+  field.className = "field";
+  const mask = document.createElement("span");
+  mask.className = "mask";
+  const dots = document.createElement("span");
+  dots.className = "dots";
+  const cursor = document.createElement("span");
+  cursor.className = "cursor";
+  cursor.textContent = "█";
+  mask.append(dots, cursor);
+
   const token = document.createElement("input");
   token.type = "password";
   token.name = "token";
-  token.placeholder = "pia_...";
+  token.className = "real";
   token.autocomplete = "off";
   token.autocapitalize = "off";
   token.spellcheck = false;
   token.autofocus = true;
-  form.append(token);
+  token.setAttribute("enterkeyhint", "go");
+  token.setAttribute("aria-label", "token");
+  token.addEventListener("input", () => {
+    dots.textContent = "•".repeat(token.value.length);
+  });
+  field.append(mask, token);
+  readline.append(field);
+  form.append(readline);
 
-  const button = document.createElement("button");
-  button.type = "submit";
-  button.textContent = "Connect";
-  form.append(button);
+  // Enter submits; this button is the mechanism, kept off-screen so there's no
+  // visible button (a lone text field would submit on Enter anyway, but an
+  // explicit submit control makes it reliable across browsers).
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "offscreen";
+  submit.textContent = "Connect";
+  form.append(submit);
 
   box.append(form);
   root.append(box);
+  token.focus();
 }

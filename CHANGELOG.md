@@ -21,6 +21,11 @@ log and grouped into milestones.
   is unchanged for your own scripts. Run `supabase/mcp.sql` (adds `oauth_clients`
   + `oauth_codes`) and redeploy the function.
 
+### Changed
+- **The MCP connect (authorize) page reads like a terminal prompt**, not a web
+  form: `token:` with the pasted value masked inline (dots + a blinking block
+  cursor) and Enter to submit — no boxed input, no visible button.
+
 ## [0.14.0] — 2026-08-08
 
 Signing in grows up: passwordless magic-link login and lazy email verification.
