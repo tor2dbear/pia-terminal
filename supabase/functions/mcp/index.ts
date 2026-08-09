@@ -138,11 +138,15 @@ async function loadTree(
   db: SupabaseClient,
   userId: string,
 ): Promise<{ tree: DirNode; version: string | null }> {
-  const { data } = await db
+  const { data, error } = await db
     .from("filesystems")
     .select("tree, updated_at")
     .eq("user_id", userId)
     .maybeSingle();
+  // Distinguish a transient failure from a genuinely absent row: only the latter
+  // is an empty tree. Throwing surfaces a load error to the caller (tools/call
+  // wraps it) instead of falsely reporting the user's files as missing.
+  if (error) throw new Error(`filesystem load failed: ${error.message}`);
   return { tree: (data?.tree as DirNode) ?? emptyRoot(), version: data?.updated_at ?? null };
 }
 
@@ -301,8 +305,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const caller = await authenticate(db, req);
   if (!caller) return rpcError(null, -32001, "unauthorized: unknown or missing bearer token", 401);
-  // Best-effort "last used" bump — never blocks the request.
-  void db.from("mcp_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", caller.tokenId);
+  // Best-effort "last used" bump. Awaited so the request actually issues
+  // (PostgREST builders are lazy — a bare `void` never runs); an update error is
+  // returned in the envelope, not thrown, so it can't fail the request.
+  await db.from("mcp_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", caller.tokenId);
 
   let msg: { id?: unknown; method?: string; params?: Record<string, unknown> };
   try {
