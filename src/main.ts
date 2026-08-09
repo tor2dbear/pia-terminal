@@ -77,7 +77,7 @@ async function makeAdapters(): Promise<{
     ),
     share: new SupabaseShareStore(client),
     reminders: new SupabaseReminderStore(client),
-    tokens: new SupabaseTokenStore(client),
+    tokens: new SupabaseTokenStore(client, cloudConfig.url),
   };
 }
 
