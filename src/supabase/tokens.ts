@@ -29,6 +29,7 @@ interface Filter<T> extends Promise<Result<T[]>> {
 interface Table {
   select(columns: string): Filter<TokenRow>;
   insert(row: Record<string, unknown>): Promise<Result<unknown>>;
+  update(row: Record<string, unknown>): { eq(column: string, value: string): { select(columns: string): Promise<Result<unknown[]>> } };
   delete(): { eq(column: string, value: string): { select(columns: string): Promise<Result<unknown[]>> } };
 }
 
@@ -113,6 +114,18 @@ export class SupabaseTokenStore implements TokenStore {
       // Rows minted before the column existed read back null → the safe default.
       writeScope: r.write_scope ?? DEFAULT_WRITE_SCOPE,
     }));
+  }
+
+  async updateScope(label: string, writeScope: string[]): Promise<boolean> {
+    // RLS scopes the update to auth.uid(); matching the label narrows to one.
+    // `select` returns the changed rows so we can report whether one matched.
+    const { data, error } = await this.db
+      .from("mcp_tokens")
+      .update({ write_scope: writeScope })
+      .eq("label", label)
+      .select("label");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
   }
 
   async revoke(label: string): Promise<boolean> {

@@ -149,6 +149,28 @@ describe("mcp", () => {
     expect(out.join("\n")).toMatch(/write inbox\//);
   });
 
+  it("changes an existing token's scope in place with `mcp scope`", async () => {
+    const store = new MemoryTokenStore();
+    await store.create("claude"); // starts at inbox
+    const { ctx, out } = makeCtx(store);
+    await mcp.run(["scope", "claude", "--full"], ctx);
+    expect(out.join("\n")).toMatch(/scope updated/);
+    expect(out.join("\n")).toMatch(/all of home/);
+    expect((await store.list())[0].writeScope).toEqual(["."]);
+  });
+
+  it("errors when `mcp scope` names an unknown token or omits a scope", async () => {
+    const store = new MemoryTokenStore();
+    await store.create("claude");
+    const { ctx, err } = makeCtx(store);
+    await mcp.run(["scope", "ghost", "--read-only"], ctx);
+    expect(err[0]).toMatch(/no token named/);
+
+    err.length = 0;
+    await mcp.run(["scope", "claude"], ctx); // no scope flag
+    expect(err[0]).toMatch(/specify a scope/);
+  });
+
   it("revokes a token, and errors on an unknown label", async () => {
     const store = new MemoryTokenStore();
     await store.create("iphone");

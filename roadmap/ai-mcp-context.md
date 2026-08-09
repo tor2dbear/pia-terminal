@@ -5,6 +5,13 @@ tags: [mcp, ai]
 updated: 2026-08-09
 ---
 
+## Levererat (v5 — `mcp scope`)
+Ändra en befintlig tokens skrivscope in place: `mcp scope <label> --full` /
+`--write <dir>` / `--read-only` (samma flaggor som `token`). Samma hemlighet →
+ingen omkoppling; edge-funktionen läser `write_scope` per request så det slår
+igenom direkt. `token`/`scope` delar nu flagg-parsningen. Rent klient-lager
+(`updateScope` på TokenStore-seamen) — ingen edge-deploy eller migration.
+
 ## Levererat (v4 — on-brand URL + PIA-ikon)
 Connectorn nås nu på **PIA:s egen origin** (`pia.tor2dbear.com/mcp`) via en liten
 Cloudflare Pages Function (`functions/mcp`) som reverse-proxar `/mcp/*` till edge-
