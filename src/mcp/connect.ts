@@ -108,9 +108,12 @@ export function renderConnect(
     form.append(hidden);
   }
 
-  // The readline: label, then a field where a transparent password input (which
-  // captures paste/typing) overlays a mask that renders the dots + block cursor.
-  const readline = document.createElement("div");
+  // The readline is a <label>: 'token:' then a field where a transparent password
+  // input (which captures paste/typing) overlays a mask that renders the dots +
+  // block cursor. A label makes the whole line one hit target and, crucially on
+  // mobile, tapping it is the user gesture that summons the keyboard (a load-time
+  // focus() alone doesn't) — the empty field is otherwise one glyph wide.
+  const readline = document.createElement("label");
   readline.className = "readline";
   readline.append("token: ");
 

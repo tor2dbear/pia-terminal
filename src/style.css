@@ -1251,8 +1251,18 @@ body {
 .mcp-connect .err { color: #ff7a7a; }
 /* A readline prompt — 'token: ' then the masked value typed inline, no box, no
    button. Enter submits (an off-screen submit button is the mechanism). */
-.mcp-connect .readline { margin-top: 1.5rem; white-space: pre-wrap; word-break: break-all; }
-.mcp-connect .field { position: relative; }
+/* A <label> so the whole line focuses the input; `cursor: text` reads as a field
+   on desktop, and on mobile a tap here is the gesture that summons the keyboard. */
+.mcp-connect .readline {
+  display: block;
+  margin-top: 1.5rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  cursor: text;
+}
+/* min-width gives the empty field a real, tappable area — otherwise it's only as
+   wide as the single block-cursor glyph, and the overlaid input inherits that. */
+.mcp-connect .field { position: relative; display: inline-block; min-width: 12rem; }
 .mcp-connect .mask { pointer-events: none; }
 .mcp-connect .cursor { color: var(--fg); animation: mcp-blink 1.1s steps(1) infinite; }
 .mcp-connect input.real {
