@@ -55,6 +55,7 @@ alter table public.public_pages enable row level security;
 create or replace function public.touch_public_page()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at := now();
