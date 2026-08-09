@@ -2,8 +2,27 @@
 title: AI-kontext via MCP-connector
 status: now
 tags: [mcp, ai]
-updated: 2026-08-08
+updated: 2026-08-09
 ---
+
+## Levererat (v2 — OAuth 2.1, live)
+Bearer-tokenen (v1) räckte inte för **Claudes connector-UI**, som bara stödjer
+**OAuth** (det försöker göra Dynamic Client Registration, inte ta en inklistrad
+token). Så `mcp`-funktionen talar nu även **OAuth 2.1**, routat på path:
+discovery (`/.well-known/oauth-protected-resource` + `-authorization-server`),
+`/register` (DCR), `/authorize`, `/token` (authorization-code + PKCE), och
+`WWW-Authenticate` på 401 så klienten hittar in.
+
+**Idiom-valet (Väg 2, användarens beslut):** `/authorize` är en **terminal-stylad
+sida** som bara ber om en token du myntat med `mcp token` — ingen egen
+inloggnings-sida, terminalen förblir sanningskällan. Access-token som `/token`
+lämnar ut *är* den myntade tokenen, så hela auth-lagret återanvänds oförändrat.
+Nya tabeller `oauth_clients` + `oauth_codes` (RLS på, inga policies → bara
+service role; `oauth_codes` håller en rå token i max 10 min mellan authorize och
+exchange, sen raderas den). Hela flödet verifierat end-to-end mot live-funktionen.
+Bearer-vägen (terminal + egna skript) kvar oförändrad.
+
+**Kvar:** verifiera från Claude på iOS mot den deployade connectorn.
 
 ## Levererat (v1 — kod klar, deploy kvar)
 `mcp`-kommandot + en Supabase Edge Function som exponerar användarens

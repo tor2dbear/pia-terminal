@@ -1,17 +1,29 @@
-// mcp — a remote Model Context Protocol server over the user's PIA filesystem.
-// An external AI client (e.g. Claude on iOS, added as a custom connector) talks
-// JSON-RPC here with a `pia_*` bearer token; we hash the token, resolve it to a
-// user via public.mcp_tokens (service role), and expose that user's home
-// directory as MCP tools: paths are relative to ~, read anything, write ~/inbox/.
+// mcp — a remote Model Context Protocol server over the user's PIA filesystem,
+// with OAuth 2.1 authorization so OAuth-only clients (Claude's custom connector)
+// can connect.
 //
-// Deployed to the live project via MCP; kept here for version control. It
-// authenticates with our OWN opaque token, not a Supabase JWT, so deploy with
-// JWT verification off:
-//   supabase functions deploy mcp --no-verify-jwt
+// Two request families share this one function, routed by path:
+//   • OAuth 2.1 (discovery / register / authorize / token) — how a client gets a
+//     token. The authorize step authenticates the user by a token they minted in
+//     the terminal (`mcp token`), so the terminal stays the source of truth — no
+//     separate login page of our own.
+//   • MCP JSON-RPC (POST to the base path) — the tools themselves, authenticated
+//     by `Authorization: Bearer <token>`, hashed and looked up in mcp_tokens.
 //
+// Deployed with JWT verification off (our own bearer, not a Supabase JWT).
 // Mirrors src/mcp/tokens.ts (hashToken) and the filesystems optimistic-
-// concurrency guard in src/supabase/storage.ts — keep them in sync.
+// concurrency guard in src/supabase/storage.ts.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+
+// The project's own base URL, derived from the injected env — so discovery,
+// redirects, and the authorize form always point at the project this function is
+// deployed to (dev / staging / self-hosted), not a hardcoded one.
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const BASE = `${SUPABASE_URL}/functions/v1/mcp`;
+// The PIA web app's public origin, which renders the OAuth connect form (Supabase
+// forces text/plain on any HTML a function returns, so it can't live here). This
+// is its own config, not derivable from SUPABASE_URL.
+const APP_URL = "https://pia.tor2dbear.com";
 
 // ── Filesystem tree (mirror of src/vfs/types.ts) ─────────────────────────────
 interface FileNode {
@@ -48,9 +60,8 @@ function resolve(root: DirNode, parts: string[]): VNode | null {
   return node;
 }
 
-/** Write `content` at `<home>/inbox/…`, creating parent dirs as needed. `parts`
- * is the client path relative to home. Returns a status string starting with
- * "wrote " on success, or a refusal reason otherwise. Mutates `root`. */
+/** Write `content` at `<home>/inbox/…`, creating parent dirs as needed. Returns a
+ * status string starting with "wrote " on success, or a refusal reason. */
 function writeFile(root: DirNode, homeParts: string[], parts: string[], content: string): string {
   if (parts.length < 2 || parts[0] !== "inbox") {
     return "write refused: only paths under inbox/ are writable";
@@ -70,22 +81,14 @@ function writeFile(root: DirNode, homeParts: string[], parts: string[], content:
   const leaf = full[full.length - 1];
   const existing = dir.children[leaf];
   if (existing && existing.type !== "file") return "write refused: a directory exists there";
-  // A linked file's real content lives in the shared backend; overwriting here
-  // would silently detach the cloud link (VFS.writeFile preserves shareId, and a
-  // linked edit must update the shared object). Refuse rather than lie.
   if (existing && existing.type === "file" && existing.shareId) {
-    return "write refused: that file is linked to a shared list — edit it in PIA";
+    return "write refused: that file is linked to a shared list - edit it in PIA";
   }
   dir.children[leaf] = { type: "file", name: leaf, content };
   return `wrote ${parts.join("/")}`;
 }
 
 // ── Home resolution ──────────────────────────────────────────────────────────
-// The persisted tree is the whole VFS root; a user's files live under
-// /home/<username> (the terminal does `home = /home/${session.user}` on login).
-// So every tool path is resolved relative to that home — which also sandboxes an
-// agent to the user's home (it can't read /etc) as a side benefit.
-
 interface AuthUser {
   email: string | null;
   user_metadata?: { username?: string };
@@ -97,22 +100,36 @@ function handle(user: AuthUser | null | undefined): string {
   return user.user_metadata?.username ?? (user.email ? user.email.split("@")[0] : null) ?? "user";
 }
 
-/** The path segments of a user's home dir, e.g. ["home", "alice"], or null if the
- * user can't be resolved (transient admin error, missing user). Never fall back
- * to a default name — that would silently write to the wrong home. */
+/** The path segments of a user's home dir, or null if the user can't be resolved
+ * (transient error / missing) — never default the name, which would misroute. */
 async function homeSegments(db: SupabaseClient, userId: string): Promise<string[] | null> {
   const { data, error } = await db.auth.admin.getUserById(userId);
   if (error || !data?.user) return null;
   return ["home", handle(data.user as AuthUser)];
 }
 
-// ── Token auth ───────────────────────────────────────────────────────────────
+// ── Crypto helpers ───────────────────────────────────────────────────────────
+/** Bytes → URL-safe base64, no padding. */
+function b64url(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function sha256bytes(input: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)));
+}
 /** SHA-256 hex — identical to src/mcp/tokens.ts hashToken. */
 async function sha256hex(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return [...await sha256bytes(input)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+/** A random opaque id with a prefix (256 bits of entropy). */
+function randomId(prefix: string): string {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);
+  return prefix + b64url(b);
 }
 
+// ── Token auth (MCP requests) ────────────────────────────────────────────────
 interface Caller {
   userId: string;
   tokenId: string;
@@ -124,11 +141,7 @@ async function authenticate(db: SupabaseClient, req: Request): Promise<Caller | 
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) return null;
   const hash = await sha256hex(match[1].trim());
-  const { data } = await db
-    .from("mcp_tokens")
-    .select("id, user_id")
-    .eq("token_hash", hash)
-    .maybeSingle();
+  const { data } = await db.from("mcp_tokens").select("id, user_id").eq("token_hash", hash).maybeSingle();
   if (!data) return null;
   return { userId: data.user_id, tokenId: data.id };
 }
@@ -143,17 +156,12 @@ async function loadTree(
     .select("tree, updated_at")
     .eq("user_id", userId)
     .maybeSingle();
-  // Distinguish a transient failure from a genuinely absent row: only the latter
-  // is an empty tree. Throwing surfaces a load error to the caller (tools/call
-  // wraps it) instead of falsely reporting the user's files as missing.
   if (error) throw new Error(`filesystem load failed: ${error.message}`);
   return { tree: (data?.tree as DirNode) ?? emptyRoot(), version: data?.updated_at ?? null };
 }
 
-/** A file's live content. A linked file (shareId) is only a local cache here —
- * the shared object is the source of truth — so return the current shared
- * content when the user is still a member, falling back to the cache otherwise
- * (link revoked, or any error) so a read never hard-fails. */
+/** A file's live content — a linked file (shareId) resolves through the shared
+ * backend (membership-checked), falling back to the local cache on any error. */
 async function liveContent(db: SupabaseClient, userId: string, node: FileNode): Promise<string> {
   if (!node.shareId) return node.content;
   try {
@@ -169,8 +177,7 @@ async function liveContent(db: SupabaseClient, userId: string, node: FileNode): 
   }
 }
 
-/** Guarded save mirroring SupabaseStorageAdapter: insert a first row, or update
- * only the row we last read (optimistic concurrency). Returns false on conflict. */
+/** Guarded save mirroring SupabaseStorageAdapter (optimistic concurrency). */
 async function saveTree(
   db: SupabaseClient,
   userId: string,
@@ -232,10 +239,8 @@ async function callTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<ToolResult> {
-  // All tool paths are relative to the user's home directory. If we can't
-  // resolve it, fail rather than defaulting to a wrong home (see homeSegments).
   const home = await homeSegments(db, userId);
-  if (!home) return text("could not resolve your account — please try again", true);
+  if (!home) return text("could not resolve your account - please try again", true);
 
   if (name === "pia_list") {
     const parts = segments(String(args.path ?? ""));
@@ -265,49 +270,216 @@ async function callTool(
     const content = typeof args.content === "string" ? args.content : null;
     if (content === null) return text("content must be a string", true);
     if (!parts) return text("write refused: invalid path", true);
-    // One retry on a concurrent write (another device saved between our read and
-    // update). A refusal (outside inbox/, or a linked file) is returned at once.
     for (let attempt = 0; attempt < 2; attempt++) {
       const { tree, version } = await loadTree(db, userId);
       const status = writeFile(tree, home, parts, content);
       if (!status.startsWith("wrote")) return text(status, true);
       if (await saveTree(db, userId, tree, version)) return text(status);
     }
-    return text("write conflict: the filesystem changed — try again", true);
+    return text("write conflict: the filesystem changed - try again", true);
   }
 
   return text(`unknown tool: ${name}`, true);
 }
 
-// ── JSON-RPC dispatch ────────────────────────────────────────────────────────
+// ── HTTP plumbing ────────────────────────────────────────────────────────────
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, mcp-protocol-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 const PROTOCOL_VERSION = "2024-11-05";
+const RESOURCE_METADATA_URL = `${BASE}/.well-known/oauth-protected-resource`;
 
 function rpcResult(id: unknown, result: unknown): Response {
   return Response.json({ jsonrpc: "2.0", id, result }, { headers: CORS });
 }
-function rpcError(id: unknown, code: number, message: string, status = 200): Response {
-  return Response.json({ jsonrpc: "2.0", id, error: { code, message } }, { status, headers: CORS });
+function rpcError(id: unknown, code: number, message: string, status = 200, extra: Record<string, string> = {}): Response {
+  return Response.json({ jsonrpc: "2.0", id, error: { code, message } }, { status, headers: { ...CORS, ...extra } });
+}
+function jsonRes(body: unknown, status = 200): Response {
+  return Response.json(body, { status, headers: CORS });
 }
 
+// ── OAuth 2.1 ────────────────────────────────────────────────────────────────
+// Discovery: tell the client we're a protected resource and where our AS lives.
+function protectedResourceMetadata(): Response {
+  return jsonRes({ resource: BASE, authorization_servers: [BASE] });
+}
+function authServerMetadata(): Response {
+  return jsonRes({
+    issuer: BASE,
+    authorization_endpoint: `${BASE}/authorize`,
+    token_endpoint: `${BASE}/token`,
+    registration_endpoint: `${BASE}/register`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code"],
+    code_challenge_methods_supported: ["S256"],
+    token_endpoint_auth_methods_supported: ["none"],
+    scopes_supported: ["pia"],
+  });
+}
+
+// Dynamic Client Registration (RFC 7591): hand back a client_id for the client's
+// redirect URIs. Public client (no secret) — auth is via PKCE + the pasted token.
+async function handleRegister(db: SupabaseClient, req: Request): Promise<Response> {
+  let body: { redirect_uris?: unknown; client_name?: unknown } = {};
+  try {
+    body = await req.json();
+  } catch {
+    return jsonRes({ error: "invalid_client_metadata", error_description: "body must be JSON" }, 400);
+  }
+  const redirectUris = Array.isArray(body.redirect_uris)
+    ? body.redirect_uris.filter((u): u is string => typeof u === "string")
+    : [];
+  if (redirectUris.length === 0) {
+    return jsonRes({ error: "invalid_redirect_uri", error_description: "redirect_uris required" }, 400);
+  }
+  const clientId = randomId("pia-client-");
+  const clientName = typeof body.client_name === "string" ? body.client_name : null;
+  const { error } = await db.from("oauth_clients").insert({
+    client_id: clientId,
+    redirect_uris: redirectUris,
+    client_name: clientName,
+  });
+  if (error) return jsonRes({ error: "server_error", error_description: error.message }, 500);
+  return jsonRes({
+    client_id: clientId,
+    redirect_uris: redirectUris,
+    client_name: clientName ?? undefined,
+    token_endpoint_auth_method: "none",
+    grant_types: ["authorization_code"],
+    response_types: ["code"],
+  }, 201);
+}
+
+// The connect FORM is rendered by the PIA app (Supabase forces text/plain on any
+// HTML a function returns), so GET /authorize just forwards the OAuth query to
+// the app; the app POSTs the pasted token back to handleAuthorizePost below.
+function handleAuthorizeGet(url: URL): Response {
+  return new Response(null, { status: 302, headers: { Location: `${APP_URL}/${url.search}` } });
+}
+
+async function handleAuthorizePost(db: SupabaseClient, req: Request): Promise<Response> {
+  const form = await req.formData();
+  const clientId = String(form.get("client_id") ?? "");
+  const redirectUri = String(form.get("redirect_uri") ?? "");
+  const codeChallenge = String(form.get("code_challenge") ?? "");
+  const state = String(form.get("state") ?? "");
+  const token = String(form.get("token") ?? "").trim();
+
+  // Re-prompt in the app (carrying an error) for a recoverable failure.
+  const reprompt = (error: string): Response => {
+    const q = new URLSearchParams({
+      response_type: "code",
+      code_challenge_method: "S256",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code_challenge: codeChallenge,
+      state,
+      mcp_error: error,
+    });
+    return new Response(null, { status: 302, headers: { Location: `${APP_URL}/?${q.toString()}` } });
+  };
+
+  const { data: client } = await db
+    .from("oauth_clients")
+    .select("redirect_uris")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (!client || !(client.redirect_uris as string[]).includes(redirectUri)) {
+    return new Response("invalid client or redirect_uri", { status: 400 });
+  }
+
+  if (!token) return reprompt("Paste a token to connect.");
+  const { data: row } = await db.from("mcp_tokens").select("user_id").eq("token_hash", await sha256hex(token)).maybeSingle();
+  if (!row) return reprompt("That token wasn't recognised. Mint one with `mcp token <name>` and paste it here.");
+
+  const code = randomId("pia-code-");
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const { error } = await db.from("oauth_codes").insert({
+    code,
+    user_id: row.user_id,
+    access_token: token,
+    code_challenge: codeChallenge,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    expires_at: expiresAt,
+  });
+  if (error) return reprompt("Something went wrong issuing the code - try again.");
+  // Mark the client active so the retention sweep keeps it (see supabase/mcp.sql).
+  await db.from("oauth_clients").update({ last_used_at: new Date().toISOString() }).eq("client_id", clientId);
+
+  const sep = redirectUri.includes("?") ? "&" : "?";
+  const location = `${redirectUri}${sep}code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
+  return new Response(null, { status: 302, headers: { Location: location } });
+}
+
+async function handleToken(db: SupabaseClient, req: Request): Promise<Response> {
+  let params: URLSearchParams;
+  const ct = req.headers.get("content-type") ?? "";
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    params = new URLSearchParams(await req.text());
+  } else {
+    try {
+      const j = await req.json();
+      params = new URLSearchParams(j as Record<string, string>);
+    } catch {
+      params = new URLSearchParams(await req.text());
+    }
+  }
+  if (params.get("grant_type") !== "authorization_code") {
+    return jsonRes({ error: "unsupported_grant_type" }, 400);
+  }
+  const code = params.get("code") ?? "";
+  const verifier = params.get("code_verifier") ?? "";
+  const redirectUri = params.get("redirect_uri") ?? "";
+
+  // Atomic one-time redemption: DELETE … RETURNING. Only the request that
+  // actually removes the row gets it back, so a concurrent exchange with the same
+  // code gets nothing. Expired/abandoned codes are swept by a pg_cron job, so
+  // redemption doesn't depend on later /token traffic (see supabase/mcp.sql).
+  const { data: row } = await db.from("oauth_codes").delete().eq("code", code).select("*").maybeSingle();
+  if (!row) return jsonRes({ error: "invalid_grant", error_description: "unknown code" }, 400);
+  if (new Date(row.expires_at).getTime() < Date.now()) return jsonRes({ error: "invalid_grant", error_description: "code expired" }, 400);
+  if (row.redirect_uri !== redirectUri) return jsonRes({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
+  if (b64url(await sha256bytes(verifier)) !== row.code_challenge) {
+    return jsonRes({ error: "invalid_grant", error_description: "PKCE verification failed" }, 400);
+  }
+  return jsonRes({ access_token: row.access_token, token_type: "Bearer", scope: "pia" });
+}
+
+// ── Router ───────────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const url = new URL(req.url);
+  const path = url.pathname;
+  const db = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // OAuth discovery — served at the function sub-path; some clients also probe
+  // the OpenID configuration URL, so answer that with the same AS metadata.
+  if (path.endsWith("/.well-known/oauth-protected-resource")) return protectedResourceMetadata();
+  if (path.endsWith("/.well-known/oauth-authorization-server")) return authServerMetadata();
+  if (path.endsWith("/.well-known/openid-configuration")) return authServerMetadata();
+  if (path.endsWith("/register") && req.method === "POST") return handleRegister(db, req);
+  if (path.endsWith("/authorize")) {
+    if (req.method === "GET") return handleAuthorizeGet(url);
+    if (req.method === "POST") return handleAuthorizePost(db, req);
+  }
+  if (path.endsWith("/token") && req.method === "POST") return handleToken(db, req);
+
+  // Otherwise: the MCP JSON-RPC endpoint.
   if (req.method !== "POST") return rpcError(null, -32600, "POST required", 405);
 
-  const db = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-
   const caller = await authenticate(db, req);
-  if (!caller) return rpcError(null, -32001, "unauthorized: unknown or missing bearer token", 401);
-  // Best-effort "last used" bump. Awaited so the request actually issues
-  // (PostgREST builders are lazy — a bare `void` never runs); an update error is
-  // returned in the envelope, not thrown, so it can't fail the request.
+  if (!caller) {
+    // Point OAuth clients at our resource metadata so they can start the flow.
+    return rpcError(null, -32001, "unauthorized: unknown or missing bearer token", 401, {
+      "WWW-Authenticate": `Bearer resource_metadata="${RESOURCE_METADATA_URL}"`,
+    });
+  }
+  // Best-effort "last used" bump. Awaited so the (lazy) PostgREST request issues.
   await db.from("mcp_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", caller.tokenId);
 
   let msg: { id?: unknown; method?: string; params?: Record<string, unknown> };
@@ -318,13 +490,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const { id, method, params } = msg;
 
-  // Notifications (no id) — acknowledge with 202 and no body.
   if (method?.startsWith("notifications/")) return new Response(null, { status: 202, headers: CORS });
-
   if (method === "initialize") {
-    // Respond with the version we actually implement, not whatever the client
-    // asked for — per MCP, an unsupported requested version must be answered with
-    // one the server supports (the client may then reject it).
     return rpcResult(id, {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
@@ -342,6 +509,5 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return rpcResult(id, text(`error: ${(e as Error).message}`, true));
     }
   }
-
   return rpcError(id, -32601, `method not found: ${method}`);
 });

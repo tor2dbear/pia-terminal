@@ -11,6 +11,16 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Added
+- **`mcp` connector speaks OAuth 2.1**, so OAuth-only AI clients (Claude's custom
+  connector UI, which can't take a pasted bearer token) can connect. The `mcp`
+  Edge Function now also serves discovery, dynamic client registration,
+  `/authorize`, and `/token` (authorization-code + PKCE). The authorize step is a
+  terminal-styled page that asks for a token you minted with `mcp token` — no
+  separate login, the terminal stays the source of truth. The pasted-bearer path
+  is unchanged for your own scripts. Run `supabase/mcp.sql` (adds `oauth_clients`
+  + `oauth_codes`) and redeploy the function.
+
 ## [0.14.0] — 2026-08-08
 
 Signing in grows up: passwordless magic-link login and lazy email verification.
