@@ -11,6 +11,13 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-08-09
+
+The MCP connector grows up. An external AI client (Claude's OAuth-only connector
+included) can read your files and write within a per-token scope, reached
+on-brand at `pia.tor2dbear.com/mcp` with PIA's own icon — and on connect the
+connector introduces PIA to the AI so it knows what it's talking to.
+
 ### Added
 - **The MCP connector introduces PIA to the AI.** `initialize` now returns an
   `instructions` brief (a hint clients add to the model's system prompt) that
@@ -317,7 +324,8 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.15.0
 [0.14.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.14.0
 [0.13.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.13.0
 [0.12.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.12.0
