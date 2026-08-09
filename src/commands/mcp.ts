@@ -33,14 +33,27 @@ const mcp: Command<CommandContext> = {
     const store = ctx.tokens;
     const [sub, ...rest] = args;
 
-    // No cloud backend (guest): the connector can't mean anything. Answer a bare
-    // `mcp` with the honest state rather than an error, mirroring `notify`.
+    // No cloud backend (guest build): the connector can't mean anything. Answer a
+    // bare `mcp` with the honest state rather than an error, mirroring `notify`.
     if (!store || !store.available()) {
       if (!sub) {
         ctx.print("MCP connector: off — needs a cloud account (run `login`).", "dim");
         return;
       }
       ctx.error("mcp: the connector needs a cloud account — run `login`");
+      return;
+    }
+
+    // Cloud is wired, but a logged-out cloud session still carries a token store
+    // (RLS would just return no rows). Without this check `mcp`/`mcp tokens` would
+    // look authenticated; gate the whole command on an actual login.
+    const session = ctx.auth ? await ctx.auth.current() : null;
+    if (!session) {
+      if (!sub) {
+        ctx.print("MCP connector: needs a logged-in account — run `login`.", "dim");
+        return;
+      }
+      ctx.error("mcp: log in first — run `login`");
       return;
     }
 

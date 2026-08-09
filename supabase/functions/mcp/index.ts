@@ -1,8 +1,8 @@
 // mcp — a remote Model Context Protocol server over the user's PIA filesystem.
 // An external AI client (e.g. Claude on iOS, added as a custom connector) talks
 // JSON-RPC here with a `pia_*` bearer token; we hash the token, resolve it to a
-// user via public.mcp_tokens (service role), and expose that user's filesystem
-// row as MCP tools: read anything, write only under inbox/.
+// user via public.mcp_tokens (service role), and expose that user's home
+// directory as MCP tools: paths are relative to ~, read anything, write ~/inbox/.
 //
 // Deployed to the live project via MCP; kept here for version control. It
 // authenticates with our OWN opaque token, not a Supabase JWT, so deploy with
@@ -48,26 +48,59 @@ function resolve(root: DirNode, parts: string[]): VNode | null {
   return node;
 }
 
-/** Write `content` at a path under inbox/, creating parent dirs as needed.
- * Returns false if the path is outside inbox/ or malformed. Mutates `root`. */
-function writeUnderInbox(root: DirNode, parts: string[] | null, content: string): boolean {
-  if (!parts || parts.length < 2 || parts[0] !== "inbox") return false;
+/** Write `content` at `<home>/inbox/…`, creating parent dirs as needed. `parts`
+ * is the client path relative to home. Returns a status string starting with
+ * "wrote " on success, or a refusal reason otherwise. Mutates `root`. */
+function writeFile(root: DirNode, homeParts: string[], parts: string[], content: string): string {
+  if (parts.length < 2 || parts[0] !== "inbox") {
+    return "write refused: only paths under inbox/ are writable";
+  }
+  const full = [...homeParts, ...parts];
   let dir: DirNode = root;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const name = parts[i];
+  for (let i = 0; i < full.length - 1; i++) {
+    const name = full[i];
     let child: VNode | undefined = dir.children[name];
     if (!child) {
       child = { type: "dir", name, children: {} };
       dir.children[name] = child;
     }
-    if (child.type !== "dir") return false; // a file sits where a dir must be
+    if (child.type !== "dir") return "write refused: a file blocks that path";
     dir = child;
   }
-  const leaf = parts[parts.length - 1];
+  const leaf = full[full.length - 1];
   const existing = dir.children[leaf];
-  if (existing && existing.type !== "file") return false; // can't overwrite a dir
+  if (existing && existing.type !== "file") return "write refused: a directory exists there";
+  // A linked file's real content lives in the shared backend; overwriting here
+  // would silently detach the cloud link (VFS.writeFile preserves shareId, and a
+  // linked edit must update the shared object). Refuse rather than lie.
+  if (existing && existing.type === "file" && existing.shareId) {
+    return "write refused: that file is linked to a shared list — edit it in PIA";
+  }
   dir.children[leaf] = { type: "file", name: leaf, content };
-  return true;
+  return `wrote ${parts.join("/")}`;
+}
+
+// ── Home resolution ──────────────────────────────────────────────────────────
+// The persisted tree is the whole VFS root; a user's files live under
+// /home/<username> (the terminal does `home = /home/${session.user}` on login).
+// So every tool path is resolved relative to that home — which also sandboxes an
+// agent to the user's home (it can't read /etc) as a side benefit.
+
+interface AuthUser {
+  email: string | null;
+  user_metadata?: { username?: string };
+}
+
+/** The home directory name for a user — mirrors handle() in src/supabase/auth.ts. */
+function handle(user: AuthUser | null | undefined): string {
+  if (!user) return "user";
+  return user.user_metadata?.username ?? (user.email ? user.email.split("@")[0] : null) ?? "user";
+}
+
+/** The path segments of a user's home dir, e.g. ["home", "alice"]. */
+async function homeSegments(db: SupabaseClient, userId: string): Promise<string[]> {
+  const { data } = await db.auth.admin.getUserById(userId);
+  return ["home", handle(data?.user as AuthUser | null)];
 }
 
 // ── Token auth ───────────────────────────────────────────────────────────────
@@ -110,6 +143,25 @@ async function loadTree(
   return { tree: (data?.tree as DirNode) ?? emptyRoot(), version: data?.updated_at ?? null };
 }
 
+/** A file's live content. A linked file (shareId) is only a local cache here —
+ * the shared object is the source of truth — so return the current shared
+ * content when the user is still a member, falling back to the cache otherwise
+ * (link revoked, or any error) so a read never hard-fails. */
+async function liveContent(db: SupabaseClient, userId: string, node: FileNode): Promise<string> {
+  if (!node.shareId) return node.content;
+  try {
+    const { data } = await db
+      .from("shared_lists")
+      .select("content, shared_list_members!inner(user_id)")
+      .eq("id", node.shareId)
+      .eq("shared_list_members.user_id", userId)
+      .maybeSingle();
+    return typeof data?.content === "string" ? data.content : node.content;
+  } catch {
+    return node.content;
+  }
+}
+
 /** Guarded save mirroring SupabaseStorageAdapter: insert a first row, or update
  * only the row we last read (optimistic concurrency). Returns false on conflict. */
 async function saveTree(
@@ -135,28 +187,28 @@ async function saveTree(
 const TOOLS = [
   {
     name: "pia_list",
-    description: "List the entries of a directory in the user's PIA filesystem. Omit path for the root.",
+    description: "List the entries of a directory in the user's PIA home. Paths are relative to home (~); omit path for the home directory itself.",
     inputSchema: {
       type: "object",
-      properties: { path: { type: "string", description: "Directory path, e.g. 'inbox' or 'docs/notes'. Root if omitted." } },
+      properties: { path: { type: "string", description: "Directory path relative to home, e.g. 'inbox' or 'docs/notes'. Home if omitted." } },
     },
   },
   {
     name: "pia_read",
-    description: "Read the text content of a file in the user's PIA filesystem.",
+    description: "Read the text content of a file in the user's PIA home. Paths are relative to home (~).",
     inputSchema: {
       type: "object",
-      properties: { path: { type: "string", description: "File path, e.g. 'todo.md' or 'docs/plan.md'." } },
+      properties: { path: { type: "string", description: "File path relative to home, e.g. 'todo.md' or 'docs/plan.md'." } },
       required: ["path"],
     },
   },
   {
     name: "pia_write",
-    description: "Create or overwrite a file under inbox/. Writing outside inbox/ is refused.",
+    description: "Create or overwrite a file under the home inbox/ (i.e. ~/inbox/). Writing anywhere else is refused.",
     inputSchema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "File path under inbox/, e.g. 'inbox/idea.md'." },
+        path: { type: "string", description: "File path under inbox/, relative to home, e.g. 'inbox/idea.md'." },
         content: { type: "string", description: "The file's full new text content." },
       },
       required: ["path", "content"],
@@ -173,12 +225,15 @@ async function callTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<ToolResult> {
+  // All tool paths are relative to the user's home directory.
+  const home = await homeSegments(db, userId);
+
   if (name === "pia_list") {
     const parts = segments(String(args.path ?? ""));
     if (!parts) return text("invalid path", true);
     const { tree } = await loadTree(db, userId);
-    const node = resolve(tree, parts);
-    if (!node) return text(`not found: ${args.path ?? "/"}`, true);
+    const node = resolve(tree, [...home, ...parts]);
+    if (!node) return text(`not found: ${args.path ?? "~"}`, true);
     if (node.type !== "dir") return text(`not a directory: ${args.path}`, true);
     const entries = Object.values(node.children)
       .map((c) => (c.type === "dir" ? `${c.name}/` : c.name))
@@ -190,25 +245,24 @@ async function callTool(
     const parts = segments(String(args.path ?? ""));
     if (!parts || parts.length === 0) return text("invalid path", true);
     const { tree } = await loadTree(db, userId);
-    const node = resolve(tree, parts);
+    const node = resolve(tree, [...home, ...parts]);
     if (!node) return text(`not found: ${args.path}`, true);
     if (node.type !== "file") return text(`not a file: ${args.path}`, true);
-    return text(node.content);
+    return text(await liveContent(db, userId, node));
   }
 
   if (name === "pia_write") {
     const parts = segments(String(args.path ?? ""));
     const content = typeof args.content === "string" ? args.content : null;
     if (content === null) return text("content must be a string", true);
-    if (!parts || parts[0] !== "inbox" || parts.length < 2) {
-      return text("write refused: only paths under inbox/ are writable", true);
-    }
+    if (!parts) return text("write refused: invalid path", true);
     // One retry on a concurrent write (another device saved between our read and
-    // update); a second conflict is surfaced rather than looping.
+    // update). A refusal (outside inbox/, or a linked file) is returned at once.
     for (let attempt = 0; attempt < 2; attempt++) {
       const { tree, version } = await loadTree(db, userId);
-      if (!writeUnderInbox(tree, parts, content)) return text("write refused: invalid path", true);
-      if (await saveTree(db, userId, tree, version)) return text(`wrote ${parts.join("/")}`);
+      const status = writeFile(tree, home, parts, content);
+      if (!status.startsWith("wrote")) return text(status, true);
+      if (await saveTree(db, userId, tree, version)) return text(status);
     }
     return text("write conflict: the filesystem changed — try again", true);
   }

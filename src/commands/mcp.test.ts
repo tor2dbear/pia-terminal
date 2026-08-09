@@ -5,7 +5,15 @@ import type { CommandContext } from "./registry.js";
 
 const mcp = mcpCommands[0];
 
-function makeCtx(tokens: CommandContext["tokens"]): {
+/** A minimal auth stub: logged in as `user`, or logged out when null. */
+function fakeAuth(user: string | null): CommandContext["auth"] {
+  return { current: async () => (user ? { user } : null) } as unknown as CommandContext["auth"];
+}
+
+function makeCtx(
+  tokens: CommandContext["tokens"],
+  auth: CommandContext["auth"] = fakeAuth("torbjorn"),
+): {
   ctx: CommandContext;
   out: string[];
   err: string[];
@@ -14,6 +22,7 @@ function makeCtx(tokens: CommandContext["tokens"]): {
   const err: string[] = [];
   const ctx = {
     tokens,
+    auth,
     print: (t?: string) => out.push(t ?? ""),
     error: (t: string) => err.push(t),
   } as unknown as CommandContext;
@@ -32,6 +41,24 @@ describe("mcp", () => {
     const { ctx, err } = makeCtx(new NullTokenStore());
     await mcp.run(["token", "iphone"], ctx);
     expect(err[0]).toMatch(/cloud account/);
+  });
+
+  it("points a logged-out cloud session at login rather than looking authenticated", async () => {
+    // A cloud build still installs the token store when logged out; the command
+    // must gate on an actual session, not just the store being wired.
+    const { ctx, out } = makeCtx(new MemoryTokenStore(), fakeAuth(null));
+    await mcp.run([], ctx);
+    expect(out[0]).toMatch(/needs a logged-in account/);
+
+    const err: string[] = [];
+    const ctx2 = {
+      tokens: new MemoryTokenStore(),
+      auth: fakeAuth(null),
+      print: () => {},
+      error: (t: string) => err.push(t),
+    } as unknown as CommandContext;
+    await mcp.run(["token", "iphone"], ctx2);
+    expect(err[0]).toMatch(/log in first/);
   });
 
   it("shows the endpoint and token count on a bare `mcp`", async () => {
