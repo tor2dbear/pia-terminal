@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MemoryHandleStore, NullHandleStore } from "./handleStore.js";
+import { type HandleStore, MemoryHandleStore, NullHandleStore } from "./handleStore.js";
 
 describe("NullHandleStore (guest)", () => {
-  const store = new NullHandleStore();
+  const store: HandleStore = new NullHandleStore();
   it("is unavailable and holds nothing", async () => {
     expect(store.available()).toBe(false);
     expect(await store.mine()).toBeNull();
