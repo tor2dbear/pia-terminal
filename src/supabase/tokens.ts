@@ -47,12 +47,8 @@ export class SupabaseTokenStore implements TokenStore {
   private readonly db: TokenClient;
 
   // Same narrow-interface trick the other adapters use: accept the shared client
-  // type, then treat it as the slice this store needs. `supabaseUrl` is the
-  // project origin, from which the connector endpoint is derived.
-  constructor(
-    client: SupabaseLike,
-    private readonly supabaseUrl: string,
-  ) {
+  // type, then treat it as the slice this store needs.
+  constructor(client: SupabaseLike) {
     this.db = client as unknown as TokenClient;
   }
 
@@ -61,7 +57,12 @@ export class SupabaseTokenStore implements TokenStore {
   }
 
   connectorUrl(): string | null {
-    return `${this.supabaseUrl.replace(/\/$/, "")}/functions/v1/mcp`;
+    // The on-brand connector endpoint on this app's own origin, reverse-proxied
+    // to the Supabase Edge Function by functions/mcp (Cloudflare Pages). Using
+    // the app origin (not the supabase.co URL) makes the client show PIA's
+    // favicon and gives an on-brand URL; it resolves on production and previews
+    // alike, since the proxy ships with every deploy.
+    return `${location.origin}/mcp`;
   }
 
   private async uid(): Promise<string | null> {
