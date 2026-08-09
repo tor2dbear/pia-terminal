@@ -419,7 +419,7 @@ available commands:
   passwd       set or change your account password
   piano        a little synth piano (a s d f… to play, z/x to shift octave)
   ping         measure round-trip latency to the app (self) or the cloud backend
-  publish      publish a folder as a shareable link (its files land in the opener's ~/incoming)
+  publish      publish ~/public_html to the web, or `publish <folder>` for a portable link
   pwd          print the current directory path
   python       run Python via Pyodide (python, python file.py, or python -c 'code')
   qr           show a QR code for text or a URL
