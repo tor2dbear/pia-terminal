@@ -97,10 +97,13 @@ function handle(user: AuthUser | null | undefined): string {
   return user.user_metadata?.username ?? (user.email ? user.email.split("@")[0] : null) ?? "user";
 }
 
-/** The path segments of a user's home dir, e.g. ["home", "alice"]. */
-async function homeSegments(db: SupabaseClient, userId: string): Promise<string[]> {
-  const { data } = await db.auth.admin.getUserById(userId);
-  return ["home", handle(data?.user as AuthUser | null)];
+/** The path segments of a user's home dir, e.g. ["home", "alice"], or null if the
+ * user can't be resolved (transient admin error, missing user). Never fall back
+ * to a default name — that would silently write to the wrong home. */
+async function homeSegments(db: SupabaseClient, userId: string): Promise<string[] | null> {
+  const { data, error } = await db.auth.admin.getUserById(userId);
+  if (error || !data?.user) return null;
+  return ["home", handle(data.user as AuthUser)];
 }
 
 // ── Token auth ───────────────────────────────────────────────────────────────
@@ -225,8 +228,10 @@ async function callTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<ToolResult> {
-  // All tool paths are relative to the user's home directory.
+  // All tool paths are relative to the user's home directory. If we can't
+  // resolve it, fail rather than defaulting to a wrong home (see homeSegments).
   const home = await homeSegments(db, userId);
+  if (!home) return text("could not resolve your account — please try again", true);
 
   if (name === "pia_list") {
     const parts = segments(String(args.path ?? ""));
@@ -311,9 +316,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (method?.startsWith("notifications/")) return new Response(null, { status: 202, headers: CORS });
 
   if (method === "initialize") {
-    const clientVersion = (params?.protocolVersion as string) || PROTOCOL_VERSION;
+    // Respond with the version we actually implement, not whatever the client
+    // asked for — per MCP, an unsupported requested version must be answered with
+    // one the server supports (the client may then reject it).
     return rpcResult(id, {
-      protocolVersion: clientVersion,
+      protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "pia", version: "1.0.0" },
     });
