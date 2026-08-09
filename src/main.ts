@@ -13,7 +13,7 @@ import { parseConfig } from "./pia/rc.js";
 import { appendHistory, hasSecret, parseHistory, serializeHistory } from "./pia/history.js";
 import { seedSystemFiles, readMotd } from "./pia/etc.js";
 import { cloudConfig } from "./config.js";
-import { isConnectRequest, renderConnect } from "./mcp/connect.js";
+import { finishConnect, isConnectCallback, isConnectRequest, renderConnect } from "./mcp/connect.js";
 import { parseIncoming, materializeIncoming } from "./pia/incoming.js";
 import { createScheduler } from "./pia/scheduler.js";
 import { commandPackage, registerInstalled, seedDefaultPackages } from "./packages/catalog.js";
@@ -104,9 +104,14 @@ async function main(): Promise<void> {
   const root = document.getElementById("screen");
   if (!root) throw new Error("missing #screen element");
 
-  // MCP connector OAuth: when the connector's `/authorize` redirects the browser
-  // here (Supabase can't serve the form itself), render the connect screen — the
-  // terminal handling connect — instead of booting the terminal.
+  // MCP connector OAuth. Two hops land back on the app:
+  //  - the final callback: `/authorize` issued a code and sent us here to hand it
+  //    to the client (a script navigation, unconstrained by form-action);
+  //  - the authorize request: render the connect form instead of booting.
+  if (cloudConfig && isConnectCallback()) {
+    finishConnect();
+    return;
+  }
   if (cloudConfig && isConnectRequest()) {
     renderConnect(root, `${cloudConfig.url.replace(/\/$/, "")}/functions/v1/mcp/authorize`);
     return;
