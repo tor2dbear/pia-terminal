@@ -47,33 +47,12 @@ export function finishConnect(
   }
 }
 
-const STYLE = `
-.mcp-connect { max-width: 40rem; margin: 0 auto; padding: 2rem 1.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #c9d1d9;
-  line-height: 1.6; font-size: 1rem; }
-.mcp-connect .prompt { color: #7ee787; margin: 0 0 1.25rem; }
-.mcp-connect .prompt b { color: #c9d1d9; font-weight: 600; }
-.mcp-connect code { color: #79c0ff; }
-.mcp-connect .dim { color: #8b949e; }
-.mcp-connect .err { color: #ff7b72; }
-/* A readline prompt — 'token: ' then the masked value typed inline, no box, no
-   button. Enter submits (an off-screen submit button is the mechanism). */
-.mcp-connect .readline { margin-top: 1.5rem; white-space: pre-wrap; word-break: break-all; }
-.mcp-connect .field { position: relative; }
-.mcp-connect .mask { pointer-events: none; }
-.mcp-connect .cursor { color: #c9d1d9; animation: mcp-blink 1.1s steps(1) infinite; }
-.mcp-connect input.real { position: absolute; inset: 0; width: 100%; height: 100%;
-  margin: 0; padding: 0; border: 0; background: transparent; color: transparent;
-  caret-color: transparent; font: inherit; }
-.mcp-connect input.real:focus { outline: none; }
-.mcp-connect .offscreen { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); border: 0; }
-@keyframes mcp-blink { 50% { opacity: 0; } }
-`;
-
 /** Render the connect prompt into `root`, posting to the connector's `/authorize`.
  * Modelled on a shell password read: `token:` then the value typed inline (masked
  * dots + a blinking block cursor), Enter to submit — no boxed input, no button.
+ * Styling lives in the bundled `src/style.css` (`.mcp-connect …`), not a runtime
+ * `<style>`: the app's CSP is `style-src 'self'`, which would drop an injected
+ * inline stylesheet and leave a default password box + button.
  * Query values are set as element properties (never innerHTML), so a crafted
  * `state`/`redirect_uri` can't inject markup. */
 export function renderConnect(
@@ -83,10 +62,6 @@ export function renderConnect(
 ): void {
   const p = new URLSearchParams(search);
   root.textContent = "";
-
-  const style = document.createElement("style");
-  style.textContent = STYLE;
-  root.appendChild(style);
 
   const box = document.createElement("div");
   box.className = "mcp-connect";
