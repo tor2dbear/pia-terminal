@@ -11,6 +11,12 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-08-10
+
+Publish to the world from the terminal. `~/public_html` is now a real little
+web space: write Markdown, run `publish`, and your pages are live under your own
+`~handle` — the Unix `mod_userdir` idiom, not a new verb.
+
 ### Added
 - **Publish to the web from the terminal (`~/public_html`).** Write Markdown in
   `~/public_html` and run `publish` — your pages go live at
@@ -338,7 +344,8 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.16.0
 [0.15.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.15.0
 [0.14.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.14.0
 [0.13.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.13.0
