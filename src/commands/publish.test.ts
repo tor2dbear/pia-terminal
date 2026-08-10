@@ -180,16 +180,18 @@ describe("publish ~/public_html (web)", () => {
     expect(await pages.list("tor")).toEqual([]);
   });
 
-  it("normalises filename case to a routable path (Index.MD → index.md)", async () => {
+  it("slugifies filenames to a URL-safe, bijective path", async () => {
     const { root, vfs, pages } = mountWeb();
     vfs.remove("/home/tor/public_html/index.md");
     vfs.remove("/home/tor/public_html/solresor.md");
     vfs.writeFile("/home/tor/public_html/Index.MD", "# Home");
-    vfs.writeFile("/home/tor/public_html/Post.MD", "# Post");
+    vfs.writeFile("/home/tor/public_html/Trip Notes.md", "# Trip");
+    vfs.writeFile("/home/tor/public_html/Smith,John.md", "# Bio");
     await run(root, "publish");
     const paths = (await pages.list("tor")).map((p) => p.path).sort();
-    // Extension lowercased; index normalised so the bare /~handle/ resolves.
-    expect(paths).toEqual(["Post.md", "index.md"]);
+    // index normalised; spaces/punctuation/case → [a-z0-9-] so the route and
+    // the PostgREST filter can never choke on them.
+    expect(paths).toEqual(["index.md", "smith-john.md", "trip-notes.md"]);
   });
 });
 

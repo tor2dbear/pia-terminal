@@ -67,15 +67,26 @@ export function folderLink(
 const PUBLIC_HTML = "~/public_html";
 
 /**
- * The stored path for a published file, in step with how the Pages Function
- * reconstructs it from a URL (`<slug>.md`, empty slug → `index.md`). The route
- * hardcodes a lowercase `.md`, so the extension is lowercased here too; `index`
- * is normalised so `Index.md` still answers the bare `/~handle/`. The base name's
- * case is otherwise preserved — the URL slug carries it verbatim.
+ * The stored path for a published file. The filename is **slugified** to
+ * `[a-z0-9-]` (same idea as a handle), so the slug ↔ path ↔ URL mapping is
+ * bijective and URL-safe: no case ambiguity, no spaces or dots or PostgREST-
+ * reserved characters to trip the route or the filter. `index` stays `index.md`
+ * so it answers the bare `/~handle/`. A name that slugifies to nothing falls
+ * back to `page` (two such names collide and are rejected upstream).
  */
+function slugForName(name: string): string {
+  return name
+    .replace(/\.md$/i, "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function routablePath(name: string): string {
-  const base = name.replace(/\.md$/i, "");
-  return (base.toLowerCase() === "index" ? "index" : base) + ".md";
+  const slug = slugForName(name) || "page";
+  return `${slug}.md`;
 }
 
 /** Collect the top-level `.md` files of `~/public_html` as pages to publish,

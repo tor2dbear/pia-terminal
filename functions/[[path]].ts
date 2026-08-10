@@ -119,9 +119,14 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
   } catch {
     return notFound();
   }
-  // Map slug → stored path. A slug already ending in `.md` (a source-style link
-  // like `[About](about.md)`) must not become `about.md.md`.
-  const path = slug === "" ? "index.md" : `${slug.replace(/\.md$/i, "")}.md`;
+  // Map slug → stored path. Strip a trailing `.md` first (a source-style link
+  // `[About](about.md)` must not become `about.md.md`). Stored page slugs are
+  // always `[a-z0-9-]` (the publisher slugifies filenames), so anything else
+  // can't match a real page — reject it before it reaches the PostgREST filter,
+  // which also keeps reserved characters (commas, etc.) out of the query.
+  const base = slug.replace(/\.md$/i, "");
+  if (base !== "" && !/^[a-z0-9-]+$/.test(base)) return notFound();
+  const path = base === "" ? "index.md" : `${base}.md`;
 
   const baseUrl = env.VITE_SUPABASE_URL ?? FALLBACK_URL;
   const anon = env.VITE_SUPABASE_ANON_KEY ?? FALLBACK_ANON;
