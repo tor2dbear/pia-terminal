@@ -4,7 +4,6 @@ import {
   MAX_PUBLISH_PAYLOAD,
   type PublishedPage,
 } from "../share/publish.js";
-import { renderMarkdownHtml } from "../pia/publishHtml.js";
 import { handleCandidates } from "../share/handle.js";
 import type { PublicPageInput } from "../share/publicPages.js";
 import type { Command, CommandContext } from "./registry.js";
@@ -91,7 +90,9 @@ function collectWebPages(ctx: CommandContext, dirAbs: string): PublicPageInput[]
     .map((e) => {
       const node = ctx.vfs.getNode(ctx.vfs.resolve(dirAbs, e.name));
       const content = node && isFile(node) ? node.content : "";
-      return { path: routablePath(e.name), content, html: renderMarkdownHtml(content) };
+      // Store only the Markdown source — the Pages Function renders it at serve
+      // time, so no rendered HTML is ever trusted from the write side.
+      return { path: routablePath(e.name), content };
     });
 }
 

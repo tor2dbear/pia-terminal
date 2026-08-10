@@ -125,9 +125,9 @@ describe("publish ~/public_html (web)", () => {
     // Only Markdown is published (draft.txt is skipped), index first.
     const live = await pages.list("tor");
     expect(live.map((p) => p.path).sort()).toEqual(["index.md", "solresor.md"]);
-    // The stored HTML is rendered, not raw Markdown.
+    // The Markdown *source* is stored (the Pages Function renders at serve time).
     const index = live.find((p) => p.path === "index.md");
-    expect(index?.html).toContain("<strong>world</strong>");
+    expect(index?.content).toBe("# My site\n\nHello **world**.");
   });
 
   it("reuses the existing handle on a second publish and removes deleted pages", async () => {

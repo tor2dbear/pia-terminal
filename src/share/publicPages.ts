@@ -11,14 +11,17 @@
  * the pages handed in — present paths upserted, absent ones removed — because
  * the `~/public_html` folder is the source of truth. `createdAt` survives a
  * republish; only `updatedAt` moves.
+ *
+ * Only the Markdown *source* is stored — never rendered HTML. Rendering happens
+ * at the serving boundary (the Pages Function), so a hand-crafted RPC call can't
+ * smuggle arbitrary markup onto a PIA origin by supplying its own HTML.
  */
 
-/** A page as handed to {@link PublicPagesStore.publish}: its path, Markdown
- *  source, and the HTML rendered at publish time. */
+/** A page as handed to {@link PublicPagesStore.publish}: its path and Markdown
+ *  source. */
 export interface PublicPageInput {
   path: string;
   content: string;
-  html: string;
 }
 
 /** A stored page, with the timestamps the projection keeps. */
@@ -85,7 +88,6 @@ export class MemoryPublicPagesStore implements PublicPagesStore {
       next.set(page.path, {
         path: page.path,
         content: page.content,
-        html: page.html,
         createdAt: existing?.createdAt ?? this.stamp(),
         updatedAt: this.stamp(),
       });

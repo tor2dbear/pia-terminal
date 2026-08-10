@@ -14,7 +14,6 @@ function fakeClient(opts: {
   const liveRows = (opts.live ?? []).map((r) => ({
     path: r.path,
     content: "x",
-    html: "<p>x</p>",
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
   }));
@@ -38,13 +37,11 @@ describe("SupabasePublicPagesStore", () => {
   it("publishes through the publish_pages RPC with the full page set", async () => {
     const rpc = vi.fn(async () => ({ data: 1, error: null }));
     const store = new SupabasePublicPagesStore(fakeClient({ rpc }));
-    const n = await store.publish("tor", [
-      { path: "index.md", content: "hi", html: "<p>hi</p>" },
-    ]);
+    const n = await store.publish("tor", [{ path: "index.md", content: "hi" }]);
     expect(n).toBe(1);
     expect(rpc).toHaveBeenCalledWith("publish_pages", {
       p_handle: "tor",
-      p_pages: [{ path: "index.md", content: "hi", html: "<p>hi</p>" }],
+      p_pages: [{ path: "index.md", content: "hi" }],
     });
   });
 

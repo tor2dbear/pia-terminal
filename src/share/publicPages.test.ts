@@ -5,11 +5,7 @@ import {
   NullPublicPagesStore,
 } from "./publicPages.js";
 
-const page = (path: string, body: string) => ({
-  path,
-  content: body,
-  html: `<p>${body}</p>`,
-});
+const page = (path: string, body: string) => ({ path, content: body });
 
 describe("NullPublicPagesStore (guest)", () => {
   const store: PublicPagesStore = new NullPublicPagesStore();
@@ -29,7 +25,7 @@ describe("MemoryPublicPagesStore", () => {
     expect(n).toBe(2);
     const list = await store.list("tor");
     expect(list.map((p) => p.path)).toEqual(["b.md", "index.md"]);
-    expect(list[1].html).toBe("<p>I</p>");
+    expect(list[1].content).toBe("I");
   });
 
   it("replaces the whole set — absent paths are removed", async () => {

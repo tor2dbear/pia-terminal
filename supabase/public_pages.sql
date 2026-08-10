@@ -35,16 +35,20 @@ alter table public.handles
   add constraint handles_format_check
   check (handle ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(handle) between 2 and 39);
 
+-- Only the Markdown *source* is stored — never rendered HTML. The Pages
+-- Function renders it at serve time (the trusted boundary), so a hand-crafted
+-- publish_pages call can't smuggle arbitrary markup onto a PIA origin.
 create table if not exists public.public_pages (
   owner      uuid not null references auth.users (id) on delete cascade,
   handle     text not null references public.handles (handle) on delete cascade,
   path       text not null,
   content    text not null,
-  html       text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (handle, path)
 );
+-- Drop the rendered-HTML column if an earlier version of this migration made it.
+alter table public.public_pages drop column if exists html;
 
 create index if not exists public_pages_handle_idx on public.public_pages (handle);
 
@@ -178,11 +182,11 @@ begin
   end if;
 
   -- Upsert the given pages; keep created_at on an existing row.
-  insert into public.public_pages (owner, handle, path, content, html)
-  select v_uid, p_handle, e->>'path', e->>'content', e->>'html'
+  insert into public.public_pages (owner, handle, path, content)
+  select v_uid, p_handle, e->>'path', e->>'content'
   from jsonb_array_elements(coalesce(p_pages, '[]'::jsonb)) as e
   on conflict (handle, path) do update
-    set content = excluded.content, html = excluded.html;
+    set content = excluded.content;
 
   -- Delete pages no longer present (an empty p_pages clears the site).
   delete from public.public_pages pp

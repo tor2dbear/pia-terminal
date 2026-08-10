@@ -14,7 +14,6 @@ interface Result<T> {
 interface PageRow {
   path: string;
   content: string;
-  html: string;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +58,7 @@ export class SupabasePublicPagesStore implements PublicPagesStore {
   async publish(handle: string, pages: PublicPageInput[]): Promise<number> {
     const { data, error } = await this.db.rpc("publish_pages", {
       p_handle: handle,
-      p_pages: pages.map((p) => ({ path: p.path, content: p.content, html: p.html })),
+      p_pages: pages.map((p) => ({ path: p.path, content: p.content })),
     });
     if (error) throw new Error(error.message);
     return Number(data ?? pages.length);
@@ -68,14 +67,13 @@ export class SupabasePublicPagesStore implements PublicPagesStore {
   async list(handle: string): Promise<PublicPage[]> {
     const { data, error } = await this.db
       .from(TABLE)
-      .select("path,content,html,created_at,updated_at")
+      .select("path,content,created_at,updated_at")
       .eq("handle", handle);
     if (error) throw new Error(error.message);
     return ((data as PageRow[] | null) ?? [])
       .map((r) => ({
         path: r.path,
         content: r.content,
-        html: r.html,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       }))

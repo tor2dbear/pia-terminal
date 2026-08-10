@@ -13,6 +13,12 @@
 // safe, escaped fragment (see src/pia/publishHtml.ts); this Function only wraps
 // it in the themed page shell and derives the <title>.
 
+// Render Markdown → HTML here, at the trusted serving boundary, reusing the one
+// tested renderer from src (it has no imports of its own). The projection stores
+// only the Markdown *source*, so a hand-crafted publish_pages call can never put
+// arbitrary HTML on this origin — this Function decides what markup is served.
+import { renderMarkdownHtml, escapeHtml, pageTitle } from "../src/pia/publishHtml.js";
+
 interface Env {
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
@@ -30,24 +36,7 @@ interface PagesContext {
 const FALLBACK_URL = "https://fmamkwyiaojwgayhbdyk.supabase.co";
 const FALLBACK_ANON = "sb_publishable_7NS5-9gKcorNchcgeAk5wQ_w9jstkxE";
 
-const escapeHtml = (s: string): string =>
-  s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-/** First `# heading` of the Markdown source, for the browser tab title. */
-function firstHeading(md: string): string | null {
-  for (const line of md.split("\n")) {
-    const h = /^#\s+(.*)$/.exec(line);
-    if (h) return h[1].trim();
-  }
-  return null;
-}
-
-/** A minimal, theme-aware reader shell around the pre-rendered body fragment.
+/** A minimal, theme-aware reader shell around the rendered body fragment.
  *  Self-contained (inline CSS, no scripts) so it needs no external origins. */
 function page(title: string, bodyHtml: string, handle: string): string {
   return `<!doctype html>
@@ -127,24 +116,24 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
     `${baseUrl}/rest/v1/public_pages` +
     `?handle=eq.${encodeURIComponent(handle)}` +
     `&path=eq.${encodeURIComponent(path)}` +
-    `&select=html,content&limit=1`;
+    `&select=content&limit=1`;
 
-  let rows: { html: string; content: string }[];
+  let rows: { content: string }[];
   try {
     const resp = await fetch(query, {
       headers: { apikey: anon, authorization: `Bearer ${anon}`, accept: "application/json" },
     });
     if (!resp.ok) return new Response("upstream error", { status: 502 });
-    rows = (await resp.json()) as { html: string; content: string }[];
+    rows = (await resp.json()) as { content: string }[];
   } catch {
     return new Response("upstream unreachable", { status: 502 });
   }
 
   if (!rows.length) return notFound();
 
-  const { html, content } = rows[0];
-  const title = firstHeading(content) ?? handle;
-  return new Response(page(title, html, handle), {
+  const { content } = rows[0];
+  const title = pageTitle(content, handle);
+  return new Response(page(title, renderMarkdownHtml(content), handle), {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "content-security-policy": CSP,
