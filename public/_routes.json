@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/mcp", "/mcp/*"],
+  "include": ["/mcp", "/mcp/*", "/~*"],
   "exclude": []
 }

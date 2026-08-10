@@ -1,64 +1,138 @@
 ---
-title: publish → digital garden (index, styling, RSS)
-status: inbox
+title: publish → ~/public_html (tilde-URL:er, index, RSS)
+status: next
 tags: [share, web]
-updated: 2026-08-08
+updated: 2026-08-09
 ---
 
+## Levererat (Slice A)
+MVP:n står: `publish` (utan arg, eller på `~/public_html`) lägger mappens
+`.md`-filer på webben på `<origin>/~<handle>/`, med `index.md` som omslag.
+- **Handle-namnrymd** — `handles`-tabell (unik, en per konto), `claim_handle`-RPC
+  (atomisk, reserverad-ord-guard, en-identitet, race-säker). Claimas **lat vid
+  första publish**, förifyllt från visningsnamnet (`handle.ts` +
+  `HandleStore`/`Null`/`Memory`/Supabase).
+- **Publik projektion** — `public_pages`-tabell (materialiserad, anon-läsbar,
+  ägar-skrivbar, skild från privata `filesystems`). Replace-all vid publish,
+  `createdAt` bevaras (`PublicPagesStore`/`Null`/`Memory`/Supabase).
+- **Rendering** — CSP-säker md→HTML (`publishHtml.ts`), förrenderad vid publish.
+- **Servering** — Cloudflare Pages Function `functions/[[path]].ts` serverar
+  `/~<handle>/<slug>`, wrappar fragmentet i en tema-shell; scopad via `_routes.json`.
+- **`publish`-kommandot** — webb-väg för `~/public_html`, `#p=`-länk för andra
+  mappar (oförändrat). Täckt av tester (handle, render, replace-all, claim,
+  tomt/saknat) + tour-rad. **Kräver att `supabase/public_pages.sql` körs i
+  Supabase**, och att Pages-routen verifieras på en preview-deploy.
+
 ## Mål
-(Research, inte beslutat.) Lyfta `publish` (levererad, se `publish-folder`) från
-"en mapp landar i mottagarens `~/incoming/`" till en riktig **läs-vy för
-omvärlden**: en publik, stylad sida med en **index/omslag**, läsbar typografi,
-och ett **flöde** (RSS/Atom) — så terminalen blir en enkel CMS för det du redan
-skriver i `nano`. On-brand: du äger redan domänen och skrivytan; det här är att
-*visa upp* filerna, inte en ny app.
+Lyfta `publish` (levererad, se `publish-folder`) från "en mapp landar i mottagarens
+`~/incoming/`" till en riktig **läs-vy för omvärlden** — men på **Unix-vis**, inte
+som en bloggmotor limmad på sidan. Det djupa idiomet finns redan: allt under
+**`~/public_html/`** serveras på `http://host/~user/` (Apache `mod_userdir`,
+"tilde-URL:er"). Att *publicera* är att skriva en fil dit — inte att köra ett verb
+som returnerar en magisk URL. Terminalen blir en enkel CMS för det du redan skriver
+i `nano`, on-brand: du äger domänen och skrivytan, det här *visar upp* filerna.
 
 ## Research
-- **Var vi står:** `publish <mapp>` packar `.md`-filerna self-contained i en
-  `#p=`-hash och materialiserar dem i mottagarens *egen session* (`~/incoming/`),
-  läst med `glow`/`cat`. Ingen server, funkar för guests. Det är en **dela-med-
-  en-person**-vy, inte en **publicera-för-världen**-vy — den här pucken är det
-  senare, ett steg *bredvid* det som redan finns, inte en ändring av det.
-- **Spänningen som måste spikas först — hash vs URL.** Dagens `#p=` är genialt
-  serverlöst men (a) taket är `MAX_PUBLISH_PAYLOAD` = 32 KB, (b) länken är ful och
-  odelningsbar i praktiken, (c) den renderas i *mottagarens* terminal, inte som en
-  sida en främling kan läsa utan att förstå PIA. En "garden" vill ha en **stabil,
-  ren URL** (`/g/<slug>`) och en **HTML-sida** som står på egna ben. Det bryter
-  mot serverlös-principen — kräver antingen Cloudflare Pages Functions / en Worker
-  + lagring (Supabase-rad per publicerad garden), eller ett statiskt build-steg.
-  **Detta är kärnvalet i pucken — spika det innan något byggs.**
-- **Idiom-flagga (terminal-first):** `publish` är redan en accepterad web-
-  divergens (returnerar URL). En garden utökar den divergensen (index, RSS) — inte
-  ett nytt Unix-verb utan mer webb bakom samma verb. Kalla det vad det är.
-- **Renderaren finns till hälften:** `glow`/`cat` läser redan markdown i
-  terminalen; en publik HTML-vy behöver en egen (minimal) md→HTML + tema. Håll den
-  liten och CSP-säker (samma disciplin som resten av `dist/`).
+- **Var vi står:** `publish <mapp>` packar filerna self-contained i en `#p=`-hash
+  och materialiserar dem i mottagarens *egen* session (`~/incoming/`), läst med
+  `glow`/`cat`. Ingen server, funkar för guests. Det är en **dela-med-en-person**-
+  vy, inte en **publicera-för-världen**-vy — den här pucken är det senare.
+- **Omtaget — mekaniken var fel, inte målet.** Tidigare skiss ville ha en "garden"
+  med en egen slug-route (`/g/<slug>`) och ett CMS-index. Problemet: webbprodukt
+  utan Unix-rot, drar bort från "terminal-idiom first". Rätt fråga är "vad är
+  Unix-sättet att göra filer publika". Svaret: **`~/public_html`**. Divergensen är
+  inte att `publish` finns — den är att dagens mentala modell ("app som ger en
+  base64-URL") missar idiomet filsystemet redan uttrycker.
+- **Vad tilde-idiomet löser gratis:** ren URL härledd ur sökvägen
+  (`…/~torbjorn/solresor`, stabil för att platsen är stabil); `index.md` *är*
+  hemsidan, annars **directory listing** (autoindex, Unix default); publicerings-
+  verbet försvinner mest (`nano ~/public_html/x.md`, `ls ~/public_html` = "live");
+  RSS blir en **genererad fil**, ett `make`/build-steg, inte en framework-feature.
+- **Städar upp verb-röran** (var verb får ett rent idiom):
+  - `share <fil>` → efemär, en-till-en, serverlös `#p=`/`#s=`-hash (det den är).
+  - `share <fil> <email>` → en *namngiven* person, moln + roller (viewer/editor),
+    RLS-skyddat. "Bara den här personen ser det." (Se `shared-file-roles`.)
+  - `~/public_html` → publik-för-världen, stabil URL, kräver inloggning + server.
+- **Tre avsikter, tre mekanismer** — gränsen mot `share`/`shared`:
+
+  | Vill du… | Verktyg | Vem kan läsa |
+  |---|---|---|
+  | Publikt för världen | `~/public_html` *(denna puck)* | alla, stabil URL |
+  | Bara en namngiven person | `share <fil> <email> [--ro]` | just den inbjudna |
+  | Vem som råkar få länken | `share <fil>` → `#s=`-hash | alla med den (olistad) |
+
+## Föreslaget serverval (kärnvalet — nu spikat till förslag)
+Backat av kodläsning: hela filsystemet lagras redan som **en privat `jsonb`-rad per
+användare** i tabellen `filesystems` (RLS, ägar-låst — se `supabase/storage.ts`).
+Det formar valen:
+
+- **Lagring — materialiserad publik projektion, INTE läsning ur den privata raden.**
+  Ny tabell `public_pages(owner, handle, path, content, html, updated_at)`. Vid
+  `publish` **kopieras** filerna från `~/public_html/` dit. Att servera direkt ur
+  `filesystems`-blobben (även via en SECURITY DEFINER-RPC som "bara plockar ut
+  public_html") betyder att en enda bugg läcker *hela* det privata filsystemet. En
+  separat tabell är **defense-in-depth**: den innehåller per konstruktion bara det
+  publika. Ger dessutom ren avpublicering (radera raden), plats för förrenderad
+  HTML + `feed.xml`, och **32 KB-taket försvinner** (innehåll i rad, inte i URL).
+  RLS: `select` öppet för anon, `insert/update/delete` bara ägaren.
+- **Compute/route — Cloudflare Pages Function, inte Worker, inte Supabase Edge.**
+  En Function i samma repo (`functions/`) fångar `/~*`, slår upp `public_pages`,
+  svarar. Samma domän (`pia.tor2dbear.com/~…` faller ut direkt — Supabase Edge ger
+  fel domän och dödar "ren URL"), samma deploy, samma CSP-disciplin som `dist/`.
+- **Rendering — materialisera vid publish, håll servern dum.** Klienten renderar
+  md→HTML vid `publish` (återanvänd/utöka `glow`-renderaren) och skriver källa +
+  HTML till raden. Functionen blir en tunn uppslagning: matcha `/~user/slug` →
+  hämta rad → returnera lagrad HTML + headers + cache. Ingen md-motor server-side;
+  CSP-säkert och cache-bart vid edge.
+
+## Användarnamn / handle (nytt — krävs för `~user`)
+Kodläsning: dagens username är bara **mjuk metadata** (`user_metadata.username`),
+inte unik/validerad/reserverad — duger för prompten, inte för en publik namnrymd.
+(Så `tor2dbear` sattes bara som metadata via `useradd`/`rename`.)
+
+- **En identitet, inte två.** På Unix *är* login-namnet din `~namn`. Håll det
+  ihop — ingen separat "publiceringshandle".
+- **Ingen grind vid signup — claim lat vid första `publish`.** CLAUDE.md:
+  "signup stays frictionless"; `verify` är byggt på exakt det mönstret. Username
+  förblir mjuk metadata tills du först publicerar; *då* måste det bli ett unikt,
+  reserverat handle. Den som aldrig publicerar behöver aldrig ett unikt namn.
+- **Förifyllt, inte tyst slumpat.** Vid första publish: härled kandidat ur
+  nuvarande username (slugifierat). Ledigt → erbjud det (en knapptryckning bort).
+  Upptaget → säg det + föreslå alternativ, be om annat. Bekräfta → reservera
+  atomiskt. Ett `~user7f3a` vore fult för en publik URL.
+- **Backning — en riktig `handles`-tabell** (`handle text primary key`,
+  `user_id uuid unique`). Jsonb-metadata kan inte ha unik constraint. Claim =
+  `insert` (krock → upptaget); byte = `update` i transaktion.
+- **Regler:** `[a-z0-9]` + enkla bindestreck, 2–39 tecken, inget led-/släp-bindestreck,
+  case-insensitivt (lagras gement). **Reserverad-ord-denylist** måste täcka allt
+  routen använder: `api`, `www`, `incoming`, `public`, `feed`, `assets`, …
+- **Byte:** tillåtet (`rename` finns), GitHub-stil — gamla `/~gammalt/`-URL:er
+  bryts. Frigör gammalt handle efter cooldown så det inte kan kapas direkt.
 
 ## User stories
-- **US 1 — blogga från terminalen.**
-  *Som* person som vill skriva publikt *vill jag* skriva markdown i `nano` och
-  publicera en mapp med ett kommando *så att* terminalen är min CMS.
-  `nano garden/2026-solresor.md` → `publish garden/` → `https://…/g/<slug>` med en
-  index-sida som listar inläggen (nyast först) och en läsvy per inlägg.
-- **US 2 — dela en enskild fil som en ren länk.**
-  *Som* någon som snabbt vill dela en anteckning *vill jag* `publish note.md` *så
-  att* jag får en kort, ren URL att klistra in i ett samtal — läsbar av vem som
-  helst utan att de behöver förstå PIA. (Snabbaste vägen till att *andra* rör vid
-  PIA, och en krok tillbaka till kontoskapande.)
-- **US 3 — ett flöde att prenumerera på.**
-  *Som* återkommande läsare *vill jag* att en publicerad garden exponerar
-  `/g/<slug>/feed.xml` *så att* jag kan följa den i en RSS-läsare.
+- **US 1 — blogga från terminalen.** `nano ~/public_html/2026-solresor.md` →
+  nås på `…/~torbjorn/2026-solresor`, `index.md` som omslag, autoindex annars.
+- **US 2 — dela en enskild fil som en ren länk.** Lägg i `~/public_html/` (eller
+  `publish note.md` som kopierar dit) → kort, ren URL vem som helst kan läsa.
+- **US 3 — ett flöde att prenumerera på.** `~/public_html/` exponerar en genererad
+  `feed.xml` att följa i en RSS-läsare.
 
-## Öppna frågor
-- **Hash vs server-URL** (se research) — det blockerande valet. Går det att göra
-  "ren URL + HTML-sida" *utan* att ge upp serverlöst helt (t.ex. en tunn Pages
-  Function som bara packar upp `#p=`-payloaden till en läsbar sida på en snygg
-  route)? Eller kräver index/RSS oundvikligen lagring?
-- Guest vs inloggad: kan en guest publicera en beständig garden, eller kräver
-  stabil URL inloggning (som `ai-mcp-context` landade i för sin write-yta)?
-- Storlek: 32 KB-taket räcker inte för en växande garden — vad ersätter det om vi
-  går server-vägen?
-- Överlappar `linked`/`publish`/`share` — rita om ansvarsgränsen innan bygge så vi
-  inte får tre nästan-lika verb.
+## Slice-plan
+- **Slice A — namnrymd + serverad läs-vy (MVP).** `handles`-tabell + lat claim vid
+  första `publish`; `public_pages`-tabell + RLS; `publish` kopierar `~/public_html/`
+  → projektion och skriver ut `…/~user/…`-URL:en; Pages Function serverar `/~*`
+  (index.md/enskild fil) med förrenderad HTML. Inloggad; platt mapp; ingen RSS.
+- **Slice B — autoindex + RSS.** Directory listing när `index.md` saknas; genererad
+  `feed.xml`; ev. `.nolisting` per mapp.
+- **Slice C — puts.** Tema/typografi, OG-taggar per sida, ev. undermappar/assets.
 
-_Ligger i `inbox` tills hash-vs-URL-valet är fattat. Befordra till `next/later` då._
+## Öppna frågor (kvar att bekräfta)
+- Autoindex på som default eller bara när `index.md` saknas? Avstängbar per mapp?
+- Bygg-steget för `feed.xml`/HTML vid publish (write-hook) — bekräfta att det
+  förblir litet + CSP-säkert.
+- Idiom-flagga att notera i CLAUDE.md när Slice A landar: vi *serverar*
+  `~/public_html` som en riktig webbserver (mod_userdir, rent Unix) + `publish`-
+  verbet blir bekvämlighet ovanpå en filsystem-plats.
+
+_Slice A byggd 2026-08-09 (bakom seamerna + Pages Function; SQL körs manuellt).
+Status `next` för Slice B (autoindex + RSS) och C (tema/OG/undermappar)._

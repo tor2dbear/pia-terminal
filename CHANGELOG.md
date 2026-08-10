@@ -11,6 +11,26 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-08-10
+
+Publish to the world from the terminal. `~/public_html` is now a real little
+web space: write Markdown, run `publish`, and your pages are live under your own
+`~handle` — the Unix `mod_userdir` idiom, not a new verb.
+
+### Added
+- **Publish to the web from the terminal (`~/public_html`).** Write Markdown in
+  `~/public_html` and run `publish` — your pages go live at
+  `pia.tor2dbear.com/~<handle>/`, the Unix `mod_userdir` idiom (publishing is
+  putting a file in a well-known place). `index.md` is the home page; each other
+  page is `/~<handle>/<name>`. A public `~handle` is claimed the first time you
+  publish (pre-filled from your username, never a signup step), so signup stays
+  frictionless. Re-publishing mirrors the folder (removed files drop off).
+  Publishing any *other* folder still makes the original portable `#p=` link.
+  Requires an account (guests use the portable link). Run `supabase/public_pages.sql`
+  to enable the cloud side. This distinguishes three intents that used to blur:
+  `~/public_html` (public to the world), `share <file> <email>` (one named
+  person), and `share <file>` (anyone with the link).
+
 ## [0.15.0] — 2026-08-09
 
 The MCP connector grows up. An external AI client (Claude's OAuth-only connector
@@ -324,7 +344,8 @@ Foundations — a little computer in the browser.
 - On-screen keyboard support for mobile; a Supabase backend wired behind a config
   flag. Named **PIA — Personal Integrated Applications**.
 
-[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/tor2dbear/pia-terminal/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.16.0
 [0.15.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.15.0
 [0.14.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.14.0
 [0.13.0]: https://github.com/tor2dbear/pia-terminal/releases/tag/v0.13.0

@@ -2,6 +2,8 @@ import type { VFS } from "../vfs/vfs.js";
 import type { ScreenAppFactory } from "../terminal/screen.js";
 import type { AuthAdapter, Session } from "../auth/adapter.js";
 import type { ShareStore } from "../share/store.js";
+import type { HandleStore } from "../share/handleStore.js";
+import type { PublicPagesStore } from "../share/publicPages.js";
 import type { ReminderStore } from "../pia/reminders.js";
 import type { TokenStore } from "../mcp/tokens.js";
 import type { TabControl } from "../terminal/tabcontrol.js";
@@ -104,6 +106,11 @@ export interface CommandContext extends CoreCommandContext {
   baseUrl: string;
   /** Shared checklists backend, for collaboration (absent → sharing is off). */
   share?: ShareStore;
+  /** The `~user` handle namespace, for `publish` (absent → publishing to the
+   *  web is off, i.e. no cloud). */
+  handles?: HandleStore;
+  /** The published-pages projection, for `publish` (absent → no cloud). */
+  publicPages?: PublicPagesStore;
   /** Push-reminder backend (absent → reminders are off, i.e. no cloud). */
   reminders?: ReminderStore;
   /** MCP-connector token backend, for `mcp` (absent → connector off, no cloud). */
