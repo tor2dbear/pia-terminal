@@ -5,6 +5,7 @@ import {
   type PublishedPage,
 } from "../share/publish.js";
 import { handleCandidates } from "../share/handle.js";
+import { slugForName } from "../pia/slug.js";
 import type { PublicPageInput } from "../share/publicPages.js";
 import type { Command, CommandContext } from "./registry.js";
 
@@ -74,16 +75,6 @@ const PUBLIC_HTML = "~/public_html";
  * so it answers the bare `/~handle/`. A name that slugifies to nothing falls
  * back to `page` (two such names collide and are rejected upstream).
  */
-function slugForName(name: string): string {
-  return name
-    .replace(/\.md$/i, "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function routablePath(name: string): string {
   const slug = slugForName(name) || "page";
   return `${slug}.md`;

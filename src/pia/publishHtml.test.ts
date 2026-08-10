@@ -79,6 +79,12 @@ describe("renderMarkdownHtml — safety", () => {
     expect(renderMarkdownHtml("[x](//evil.example)")).toBe('<p><a href="#">x</a></p>');
     expect(renderMarkdownHtml("[About](about)")).toBe('<p><a href="about">About</a></p>');
     expect(renderMarkdownHtml("[x](posts/one)")).toBe('<p><a href="posts/one">x</a></p>');
+    // A bare relative link written with the source filename resolves to the
+    // slug the publisher stored it under.
+    expect(renderMarkdownHtml("[Trip](Trip Notes.md)")).toBe(
+      '<p><a href="trip-notes">Trip</a></p>',
+    );
+    expect(renderMarkdownHtml("[About](about.md)")).toBe('<p><a href="about">About</a></p>');
   });
 
   it("escapes an ampersand in a link target exactly once (regression: &amp;amp;)", () => {

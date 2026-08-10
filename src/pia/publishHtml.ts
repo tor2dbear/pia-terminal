@@ -12,6 +12,8 @@
  * the same strict CSP as the rest of `dist/`.
  */
 
+import { slugForName } from "./slug.js";
+
 /** Escape the five characters that matter in HTML text/attribute context. */
 export function escapeHtml(s: string): string {
   return s
@@ -22,14 +24,25 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Allow only safe link targets: http(s), or site-relative. Anything else
- *  (javascript:, data:, …) collapses to `#`. */
+/** Turn a Markdown link target into a safe, routable href. Rejects unsafe
+ *  schemes and protocol-relative URLs (→ `#`); passes absolute/root-relative/
+ *  anchor/query targets through untouched; and rewrites a **bare relative page
+ *  link** (a flat filename like `Trip Notes.md` or `about`) to its slug route,
+ *  so a link written with the source filename lands on the published URL the
+ *  publisher stored it under. */
 function safeHref(url: string): string {
   const u = url.trim();
   if (/^https?:\/\//i.test(u)) return u; // absolute http(s)
   if (/^\/\//.test(u)) return "#"; // protocol-relative (//host) — reject
   if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return "#"; // any other scheme (javascript:, data:, mailto:) — reject
-  return u; // relative: /abs, ./rel, ../rel, bare `about`, `#frag`, `?q`
+  // Bare relative filename (no slash, no leading /#?): a link between pages of a
+  // flat site → rewrite to the slug the publisher used. `about` / `about.md` /
+  // `Trip Notes.md` all resolve to the page's route.
+  if (!/^[/#?.]/.test(u) && !u.includes("/")) {
+    const slug = slugForName(u);
+    if (slug) return slug;
+  }
+  return u; // /abs, ./rel, ../rel, #frag, ?q, subpaths
 }
 
 /** Render inline spans on an already-block-split line. Order matters: code spans
