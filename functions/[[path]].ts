@@ -92,23 +92,36 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
   const { request, env, next } = context;
   const url = new URL(request.url);
 
-  // /~<handle>            → index.md (the home page)
-  // /~<handle>/           → index.md
-  // /~<handle>/<slug>     → <slug>.md
+  // /~<handle>/            → index.md (the home page)
+  // /~<handle>/<slug>      → <slug>.md
   const match = /^\/~([a-z0-9-]+)(?:\/(.*))?$/.exec(url.pathname);
   if (!match) return next(); // not a tilde URL — let static assets handle it
 
   const handle = match[1];
+  const rawSlug = (match[2] ?? "").replace(/\/+$/, ""); // encoded, trailing slash stripped
+
+  // Canonicalise so relative links keep the site namespace: the root is
+  // `/~handle/` (with the slash, `about` → `/~handle/about`) and a page is
+  // `/~handle/slug` (no slash). Redirect the other forms (`/~handle`,
+  // `/~handle/slug/`) rather than serving them, or a relative link would
+  // resolve outside the site.
+  const canonical = rawSlug === "" ? `/~${handle}/` : `/~${handle}/${rawSlug}`;
+  if (url.pathname !== canonical) {
+    return new Response(null, { status: 301, headers: { location: canonical + url.search } });
+  }
+
   // Decode the slug: the browser percent-encodes spaces/non-ASCII in the path
   // (`/~tor/trip%20notes`), but pages are stored under the decoded filename
   // (`trip notes.md`). A malformed escape can't match any page → 404.
-  let rest: string;
+  let slug: string;
   try {
-    rest = decodeURIComponent((match[2] ?? "").replace(/\/+$/, ""));
+    slug = decodeURIComponent(rawSlug);
   } catch {
     return notFound();
   }
-  const path = rest === "" ? "index.md" : `${rest}.md`;
+  // Map slug → stored path. A slug already ending in `.md` (a source-style link
+  // like `[About](about.md)`) must not become `about.md.md`.
+  const path = slug === "" ? "index.md" : `${slug.replace(/\.md$/i, "")}.md`;
 
   const baseUrl = env.VITE_SUPABASE_URL ?? FALLBACK_URL;
   const anon = env.VITE_SUPABASE_ANON_KEY ?? FALLBACK_ANON;
@@ -132,7 +145,9 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
   if (!rows.length) return notFound();
 
   const { content } = rows[0];
-  const title = pageTitle(content, handle);
+  // Title falls back to the page's own name (not the handle), so headingless
+  // pages get distinct <title>s across a site.
+  const title = pageTitle(content, path);
   return new Response(page(title, renderMarkdownHtml(content), handle), {
     headers: {
       "content-type": "text/html; charset=utf-8",
