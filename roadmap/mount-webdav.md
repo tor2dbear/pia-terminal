@@ -36,6 +36,16 @@ till för. Två rimliga former:
   skrivningar. Så den här varianten är i praktiken lika stor som "ny adapter +
   mount-tabell" ovan, inte en genväg.
 
+**Sync/async-krocken är den strukturella kärnfrågan.** Hela VFS-API:t är synkront —
+`readFile`/`writeFile`/`list`/`copy`/`move`/`remove`/`mkdir` returnerar värde/`void`
+direkt (`src/vfs/vfs.ts`), och `StorageAdapter` exponerar bara hel-träds `load`/`save`,
+inte path-nivå-ops. En WebDAV-backend är oundvikligen async. Två utvägar, båda med
+svans: (a) **propagera async genom alla VFS-konsumenter** (varje kommando som läser/
+skriver blir `await`:at — stor, invasiv refaktor), eller (b) **prefetcha till en cache**
+och servera synkrona läsningar ur den — men då är vi tillbaka i staleness (cachen kan
+ligga efter servern) och privatläckan nedan (cachen får inte persistas). Det här, inte
+CSP, är varför en riktig mount är en stor sak snarare än en adapter-swap.
+
 **Privatläckan att designa bort från dag ett:** om en mountad fils innehåll cachas
 i `FileNode.content` (som `shareId`-mönstret gör) läcker de privata bytes till den
 delade backenden. `linkedSave` (`src/commands/linked.ts`) gör `writeFile` + `persist`,
@@ -75,6 +85,9 @@ persistas via storage-adaptern).
 - Hur löser vi CSP för godtycklig origin utan att antingen försvaga den eller proxa
   genom oss? Kanske: en explicit allowlist användaren själv får bygga in, dvs
   mount kräver en rebuild/egen deploy? Flagga innan bygge.
+- Async-strategin: gör vi hela VFS async (rent men invasivt — rör varje kommando),
+  eller prefetch-cache med synkrona läsningar (mindre blast-radie men staleness +
+  cachen får inte persistas)? Det här beslutet formar allt annat.
 - Var bor mount-tabellen — i VFS (i minnet) eller i storage-lagret? Lutar åt att
   hålla VFS rent och lägga routingen i ett lager ovanför adaptrarna.
 - Offline/cache-semantik: ren read-through varje gång, eller en lokal cache — som
