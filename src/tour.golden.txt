@@ -74,6 +74,15 @@ bye
 guest@pia:~$ cat nope.txt || echo recovered
 no such file: /home/guest/nope.txt
 recovered
+guest@pia:~$ echo "# shell scripts (sh)"
+# shell scripts (sh)
+guest@pia:~$ echo "mkdir demo" > build.sh
+guest@pia:~$ echo "echo built > demo/log.txt" >> build.sh
+guest@pia:~$ sh build.sh
+guest@pia:~$ cat demo/log.txt
+built
+guest@pia:~$ sh -c "echo inline script"
+inline script
 guest@pia:~$ echo "# config, theme, prompt"
 # config, theme, prompt
 guest@pia:~$ theme
@@ -426,6 +435,7 @@ available commands:
   remind       schedule a push reminder (remind <time|cron> <text>; -l list, -r <n> cancel, on enable)
   rev          reverse the characters of each line
   rm           remove files or directories (-r for directories)
+  sh           run a script file (or `sh -c "<command>"`)
   share        share a file or folder as a read-only link, or `share <file> <email>` to co-edit
   shared       list and open files shared with you (co-edited)
   sl           Steam Locomotive — the train you get for mistyping ls
@@ -455,8 +465,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-109  about
-110  date -u
-111  exit
-112  help
-113  history | tail -5
+115  about
+116  date -u
+117  exit
+118  help
+119  history | tail -5
