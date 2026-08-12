@@ -2,6 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Own CSP: a root-level 404 (e.g. /missing) is served by Cloudflare under
+         the `/*` rule, which carries no CSP (the strict policy lives on the app
+         document paths, not `/*`, so the Pyodide sandbox can keep its relaxed
+         one). This static page has no scripts, so a tight self/none policy keeps
+         it protected regardless of the path it's served for. Clickjacking is
+         still covered by the `/*` X-Frame-Options: DENY header. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#0b0f0a" />

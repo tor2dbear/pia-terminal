@@ -75,6 +75,20 @@ describe("PythonRepl", () => {
     expect(out).toContain("ValueError: boom");
   });
 
+  it("recovers when the runner rejects (sandbox load failure / timeout)", async () => {
+    const repl = mount(async () => {
+      throw new Error("python sandbox timed out while starting");
+    });
+    type(repl, "2+2");
+    enter(repl);
+    await flush();
+
+    const snap = repl.snapshot();
+    expect(snap.busy).toBe(false); // not stuck at "running…"
+    expect(snap.out).toContain("python sandbox timed out while starting");
+    expect(snap.prompt).toBe(">>> "); // prompt returns, block reset
+  });
+
   it("exits on exit()", () => {
     let exited = false;
     const repl = new PythonRepl(

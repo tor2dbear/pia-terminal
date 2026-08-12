@@ -121,19 +121,29 @@ export class PythonRepl implements ScreenApp {
         this.out.push("(loading Python…)");
         this.render();
       }
-    }).then((res) => {
-      this.busy = false;
-      if (res.incomplete) {
-        this.render(); // keep the block open; prompt is now "..."
-        return;
-      }
-      this.pending = [];
-      if (res.stdout) this.pushLines(res.stdout);
-      if (res.stderr) this.pushLines(res.stderr);
-      if (res.error) this.pushLines(res.error);
-      else if (res.result !== null) this.out.push(res.result);
-      this.render();
-    });
+    })
+      .then((res) => {
+        this.busy = false;
+        if (res.incomplete) {
+          this.render(); // keep the block open; prompt is now "..."
+          return;
+        }
+        this.pending = [];
+        if (res.stdout) this.pushLines(res.stdout);
+        if (res.stderr) this.pushLines(res.stderr);
+        if (res.error) this.pushLines(res.error);
+        else if (res.result !== null) this.out.push(res.result);
+        this.render();
+      })
+      .catch((err: unknown) => {
+        // A sandbox startup failure (iframe load error / timeout) rejects here —
+        // the bridge now surfaces those instead of hanging. Reset the REPL so the
+        // prompt returns and the error is shown, not stuck forever at "running…".
+        this.busy = false;
+        this.pending = [];
+        this.pushLines(err instanceof Error ? err.message : String(err));
+        this.render();
+      });
   }
 
   private pushLines(text: string): void {

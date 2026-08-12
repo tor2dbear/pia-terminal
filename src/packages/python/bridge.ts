@@ -42,6 +42,11 @@ function sandboxUrl(): string {
   return new URL("./python-sandbox.html", document.baseURI).href;
 }
 
+/** How long to wait for the sandbox iframe to signal it's alive before giving
+ * up. The page is tiny (Pyodide itself loads lazily *after* this), so a slow
+ * "ready" means the frame failed to boot — surface it instead of hanging. */
+const READY_TIMEOUT_MS = 20_000;
+
 /** Create the hidden iframe once and resolve when it signals it's alive. */
 function ensureFrame(): Promise<SandboxWindow> {
   if (ready) return ready;
@@ -52,16 +57,29 @@ function ensureFrame(): Promise<SandboxWindow> {
     f.style.display = "none";
     f.src = sandboxUrl();
 
+    // On failure, tear the frame down and clear `ready`/`frame` so the *next*
+    // `python` retries with a fresh iframe rather than reusing a dead promise.
+    const fail = (message: string): void => {
+      clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+      if (frame === f) frame = null;
+      ready = null;
+      f.remove();
+      reject(new Error(message));
+    };
+    const timer = setTimeout(() => fail("python sandbox timed out while starting"), READY_TIMEOUT_MS);
+
     const onMessage = (event: MessageEvent): void => {
       if (event.source !== f.contentWindow) return;
       const data = event.data as { type?: string };
       if (data && data.type === "ready" && f.contentWindow) {
+        clearTimeout(timer);
         window.removeEventListener("message", onMessage);
         resolve(f.contentWindow as unknown as SandboxWindow);
       }
     };
     window.addEventListener("message", onMessage);
-    f.addEventListener("error", () => reject(new Error("failed to load the python sandbox")));
+    f.addEventListener("error", () => fail("failed to load the python sandbox"));
 
     document.body.appendChild(f);
     frame = f;

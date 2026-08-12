@@ -21,6 +21,19 @@ log and grouped into milestones.
   is an alias. (`chmod +x` / `./script` needs an exec-bit in the VFS — a noted
   follow-up.)
 
+### Fixed
+- **`python` now runs in production.** The Pyodide sandbox iframe ran under the
+  app's strict CSP in prod, so its WASM was blocked and `python` hung silently.
+  Two causes: Cloudflare Pages "clean URLs" 308-redirect `/python-sandbox.html` →
+  `/python-sandbox` (the relaxed CSP only matched the `.html` path), and — the
+  deeper one — Cloudflare `_headers` *append* rules, so the sandbox got the strict
+  `/*` policy on top of its relaxed one and the browser enforced the intersection.
+  The strict CSP now lives on the app document paths (`/`, the adventure example)
+  instead of `/*`, so the sandbox receives only its relaxed policy; the main app's
+  protection is unchanged (its `<meta>` CSP + `X-Frame-Options: DENY`). The sandbox
+  also reports a load failure back to the terminal instead of hanging, and the
+  bridge times out and retries on a fresh iframe.
+
 ## [0.15.0] — 2026-08-09
 
 The MCP connector grows up. An external AI client (Claude's OAuth-only connector

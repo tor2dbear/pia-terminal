@@ -108,21 +108,49 @@ function securityHeaders(mode: string): Plugin {
       };
     },
     generateBundle() {
+      // Cloudflare Pages _headers *append* every matching rule (a specific path
+      // does NOT replace `/*`, and `! Header` detaches don't remove an inherited
+      // value — both verified on a preview deploy). So the strict CSP can't live
+      // on `/*`: the sandbox page matches `/*` too, would receive both the strict
+      // and its relaxed CSP, and the browser enforces the *intersection* — the
+      // strict one wins and Pyodide's WASM stays blocked.
+      //
+      // Instead `/*` carries only the non-CSP hardening; the strict CSP is set on
+      // the actual app documents (`/` and the adventure example), which don't
+      // match the sandbox path. The sandbox rules then get *only* their relaxed
+      // policy. `/`'s `<meta>` CSP (identical minus the header-only
+      // frame-ancestors, which X-Frame-Options: DENY covers) is unchanged, so the
+      // main app's protection is the same as before.
+      const doc = (path: string): string[] => [
+        path,
+        `  Content-Security-Policy: ${headerCsp}`,
+        "  X-Frame-Options: DENY",
+        "  X-Content-Type-Options: nosniff",
+        "  Referrer-Policy: no-referrer",
+        "",
+      ];
+      const sandbox = (path: string): string[] => [
+        path,
+        `  Content-Security-Policy: ${sandboxCsp}`,
+        // Relaxed CSP's `frame-ancestors 'self'` (a header) lets the same-origin
+        // terminal frame it and supersedes the `/*` X-Frame-Options for browsers
+        // that honour it; SAMEORIGIN is the belt-and-suspenders fallback.
+        "  X-Frame-Options: SAMEORIGIN",
+        "  X-Content-Type-Options: nosniff",
+        "  Referrer-Policy: no-referrer",
+        "",
+      ];
       const headers =
         [
-          // More specific paths must come first in a Cloudflare _headers file.
-          // The sandbox page opts into its own looser policy; the terminal may
-          // frame it (same-origin) but the page itself refuses to be framed by
-          // anyone else.
-          "/python-sandbox.html",
-          `  Content-Security-Policy: ${sandboxCsp}`,
-          // Overrides the DENY below so the terminal (same origin) may frame it.
-          "  X-Frame-Options: SAMEORIGIN",
-          "  X-Content-Type-Options: nosniff",
-          "  Referrer-Policy: no-referrer",
-          "",
+          // More specific paths first. Two sandbox entries because Cloudflare
+          // "clean URLs" 308-redirect /python-sandbox.html → /python-sandbox and
+          // _headers matches the *served* path: prod hits the extensionless one,
+          // `vite dev`/`preview` (no redirect) the `.html` one.
+          ...sandbox("/python-sandbox.html"),
+          ...sandbox("/python-sandbox"),
+          ...doc("/"),
+          ...doc("/adventure/*"),
           "/*",
-          `  Content-Security-Policy: ${headerCsp}`,
           "  X-Frame-Options: DENY",
           "  X-Content-Type-Options: nosniff",
           "  Referrer-Policy: no-referrer",
