@@ -119,6 +119,16 @@ describe("sh — run script files", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
   });
 
+  it("keeps an account re-home from a script (usermod) instead of restoring the old cwd", async () => {
+    const root = mount();
+    await runLine(root, "login alice");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$");
+    // usermod re-homes /home/alice → /home/bob on purpose; the cwd-restore must
+    // NOT clobber it back to the now-gone /home/alice.
+    await runLine(root, 'sh -c "usermod bob"');
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("bob@pia:~$");
+  });
+
   it("reports a missing file and a directory clearly", async () => {
     const vfs = VFS.seed();
     const root = mount(vfs);

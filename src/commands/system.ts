@@ -167,6 +167,7 @@ export const sh: Command = {
  * other's `cd`, but the interactive prompt returns to where it started. */
 async function runScript(src: string, ctx: CommandContext): Promise<void> {
   const cwd0 = ctx.cwd;
+  const home0 = ctx.vfs.home;
   let ok = true;
   try {
     for (const raw of src.split("\n")) {
@@ -176,11 +177,15 @@ async function runScript(src: string, ctx: CommandContext): Promise<void> {
       ok = await ctx.exec!(line);
     }
   } finally {
-    // Restore unconditionally: `ctx.cwd` is a snapshot from when this context was
-    // built, so it can't tell us whether a script line `cd`'d (those ran in their
-    // own contexts and moved the terminal's live cwd). Setting it back to the
-    // caller's is a harmless no-op when nothing changed.
-    ctx.setCwd(cwd0); // subprocess semantics: caller's cwd is preserved
+    // Restore the caller's cwd — `ctx.cwd` is a snapshot, so we can't detect a
+    // script-local `cd` (those ran in their own contexts and moved the live
+    // cwd); setting it back is a no-op when unchanged. But NOT after an account
+    // transition: `login`/`usermod`/`logout` deliberately re-home the live shell
+    // (`ctx.vfs.home` changes) and the old cwd may no longer exist — leave the
+    // new home in place. That's a real shell divergence (account switches are
+    // global to this single-user machine, not subprocess-local), same family as
+    // the other web-auth divergences.
+    if (ctx.vfs.home === home0) ctx.setCwd(cwd0); // subprocess semantics, unless the account re-homed
   }
   // Propagate the last command's status without re-printing — payload errors
   // were already shown by the shell machinery (mirrors how `sudo` forwards it).
