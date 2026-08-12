@@ -11,6 +11,16 @@ log and grouped into milestones.
 
 ## [Unreleased]
 
+### Added
+- **`sh` — run script files.** `sh script.sh` reads a file and runs it line by
+  line through the real shell, so pipes, `;`/`&&`/`||`, redirects and globbing
+  all work as at the prompt. Also `sh -c "<command>"` for a one-off string and
+  `cat script | sh` (stdin as the script). Blank lines and `#` comments
+  (including a `#!` shebang) are skipped; like a shell without `set -e` a failing
+  line doesn't stop the script, and the exit status is the last command's. `bash`
+  is an alias. (`chmod +x` / `./script` needs an exec-bit in the VFS — a noted
+  follow-up.)
+
 ## [0.15.0] — 2026-08-09
 
 The MCP connector grows up. An external AI client (Claude's OAuth-only connector

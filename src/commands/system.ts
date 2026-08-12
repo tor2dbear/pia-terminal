@@ -1,5 +1,5 @@
 import { VERSION } from "../meta.js";
-import type { Command } from "./registry.js";
+import type { Command, CommandContext } from "./registry.js";
 
 export const help: Command = {
   name: "help",
@@ -111,6 +111,65 @@ export const sudo: Command = {
     }
   },
 };
+
+// `sh <file>` runs a script: it reads a file from the VFS and feeds each line
+// through `ctx.exec` — the same seam `sudo` uses — so pipes, `;`/`&&`/`||`,
+// redirects and globbing all work exactly as when typed at the prompt. `sh -c
+// "<cmd>"` runs a command string; `cat script | sh` (no file) runs stdin as the
+// script. Comments (`#…`, including a `#!` shebang) and blank lines are skipped.
+// Like a real shell without `set -e`, a failing line doesn't stop the script;
+// the exit status is the last command's, propagated via `ctx.fail?.()` so
+// `sh a.sh && echo ok` behaves. There's no exec-bit in the VFS, so `chmod +x` +
+// `./script` is out of scope (see roadmap/sh-scripts.md).
+export const sh: Command = {
+  name: "sh",
+  help: "run a script file (or `sh -c \"<command>\"`)",
+  usage: "sh [-c <command> | <file>]",
+  aliases: ["bash"],
+  async run(args, ctx) {
+    if (!ctx.exec) return ctx.error("sh: not supported here");
+
+    // `sh -c "cmd; cmd"` — run the rest of the line as one script source.
+    if (args[0] === "-c") {
+      const src = args.slice(1).join(" ");
+      if (src === "") return ctx.error("sh: -c: option requires an argument");
+      return runScript(src, ctx);
+    }
+
+    // A file argument: read it from the VFS. Extra args (`sh f.sh a b`) are
+    // accepted but ignored — positional `$1`/`$@` await variable expansion.
+    if (args.length > 0) {
+      const file = args[0];
+      const abs = ctx.vfs.resolve(ctx.cwd, file);
+      const node = ctx.vfs.getNode(abs);
+      if (!node) return ctx.error(`sh: cannot open ${file}: no such file`);
+      if (node.type !== "file") return ctx.error(`sh: ${file}: is a directory`);
+      return runScript(ctx.vfs.readFile(abs), ctx);
+    }
+
+    // No file: run piped/redirected stdin as the script (`echo cmd | sh`). With
+    // neither, there's nothing to run — the terminal itself is the interactive
+    // shell, so we don't open a nested REPL.
+    if (ctx.stdin !== "") return runScript(ctx.stdin, ctx);
+    ctx.print("usage: sh <file>   ·   sh -c \"<command>\"   ·   cat script | sh", "dim");
+  },
+};
+
+/** Run script text line by line through the shell. Skips blanks and `#`
+ * comments; continues past a failing line (no `set -e`); the exit status is the
+ * last executed command's, surfaced via `ctx.fail?.()`. Stops on Ctrl-C. */
+async function runScript(src: string, ctx: CommandContext): Promise<void> {
+  let ok = true;
+  for (const raw of src.split("\n")) {
+    if (ctx.signal?.aborted) break; // Ctrl-C stops the rest of the script
+    const line = raw.trim();
+    if (line === "" || line.startsWith("#")) continue; // blank / comment / shebang
+    ok = await ctx.exec!(line);
+  }
+  // Propagate the last command's status without re-printing — payload errors
+  // were already shown by the shell machinery (mirrors how `sudo` forwards it).
+  if (!ok) ctx.fail?.();
+}
 
 export const echo: Command = {
   name: "echo",
@@ -231,6 +290,7 @@ export const systemCommands: Command[] = [
   whoami,
   whoareyou,
   sudo,
+  sh,
   echo,
   clear,
   neofetch,

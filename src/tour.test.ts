@@ -120,6 +120,13 @@ const TOUR: string[] = [
   "echo hi && echo bye",
   "cat nope.txt || echo recovered",
 
+  'echo "# shell scripts (sh)"',
+  'echo "mkdir demo" > build.sh',
+  'echo "echo built > demo/log.txt" >> build.sh',
+  "sh build.sh",
+  "cat demo/log.txt",
+  'sh -c "echo inline script"',
+
   'echo "# config, theme, prompt"',
   "theme",
   "theme amber",
