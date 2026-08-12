@@ -110,24 +110,30 @@ function securityHeaders(mode: string): Plugin {
     generateBundle() {
       const headers =
         [
-          // More specific paths must come first in a Cloudflare _headers file.
-          // The sandbox page opts into its own looser policy; the terminal may
-          // frame it (same-origin) but the page itself refuses to be framed by
-          // anyone else.
+          // The sandbox page opts into its own looser policy so Pyodide's WASM
+          // can run. Cloudflare Pages _headers *append* headers from every
+          // matching rule (a specific rule does NOT replace `/*`), so without the
+          // `! Header` detaches below the page would get BOTH this relaxed CSP and
+          // the strict `/*` one — and the browser enforces their intersection, so
+          // the strict policy wins and WASM is blocked. `!` drops the inherited
+          // `/*` values first; then we set the sandbox's own. Same for
+          // X-Frame-Options (DENY → SAMEORIGIN so the terminal may frame it).
+          //
+          // Two entries because Cloudflare "clean URLs" 308-redirect
+          // /python-sandbox.html → /python-sandbox, and _headers matches the
+          // *served* path: prod hits the extensionless one, `vite dev`/`preview`
+          // (no redirect) hits the `.html` one.
           "/python-sandbox.html",
+          "  ! Content-Security-Policy",
+          "  ! X-Frame-Options",
           `  Content-Security-Policy: ${sandboxCsp}`,
-          // Overrides the DENY below so the terminal (same origin) may frame it.
           "  X-Frame-Options: SAMEORIGIN",
           "  X-Content-Type-Options: nosniff",
           "  Referrer-Policy: no-referrer",
           "",
-          // Cloudflare Pages "clean URLs" 308-redirect /python-sandbox.html →
-          // /python-sandbox, and _headers matches the *served* path — so the
-          // extensionless URL needs the same relaxed CSP, otherwise the
-          // redirected sandbox falls through to the strict /* policy below,
-          // Pyodide's WASM is blocked, and `python` hangs. (The .html entry above
-          // still covers `vite dev`/`preview`, where there's no redirect.)
           "/python-sandbox",
+          "  ! Content-Security-Policy",
+          "  ! X-Frame-Options",
           `  Content-Security-Policy: ${sandboxCsp}`,
           "  X-Frame-Options: SAMEORIGIN",
           "  X-Content-Type-Options: nosniff",
