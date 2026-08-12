@@ -35,6 +35,10 @@ export interface CoreCommandContext {
   stdin: string;
   /** True when this command's output is captured (piped or redirected). */
   piped: boolean;
+  /** True when this command is downstream of a pipe (has an upstream producer),
+   * even if the piped text is empty — so a command can tell "empty piped input"
+   * (e.g. `echo "" | sh`, a valid empty script) from "no input at all". */
+  stdinPiped?: boolean;
   /**
    * Fires when the user interrupts a running command (Ctrl-C / the ^C key).
    * Long-running, cooperative commands (e.g. `ping`) should watch it and stop

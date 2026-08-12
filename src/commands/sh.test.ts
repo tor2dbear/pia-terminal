@@ -92,6 +92,16 @@ describe("sh — run script files", () => {
     expect(vfs.getNode(`${HOME}/piped`)?.type).toBe("dir");
   });
 
+  it("treats an empty piped script as a valid no-op, not a usage error", async () => {
+    const vfs = VFS.seed();
+    const root = mount(vfs);
+    await runLine(root, 'echo "" | sh'); // empty script piped in
+    expect(root.textContent).not.toContain("usage: sh"); // did nothing, silently
+    // A truly bare `sh` (no pipe) still shows the hint.
+    await runLine(root, "sh");
+    expect(root.textContent).toContain("usage: sh");
+  });
+
   it("reports a missing file and a directory clearly", async () => {
     const vfs = VFS.seed();
     const root = mount(vfs);

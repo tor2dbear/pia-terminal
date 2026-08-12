@@ -272,6 +272,27 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).not.toContain("sudo passwd hunter2");
   });
 
+  it("keeps a secret wrapped in `sh -c` (and the `bash` alias) out of history", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    await runLine(root, 'sh -c "passwd hunter2"'); // the -c payload carries the secret
+    await runLine(root, 'bash -c "passwd hunter2"'); // same via the bash alias
+    await runLine(root, "sh -c ls"); // a harmless -c payload is kept
+    expect(saved.flat()).not.toContain('sh -c "passwd hunter2"');
+    expect(saved.flat()).not.toContain('bash -c "passwd hunter2"');
+    expect(saved.flat()).toContain("sh -c ls");
+  });
+
   it("sudo runs its payload elevated, so it can write the protected system tree", async () => {
     const vfs = VFS.seed();
     vfs.protectedPaths = ["/etc"];

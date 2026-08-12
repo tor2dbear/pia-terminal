@@ -1218,7 +1218,10 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
         // Capture output for every stage but the last, and for the last stage
         // when its output is being redirected to a file.
         const capture = !isLast || redirect !== null ? [] : undefined;
-        await command.run(args, this.context({ stdin: input, capture, status }));
+        // `stdinPiped` marks a downstream stage even when the piped text is
+        // empty — so `echo "" | sh` reads an empty script instead of falling to
+        // the bare-`sh` usage hint.
+        await command.run(args, this.context({ stdin: input, capture, status, stdinPiped: i > 0 }));
         // Ctrl-C during a stage stops the whole foreground pipeline — no later
         // stage runs, and (below) no redirect writes a partial capture to disk.
         if (this.running?.signal.aborted) return false;
@@ -1299,8 +1302,17 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       if (name === "alias") {
         const def = parseAliasDef(args); // a definition earlier in the line applies to later stages
         if (def) aliases.set(def[0], def[1]);
-      } else if (budget > 0 && EMBEDS_COMMAND.has(name)) {
-        const payload = args.slice(EMBEDS_COMMAND.get(name) ?? 0).join(" ").trim(); // the embedded command, however deeply nested
+      } else if (budget > 0) {
+        // A wrapper that carries another command line: `at <time> <cmd…>` /
+        // `sudo <cmd…>` positionally, `sh -c <cmd>` / `bash -c <cmd>` after the
+        // `-c` flag. Recurse so a password tucked inside — `sh -c "passwd pw"` —
+        // is still caught by the secret check, however deeply nested.
+        const embed = EMBEDS_COMMAND.has(name)
+          ? args.slice(EMBEDS_COMMAND.get(name) ?? 0)
+          : (name === "sh" || name === "bash") && args[0] === "-c"
+            ? args.slice(1)
+            : null;
+        const payload = embed?.join(" ").trim();
         if (payload) {
           names.push(...this.collectCommandNames(this.stagesOf(payload, parseSequence(payload)), aliases, budget - 1));
         }
@@ -1363,7 +1375,12 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
    * fresh snapshot — no command reads it after `setCwd` within the same run.
    */
   private context(
-    opts: { stdin?: string; capture?: string[]; status?: { failed: boolean } } = {},
+    opts: {
+      stdin?: string;
+      capture?: string[];
+      status?: { failed: boolean };
+      stdinPiped?: boolean;
+    } = {},
   ): Ctx {
     const capture = opts.capture;
     // Route stderr and internal refusals through one place so they both print
@@ -1378,6 +1395,7 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
       registry: this.registry,
       stdin: opts.stdin ?? "",
       piped: capture !== undefined,
+      stdinPiped: opts.stdinPiped ?? false,
       signal: this.running?.signal,
       cwd: this.cwd,
       setCwd: (path: string) => {

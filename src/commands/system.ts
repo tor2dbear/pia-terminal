@@ -147,10 +147,12 @@ export const sh: Command = {
       return runScript(ctx.vfs.readFile(abs), ctx);
     }
 
-    // No file: run piped/redirected stdin as the script (`echo cmd | sh`). With
-    // neither, there's nothing to run — the terminal itself is the interactive
-    // shell, so we don't open a nested REPL.
-    if (ctx.stdin !== "") return runScript(ctx.stdin, ctx);
+    // No file: run piped/redirected stdin as the script (`echo cmd | sh`). An
+    // empty piped script (`echo "" | sh`, an empty file) is valid — a silent
+    // no-op — so key off *being* piped, not on the text being non-empty. With no
+    // pipe at all there's nothing to run: the terminal itself is the interactive
+    // shell, so we don't open a nested REPL — just show a hint.
+    if (ctx.stdinPiped || ctx.stdin !== "") return runScript(ctx.stdin, ctx);
     ctx.print("usage: sh <file>   ·   sh -c \"<command>\"   ·   cat script | sh", "dim");
   },
 };
