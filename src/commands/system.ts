@@ -159,14 +159,28 @@ export const sh: Command = {
 
 /** Run script text line by line through the shell. Skips blanks and `#`
  * comments; continues past a failing line (no `set -e`); the exit status is the
- * last executed command's, surfaced via `ctx.fail?.()`. Stops on Ctrl-C. */
+ * last executed command's, surfaced via `ctx.fail?.()`. Stops on Ctrl-C.
+ *
+ * A script runs like a subprocess: a `cd` inside it must not leave the caller's
+ * shell in a new directory (that's `source`'s job, not `sh`'s). So we snapshot
+ * the cwd and restore it afterwards — the script's own lines still see each
+ * other's `cd`, but the interactive prompt returns to where it started. */
 async function runScript(src: string, ctx: CommandContext): Promise<void> {
+  const cwd0 = ctx.cwd;
   let ok = true;
-  for (const raw of src.split("\n")) {
-    if (ctx.signal?.aborted) break; // Ctrl-C stops the rest of the script
-    const line = raw.trim();
-    if (line === "" || line.startsWith("#")) continue; // blank / comment / shebang
-    ok = await ctx.exec!(line);
+  try {
+    for (const raw of src.split("\n")) {
+      if (ctx.signal?.aborted) break; // Ctrl-C stops the rest of the script
+      const line = raw.trim();
+      if (line === "" || line.startsWith("#")) continue; // blank / comment / shebang
+      ok = await ctx.exec!(line);
+    }
+  } finally {
+    // Restore unconditionally: `ctx.cwd` is a snapshot from when this context was
+    // built, so it can't tell us whether a script line `cd`'d (those ran in their
+    // own contexts and moved the terminal's live cwd). Setting it back to the
+    // caller's is a harmless no-op when nothing changed.
+    ctx.setCwd(cwd0); // subprocess semantics: caller's cwd is preserved
   }
   // Propagate the last command's status without re-printing — payload errors
   // were already shown by the shell machinery (mirrors how `sudo` forwards it).

@@ -102,6 +102,23 @@ describe("sh — run script files", () => {
     expect(root.textContent).toContain("usage: sh");
   });
 
+  it("runs like a subprocess: a `cd` in the script doesn't move the caller's shell", async () => {
+    const vfs = VFS.seed();
+    // The script cd's into a subdir and creates a file there (proving cd took
+    // effect *inside* the script), but the interactive prompt must return home.
+    vfs.writeFile(`${HOME}/enter.sh`, ["mkdir sub", "cd sub", "touch inside.txt"].join("\n"));
+    const root = mount(vfs);
+
+    await runLine(root, "sh enter.sh");
+    expect(vfs.getNode(`${HOME}/sub/inside.txt`)).not.toBeNull(); // cd worked within the script
+    // Caller's cwd restored → prompt back at ~ (not ~/sub).
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
+
+    // `sh -c "cd …"` likewise leaves the caller where it was.
+    await runLine(root, 'sh -c "cd sub"');
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("guest@pia:~$");
+  });
+
   it("reports a missing file and a directory clearly", async () => {
     const vfs = VFS.seed();
     const root = mount(vfs);

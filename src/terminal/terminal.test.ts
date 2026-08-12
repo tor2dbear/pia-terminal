@@ -293,6 +293,28 @@ describe("Terminal (driven via keyboard)", () => {
     expect(saved.flat()).toContain("sh -c ls");
   });
 
+  it("keeps a secret piped into stdin `sh`/`bash` out of history", async () => {
+    const saved: string[][] = [];
+    const root = document.createElement("div");
+    document.body.append(root);
+    term = new Terminal(root, {
+      vfs: VFS.seed(),
+      adapter: new MemoryStorageAdapter(),
+      registry: buildRegistry(),
+      session: { user: "guest" },
+      extendContext: piaExtendContext(new MemoryAuthAdapter()),
+      saveHistory: (history) => saved.push([...history]),
+      histIgnore: (cmds) => cmds.includes("passwd"),
+    });
+    // A literal producer feeding a stdin shell executes the secret as a script.
+    await runLine(root, 'echo "passwd hunter2" | sh');
+    await runLine(root, 'printf "passwd hunter2" | bash');
+    await runLine(root, 'echo "ls" | sh'); // benign — kept
+    expect(saved.flat()).not.toContain('echo "passwd hunter2" | sh');
+    expect(saved.flat()).not.toContain('printf "passwd hunter2" | bash');
+    expect(saved.flat()).toContain('echo "ls" | sh');
+  });
+
   it("sudo runs its payload elevated, so it can write the protected system tree", async () => {
     const vfs = VFS.seed();
     vfs.protectedPaths = ["/etc"];

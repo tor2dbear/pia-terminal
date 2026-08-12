@@ -1259,7 +1259,39 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     // never drop a real embedded command (`at … at … passwd`), finite so it
     // always terminates.
     const budget = line.split(/\s+/).length;
-    return this.collectCommandNames(this.stagesOf(line, parsed), new Map(this.aliases), budget);
+    const aliases = new Map(this.aliases);
+    // Walk pipeline-by-pipeline (sharing the alias map, so a same-line `alias`
+    // still applies onward) instead of one flat list — the flat walk loses which
+    // stages share a pipe, which the stdin-shell check below needs.
+    const pipelines = parsed.ok
+      ? parsed.items.map((item) => item.pipeline.stages as Pick<Stage, "name" | "args">[])
+      : [this.stagesOf(line, parsed)];
+    const names: string[] = [];
+    for (const stages of pipelines) {
+      names.push(...this.collectCommandNames(stages, aliases, budget));
+      // A stdin-fed `sh`/`bash` (`… | sh`, no `-c`, no file operand) executes its
+      // upstream producer's output as a script. That output is only knowable from
+      // the typed line when the producer is a literal `echo`/`printf` — and that's
+      // exactly when a secret can hide there (`echo "passwd pw" | sh`). Recurse
+      // into it so the secret check catches it. (`cat f | sh` has no literal to
+      // read, but then the secret isn't on the typed line either.)
+      const last = stages[stages.length - 1];
+      const producer = stages[stages.length - 2];
+      if (
+        budget > 0 &&
+        last &&
+        (last.name === "sh" || last.name === "bash") &&
+        last.args.length === 0 &&
+        producer &&
+        (producer.name === "echo" || producer.name === "printf")
+      ) {
+        const script = producer.args.join(" ").trim();
+        if (script) {
+          names.push(...this.collectCommandNames(this.stagesOf(script, parseSequence(script)), aliases, budget - 1));
+        }
+      }
+    }
+    return names;
   }
 
   /** Pipeline stages of a line — from the parse, or best-effort from the raw
