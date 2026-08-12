@@ -129,6 +129,18 @@ describe("sh — run script files", () => {
     expect(root.querySelector(".term-prompt")?.textContent).toBe("bob@pia:~$");
   });
 
+  it("after a script account switch, keeps the switch but discards a later script-local cd", async () => {
+    const vfs = VFS.seed();
+    // login (global, kept) then a script-local cd (subprocess, discarded): the
+    // shell must end at the *new* account's home, not stuck in its subdir.
+    vfs.writeFile(`${HOME}/switch.sh`, ["login alice", "mkdir sub", "cd sub"].join("\n"));
+    const root = mount(vfs);
+
+    await runLine(root, "sh switch.sh");
+    expect(root.querySelector(".term-prompt")?.textContent).toBe("alice@pia:~$"); // new home, not ~/sub
+    expect(vfs.getNode("/home/alice/sub")?.type).toBe("dir"); // the cd did take effect mid-script
+  });
+
   it("reports a missing file and a directory clearly", async () => {
     const vfs = VFS.seed();
     const root = mount(vfs);

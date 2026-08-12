@@ -39,6 +39,24 @@ den enskilt största saknade skal-biten efter kedjning och globbing).
   maskineriet) så `sh a.sh && echo ok` beter sig rätt.
 - **Ctrl-C** avbryter mellan rader (kollar `ctx.signal`), som resten av skalet.
 
+## Härdning efter review (2026-08-12)
+- **Hemligheter i history.** Skalets `histIgnore`-traversering recursar nu in i
+  `sh -c` / `bash -c`-payloaden (som den redan gjorde för `at`/`sudo`) och in i en
+  *literal* `echo`/`printf` som matar en stdin-`sh`/`bash` (`echo "passwd pw" | sh`)
+  — så en typad hemlighet fångas på de direkta vägarna.
+- **Känd gräns (maintainer-beslut):** att spåra en hemlighet genom *godtyckliga*
+  pipe-transformationer in i ett stdin-skal (`echo … | cat | sh`, `… | rev | sh`,
+  `base64 -d | sh`, alias-kedjor) är obestämbart i allmänhet. Vi jagar inte varje
+  forwarder och gör *inte* den konservativa "scrub varje `… | sh`" (den skulle
+  döda legitima `cat deploy.sh | sh` ur history). De direkta/vanliga vägarna är
+  täckta; den konstruerade multi-hop-läckan är medvetet utanför scope. Notera:
+  ingen sätter lösenord via `echo "passwd x" | cat | sh`.
+- **Cwd + konto.** Ett script kör som en subprocess: script-lokala `cd` kastas när
+  scriptet är klart (skalet återgår). Men ett kontobyte (`login`/`usermod`/
+  `logout`) är *globalt* för denna en-användarmaskin, inte subprocess-lokalt — det
+  behålls, och skalet landar i det nya kontots hem (inte i en subdir en efterföljande
+  `cd` råkade lämna det i).
+
 ## Öppna frågor / uppföljning
 - **`chmod +x` + shebang-körning (`./script`)** — kräver ett läges-/exec-fält på
   `FileNode` + serialisering. Egen puck när behovet finns.

@@ -177,15 +177,17 @@ async function runScript(src: string, ctx: CommandContext): Promise<void> {
       ok = await ctx.exec!(line);
     }
   } finally {
-    // Restore the caller's cwd — `ctx.cwd` is a snapshot, so we can't detect a
-    // script-local `cd` (those ran in their own contexts and moved the live
-    // cwd); setting it back is a no-op when unchanged. But NOT after an account
-    // transition: `login`/`usermod`/`logout` deliberately re-home the live shell
-    // (`ctx.vfs.home` changes) and the old cwd may no longer exist — leave the
-    // new home in place. That's a real shell divergence (account switches are
-    // global to this single-user machine, not subprocess-local), same family as
-    // the other web-auth divergences.
-    if (ctx.vfs.home === home0) ctx.setCwd(cwd0); // subprocess semantics, unless the account re-homed
+    // Discard the script's own `cd`s (subprocess semantics — `ctx.cwd` is a
+    // snapshot, so we can't detect them; we just reset the live cwd). Where to
+    // reset *to* depends on whether the script switched accounts:
+    //  • no account change → back to the caller's cwd (`cwd0`).
+    //  • account change (`login`/`usermod`/`logout` re-home the live shell and
+    //    `ctx.vfs.home` moves) → the switch is global to this single-user machine,
+    //    not subprocess-local, so keep it — reset to the *new* account's home, not
+    //    the caller's (possibly now-gone) old cwd. This still drops any script-
+    //    local `cd` made after the switch. A real-shell divergence, same family as
+    //    PIA's other web-auth ones.
+    ctx.setCwd(ctx.vfs.home === home0 ? cwd0 : ctx.vfs.home);
   }
   // Propagate the last command's status without re-printing — payload errors
   // were already shown by the shell machinery (mirrors how `sudo` forwards it).
