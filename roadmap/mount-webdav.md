@@ -27,9 +27,23 @@ till för. Två rimliga former:
   plus en *mount-tabell* (path → adapter) i path-resolvern, så läs/skriv under
   mount-punkten ruttar till en annan backend. Idag laddas trädet som *en* blob —
   per-subträd-routing är den nya primitiven som saknas.
-- **Lättare variant som återanvänder `shareId`-mönstret.** Filen bor kvar i trädet
-  men läser/skriver *genom* en extern backend (read/write-through per fil/katalog).
-  Sharing gör redan detta per fil; en mount är katalog-generaliseringen.
+- **Lättare variant som återanvänder `shareId`-mönstret — men lättheten är en
+  synvilla.** `shareId` är *inte* en generell per-fil-routing-söm: `linkedContent`/
+  `linkedSave` anropas bara från `nano`/`todo`/`transfer`, medan `cat`, text-utils,
+  `cp` och shell-redirection läser `FileNode.content` (cachen) direkt (`fs.ts` rör
+  bara `shareId` för `@`-dekoration). Generaliserar man mönstret till kataloger utan
+  att flytta routingen *under alla* VFS-ops får man stale reads och lokala-bara
+  skrivningar. Så den här varianten är i praktiken lika stor som "ny adapter +
+  mount-tabell" ovan, inte en genväg.
+
+**Privatläckan att designa bort från dag ett:** om en mountad fils innehåll cachas
+i `FileNode.content` (som `shareId`-mönstret gör) läcker de privata bytes till den
+delade backenden. `linkedSave` (`src/commands/linked.ts`) gör `writeFile` + `persist`,
+och `SupabaseStorageAdapter` skriver *hela trädet* till `filesystems`-raden — dvs det
+"privata" innehållet hamnar i Supabase, precis tvärtemot målet. Konsekvens: det
+serialiserade trädet får bära **bara mount-metadata** (path, endpoint, ev. token-ref);
+all filcache måste bo *utanför* det serialiserade trädet (minne/IndexedDB som aldrig
+persistas via storage-adaptern).
 
 **Bromsklossarna sitter i browsersandlådan, inte i PIA-koden:**
 
@@ -63,8 +77,9 @@ till för. Två rimliga former:
   mount kräver en rebuild/egen deploy? Flagga innan bygge.
 - Var bor mount-tabellen — i VFS (i minnet) eller i storage-lagret? Lutar åt att
   hålla VFS rent och lägga routingen i ett lager ovanför adaptrarna.
-- Offline/cache-semantik: read-through varje gång, eller lokal cache som `shareId`
-  redan gör? Vad händer när servern är nere mitt i en session?
+- Offline/cache-semantik: ren read-through varje gång, eller en lokal cache — som
+  då måste ligga *utanför* det serialiserade trädet (se privatläckan ovan)? Vad
+  händer när servern är nere mitt i en session?
 - WebDAV-auth i browsern (Basic/Bearer) utan att läcka credentials in i det
   serialiserade trädet — var lagras token?
 
