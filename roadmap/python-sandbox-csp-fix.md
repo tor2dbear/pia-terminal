@@ -27,11 +27,24 @@ Verifierat live: `curl` visar `/pyodide/*.js/.wasm` = 200 (assets finns), men
 CSP:n (`script-src 'self' https://static.cloudflareinsights.com`, ingen
 `wasm-unsafe-eval`).
 
+## Djupare orsak (upptäckt vid preview-verifiering)
+Att bara lägga till en `/python-sandbox`-regel räckte **inte**: Cloudflare Pages
+`_headers` **lägger till** headers från *varje* matchande regel — en specifik regel
+*ersätter* inte `/*`, och `! Header`-detach tar **inte** bort ett ärvt värde (båda
+verifierade mot en preview-deploy: sandboxen fick 2 CSP + 2 XFO). Webbläsaren
+tvingar snittet av flera CSP-headers → den strikta vinner → WASM blockeras ändå.
+
+Slutsats: den strikta CSP:n får **inte** bo på `/*`, eftersom sandbox-sidan också
+matchar `/*`.
+
 ## Fix
-- **(A) `_headers`: emittera regeln även för `/python-sandbox`** (utan `.html`),
-  identisk looser CSP + `X-Frame-Options: SAMEORIGIN`, i `vite.config.ts`. Då får
-  den redirectade sökvägen rätt policy. (`.html`-regeln behålls för dev/preview
-  och ifall Cloudflare någon gång serverar `.html` direkt.)
+- **(A) Flytta den strikta CSP:n från `/*` till appens dokument-sökvägar** (`/`
+  och `/adventure/*`), som *inte* matchar sandbox-sökvägen. `/*` bär bara de
+  icke-CSP-headrarna (XFO DENY m.fl.). Då får sandboxen **bara** sin looser CSP.
+  Huvudappens skydd är oförändrat: `/`:s `<meta>`-CSP är identisk (minus den
+  header-only `frame-ancestors 'none'`, som täcks av `X-Frame-Options: DENY`).
+  Två sandbox-rader (`/python-sandbox.html` + `/python-sandbox`) för dev/preview
+  respektive prods redirectade sökväg.
 - **(B) Sandboxen postar tillbaka ett fel** om Pyodide-init misslyckas
   (`public/python-sandbox.js` — `.catch` runt körningen, nollställ
   `pyodidePromise` så nästa `python` gör ett nytt försök).

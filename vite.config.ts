@@ -108,39 +108,49 @@ function securityHeaders(mode: string): Plugin {
       };
     },
     generateBundle() {
+      // Cloudflare Pages _headers *append* every matching rule (a specific path
+      // does NOT replace `/*`, and `! Header` detaches don't remove an inherited
+      // value — both verified on a preview deploy). So the strict CSP can't live
+      // on `/*`: the sandbox page matches `/*` too, would receive both the strict
+      // and its relaxed CSP, and the browser enforces the *intersection* — the
+      // strict one wins and Pyodide's WASM stays blocked.
+      //
+      // Instead `/*` carries only the non-CSP hardening; the strict CSP is set on
+      // the actual app documents (`/` and the adventure example), which don't
+      // match the sandbox path. The sandbox rules then get *only* their relaxed
+      // policy. `/`'s `<meta>` CSP (identical minus the header-only
+      // frame-ancestors, which X-Frame-Options: DENY covers) is unchanged, so the
+      // main app's protection is the same as before.
+      const doc = (path: string): string[] => [
+        path,
+        `  Content-Security-Policy: ${headerCsp}`,
+        "  X-Frame-Options: DENY",
+        "  X-Content-Type-Options: nosniff",
+        "  Referrer-Policy: no-referrer",
+        "",
+      ];
+      const sandbox = (path: string): string[] => [
+        path,
+        `  Content-Security-Policy: ${sandboxCsp}`,
+        // Relaxed CSP's `frame-ancestors 'self'` (a header) lets the same-origin
+        // terminal frame it and supersedes the `/*` X-Frame-Options for browsers
+        // that honour it; SAMEORIGIN is the belt-and-suspenders fallback.
+        "  X-Frame-Options: SAMEORIGIN",
+        "  X-Content-Type-Options: nosniff",
+        "  Referrer-Policy: no-referrer",
+        "",
+      ];
       const headers =
         [
-          // The sandbox page opts into its own looser policy so Pyodide's WASM
-          // can run. Cloudflare Pages _headers *append* headers from every
-          // matching rule (a specific rule does NOT replace `/*`), so without the
-          // `! Header` detaches below the page would get BOTH this relaxed CSP and
-          // the strict `/*` one — and the browser enforces their intersection, so
-          // the strict policy wins and WASM is blocked. `!` drops the inherited
-          // `/*` values first; then we set the sandbox's own. Same for
-          // X-Frame-Options (DENY → SAMEORIGIN so the terminal may frame it).
-          //
-          // Two entries because Cloudflare "clean URLs" 308-redirect
-          // /python-sandbox.html → /python-sandbox, and _headers matches the
-          // *served* path: prod hits the extensionless one, `vite dev`/`preview`
-          // (no redirect) hits the `.html` one.
-          "/python-sandbox.html",
-          "  ! Content-Security-Policy",
-          "  ! X-Frame-Options",
-          `  Content-Security-Policy: ${sandboxCsp}`,
-          "  X-Frame-Options: SAMEORIGIN",
-          "  X-Content-Type-Options: nosniff",
-          "  Referrer-Policy: no-referrer",
-          "",
-          "/python-sandbox",
-          "  ! Content-Security-Policy",
-          "  ! X-Frame-Options",
-          `  Content-Security-Policy: ${sandboxCsp}`,
-          "  X-Frame-Options: SAMEORIGIN",
-          "  X-Content-Type-Options: nosniff",
-          "  Referrer-Policy: no-referrer",
-          "",
+          // More specific paths first. Two sandbox entries because Cloudflare
+          // "clean URLs" 308-redirect /python-sandbox.html → /python-sandbox and
+          // _headers matches the *served* path: prod hits the extensionless one,
+          // `vite dev`/`preview` (no redirect) the `.html` one.
+          ...sandbox("/python-sandbox.html"),
+          ...sandbox("/python-sandbox"),
+          ...doc("/"),
+          ...doc("/adventure/*"),
           "/*",
-          `  Content-Security-Policy: ${headerCsp}`,
           "  X-Frame-Options: DENY",
           "  X-Content-Type-Options: nosniff",
           "  Referrer-Policy: no-referrer",
