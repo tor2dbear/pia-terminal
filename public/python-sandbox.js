@@ -172,18 +172,35 @@
     };
     // Tell the terminal we're initialising, so it can show a hint on cold start.
     if (!pyodidePromise) reply({ type: "loading", id: msg.id });
-    run(msg).then(function (res) {
-      reply({
-        type: "result",
-        id: msg.id,
-        stdout: res.stdout,
-        stderr: res.stderr,
-        result: res.result,
-        error: res.error,
-        incomplete: res.incomplete,
-        files: res.files,
+    run(msg)
+      .then(function (res) {
+        reply({
+          type: "result",
+          id: msg.id,
+          stdout: res.stdout,
+          stderr: res.stderr,
+          result: res.result,
+          error: res.error,
+          incomplete: res.incomplete,
+          files: res.files,
+        });
+      })
+      .catch(function (err) {
+        // Pyodide failed to initialise (e.g. a CSP that blocks its WASM) — reply
+        // with the error instead of leaving the terminal waiting forever. Clear
+        // the cached promise so the next `python` retries a fresh load.
+        pyodidePromise = null;
+        reply({
+          type: "result",
+          id: msg.id,
+          stdout: "",
+          stderr: "",
+          result: null,
+          error: "python failed to start: " + (err && err.message ? err.message : String(err)),
+          incomplete: false,
+          files: {},
+        });
       });
-    });
   });
 
   // Announce readiness to receive messages (Pyodide itself still loads lazily).

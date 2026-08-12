@@ -121,6 +121,18 @@ function securityHeaders(mode: string): Plugin {
           "  X-Content-Type-Options: nosniff",
           "  Referrer-Policy: no-referrer",
           "",
+          // Cloudflare Pages "clean URLs" 308-redirect /python-sandbox.html →
+          // /python-sandbox, and _headers matches the *served* path — so the
+          // extensionless URL needs the same relaxed CSP, otherwise the
+          // redirected sandbox falls through to the strict /* policy below,
+          // Pyodide's WASM is blocked, and `python` hangs. (The .html entry above
+          // still covers `vite dev`/`preview`, where there's no redirect.)
+          "/python-sandbox",
+          `  Content-Security-Policy: ${sandboxCsp}`,
+          "  X-Frame-Options: SAMEORIGIN",
+          "  X-Content-Type-Options: nosniff",
+          "  Referrer-Policy: no-referrer",
+          "",
           "/*",
           `  Content-Security-Policy: ${headerCsp}`,
           "  X-Frame-Options: DENY",
