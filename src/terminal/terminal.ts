@@ -1269,25 +1269,29 @@ export class Terminal<Ctx extends CoreCommandContext = CommandContext> {
     const names: string[] = [];
     for (const stages of pipelines) {
       names.push(...this.collectCommandNames(stages, aliases, budget));
-      // A stdin-fed `sh`/`bash` (`… | sh`, no `-c`, no file operand) executes its
-      // upstream producer's output as a script. That output is only knowable from
-      // the typed line when the producer is a literal `echo`/`printf` — and that's
-      // exactly when a secret can hide there (`echo "passwd pw" | sh`). Recurse
-      // into it so the secret check catches it. (`cat f | sh` has no literal to
-      // read, but then the secret isn't on the typed line either.)
-      const last = stages[stages.length - 1];
-      const producer = stages[stages.length - 2];
-      if (
-        budget > 0 &&
-        last &&
-        (last.name === "sh" || last.name === "bash") &&
-        last.args.length === 0 &&
-        producer &&
-        (producer.name === "echo" || producer.name === "printf")
-      ) {
-        const script = producer.args.join(" ").trim();
-        if (script) {
-          names.push(...this.collectCommandNames(this.stagesOf(script, parseSequence(script)), aliases, budget - 1));
+      // A stdin-fed `sh`/`bash` (no `-c`, no file operand) executes its upstream
+      // producer's output as a script. That output is only statically knowable
+      // when the producer is a literal `echo`/`printf` — exactly when a secret can
+      // hide there. Scan *every* adjacent producer→shell pair, not just the final
+      // stage, so `echo "passwd pw" | sh` and `echo "passwd pw" | sh | cat` (sh
+      // still executes the literal even with a trailing consumer) are both caught.
+      // Arbitrary transforms *between* producer and shell (`echo | cat | sh`,
+      // alias-hidden shells) stay out of scope — undecidable (see
+      // roadmap/sh-scripts.md).
+      if (budget > 0) {
+        for (let i = 0; i + 1 < stages.length; i++) {
+          const producer = stages[i];
+          const shell = stages[i + 1];
+          if (
+            (producer.name === "echo" || producer.name === "printf") &&
+            (shell.name === "sh" || shell.name === "bash") &&
+            shell.args.length === 0
+          ) {
+            const script = producer.args.join(" ").trim();
+            if (script) {
+              names.push(...this.collectCommandNames(this.stagesOf(script, parseSequence(script)), aliases, budget - 1));
+            }
+          }
         }
       }
     }

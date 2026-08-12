@@ -309,9 +309,11 @@ describe("Terminal (driven via keyboard)", () => {
     // A literal producer feeding a stdin shell executes the secret as a script.
     await runLine(root, 'echo "passwd hunter2" | sh');
     await runLine(root, 'printf "passwd hunter2" | bash');
+    await runLine(root, 'echo "passwd hunter2" | sh | cat'); // sh isn't last, still executes
     await runLine(root, 'echo "ls" | sh'); // benign — kept
     expect(saved.flat()).not.toContain('echo "passwd hunter2" | sh');
     expect(saved.flat()).not.toContain('printf "passwd hunter2" | bash');
+    expect(saved.flat()).not.toContain('echo "passwd hunter2" | sh | cat');
     expect(saved.flat()).toContain('echo "ls" | sh');
   });
 

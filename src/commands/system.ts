@@ -129,11 +129,12 @@ export const sh: Command = {
   async run(args, ctx) {
     if (!ctx.exec) return ctx.error("sh: not supported here");
 
-    // `sh -c "cmd; cmd"` — run the rest of the line as one script source.
+    // `sh -c "cmd; cmd"` — run the rest of the line as one script source. A bare
+    // `sh -c` (no operand) is the error; an explicit empty string `sh -c ""` is a
+    // valid empty script — a no-op — like an empty file or empty piped script.
     if (args[0] === "-c") {
-      const src = args.slice(1).join(" ");
-      if (src === "") return ctx.error("sh: -c: option requires an argument");
-      return runScript(src, ctx);
+      if (args.length < 2) return ctx.error("sh: -c: option requires an argument");
+      return runScript(args.slice(1).join(" "), ctx);
     }
 
     // A file argument: read it from the VFS. Extra args (`sh f.sh a b`) are

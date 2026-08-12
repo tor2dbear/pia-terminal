@@ -92,6 +92,18 @@ describe("sh — run script files", () => {
     expect(vfs.getNode(`${HOME}/piped`)?.type).toBe("dir");
   });
 
+  it("treats `sh -c \"\"` as a valid empty no-op, but bare `sh -c` as an error", async () => {
+    const vfs = VFS.seed();
+    const root = mount(vfs);
+    // Explicit empty string → no-op success, so a trailing `&&` runs.
+    await runLine(root, 'sh -c "" && mkdir ran');
+    expect(vfs.getNode(`${HOME}/ran`)?.type).toBe("dir");
+    expect(root.textContent).not.toContain("option requires an argument");
+    // Bare `sh -c` (no operand) → error.
+    await runLine(root, "sh -c");
+    expect(root.textContent).toContain("option requires an argument");
+  });
+
   it("treats an empty piped script as a valid no-op, not a usage error", async () => {
     const vfs = VFS.seed();
     const root = mount(vfs);
