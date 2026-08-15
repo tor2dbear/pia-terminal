@@ -49,23 +49,30 @@ om ditt användarnamn, eller `userdel --yes`. Flöde: bekräfta → RPC/Edge →
 får ett valfritt `deleteAccount()`; `SupabaseAuthAdapter` implementerar; `Memory`/
 `Fake` no-op/stub så testerna driver flödet.
 
-## Öppna beslut
-1. **Auth-radering:** A (RPC) eller B (Edge Function)? *(lutar A)*
-2. **Ensam-ägda delade listor:** radera dem, auto-promota nästa medlem (Slice B),
-   eller neka userdel tills de hanterats? *(lutar auto-promota — snällast, och drar
-   in Slice B-biten vi ändå behöver)*
-3. **Bekräftelse-UX:** skriv-om-namnet vs `--yes`-flagga vs båda?
+## Beslut (låsta 2026-08-08)
+1. **Auth-radering: RPC.** `SECURITY DEFINER delete_own_account()` (ägd av
+   postgres) kör `delete from auth.users where id = auth.uid()` — auth:s
+   barntabeller + all app-data cascade:ar. Anropbar från browsern som övriga
+   RPC:er; ingen Edge Function.
+2. **Ensam-ägda listor: auto-promota.** Före auth-raderingen: för varje lista där
+   anroparen är ende ägare *och* andra medlemmar finns → befordra en deterministisk
+   kvarvarande medlem (lägsta user_id) till owner. Inga andra medlemmar → listan
+   får cascade:a bort (created_by → null, medlemsrad borta = tom lista städas).
+   Detta är Slice B-frö:t (auto-promote) och stänger orphan-caset.
+3. **Bekräftelse: skriv om namnet.** `userdel` ensamt → varning + "kör `userdel
+   <ditt-användarnamn>` för att bekräfta". `userdel <namn>` där `namn ===
+   session.user` → kör. En-shot, ingen interaktiv prompt behövs (namnet är
+   argumentet). Alias `deluser`.
 
-## Bonus: privacy-notis
-Kort, ärlig integritets-/datanotis terminaltroget — vad som lagras (e-post + dina
-filer i Supabase), "ingen tracking/annonser, personligt projekt", hur man raderar
-(`userdel`). En `man privacy`-sida eller utökat `about`. Billigt, och den "FAQ"-
-motsvarighet hollr.at har.
+## Leverans (redo att bygga)
+- **SQL** (`supabase/account.sql` eller i schema): `delete_own_account()` RPC med
+  auto-promote-loopen + `delete from auth.users …`; grant `authenticated`, revoke
+  `public, anon`. Körs manuellt i Supabase SQL-editorn (som övriga).
+- **Seam:** `AuthAdapter.deleteAccount?(): Promise<void>` (valfri); `Supabase`
+  anropar RPC:n + `signOut`; `Memory`/`Fake` no-op/stub så testerna driver flödet.
+- **Kommando:** `userdel` (alias `deluser`) — inloggad-only; namn-bekräftelse;
+  på klart → `deleteAccount` → `reloadFs` → guest, "account deleted".
+- **`man privacy`** + tester (Memory: bekräftelse krävs, fel namn nekas, flödet
+  raderar) + changelog-rad. Cutta som en minor.
 
-## Leverans-skiss (när beslutad)
-SQL: `delete_own_account()` RPC (grant/revoke som övriga) + ägarskaps-hanteringen ·
-`AuthAdapter.deleteAccount?()` + Supabase-impl · `userdel`-kommando m. bekräftelse ·
-`man privacy` · tester (Memory: flödet; bekräftelse krävs) · changelog. Cutta som
-en minor.
-
-_Ny idé, scopad 2026-08-08. Följer `roadmap/README.md`._
+_Ny idé, scopad + beslutad 2026-08-08. Redo att bygga._
