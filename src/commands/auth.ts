@@ -321,6 +321,41 @@ export const logout: Command = {
   },
 };
 
+export const userdel: Command = {
+  name: "userdel",
+  help: "delete your account and all its data (irreversible)",
+  usage: "userdel <your-username>   (retype your name to confirm)",
+  aliases: ["deluser"],
+  async run(args, ctx) {
+    if (ctx.session.user === GUEST) return ctx.error("userdel: log in first");
+    if (!ctx.auth.deleteAccount) {
+      return ctx.error("userdel: account deletion needs a backend account");
+    }
+    const me = ctx.session.user;
+    // Destructive and irreversible → require you to retype your username as the
+    // confirmation argument (the way `rm` makes you name the file). No arg, or a
+    // mismatch, just shows what would be deleted and how to confirm.
+    if (args[0] !== me) {
+      ctx.error("userdel: this permanently deletes your account and ALL its data");
+      ctx.print("  your files, shared-list memberships, reminders and push subscriptions", "dim");
+      ctx.print(`to confirm, run:  userdel ${me}`, "accent");
+      return;
+    }
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`userdel: ${blocked}`);
+    return withTransition(ctx, async () => {
+      try {
+        await ctx.auth.deleteAccount!();
+      } catch (err) {
+        return ctx.error(`userdel: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      await ctx.reloadFs?.(); // drop the (deleted) cloud tree, back to guest-local
+      await enter(ctx, GUEST);
+      ctx.print("account deleted — you're back to guest", "accent");
+    });
+  },
+};
+
 export const authCommands: Command[] = [
   login,
   useradd,
@@ -329,4 +364,5 @@ export const authCommands: Command[] = [
   verify,
   invite,
   logout,
+  userdel,
 ];

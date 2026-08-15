@@ -12,6 +12,14 @@ log and grouped into milestones.
 ## [Unreleased]
 
 ### Added
+- **`userdel` — delete your account and all its data.** Self-service, irreversible
+  account deletion (the counterpart to `logout`, which only signs out). It removes
+  your files, shared-list memberships, reminders and push subscriptions — a shared
+  list you solely own hands off to a remaining member first, so co-editors aren't
+  left stranded. You retype your username to confirm (`userdel <you>`), like naming
+  a file for `rm`. A new `man privacy` page explains what's stored (email + your
+  files; no tracking, no ads) and points here. Run `supabase/account.sql` to enable
+  it in the cloud.
 - **`sh` — run script files.** `sh script.sh` reads a file and runs it line by
   line through the real shell, so pipes, `;`/`&&`/`||`, redirects and globbing
   all work as at the prompt. Also `sh -c "<command>"` for a one-off string and

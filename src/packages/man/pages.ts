@@ -111,6 +111,26 @@ export const MANPAGES: Record<string, ManPage> = {
     ],
     seeAlso: ["help", "brew", "pipes", "config", "tutor"],
   },
+  privacy: {
+    concept: true,
+    summary: "what PIA stores about you, and how to delete it",
+    description: [
+      "As a guest, everything lives in your browser — no account, nothing sent " +
+        "anywhere. Nothing here tracks you: no analytics, no ads, no third parties. " +
+        "PIA is a small personal project, not a product.",
+      "If you log in (optional), a cloud account stores only what it needs to sync: " +
+        "your email, your files, the checklists you share, your reminders, and this " +
+        "device's push subscription. Access is scoped to you (Row-Level Security).",
+      "You can take it all back: `userdel <your-username>` permanently deletes your " +
+        "account and everything above. It's irreversible, so you retype your name to " +
+        "confirm. `logout` just returns to guest and leaves the account intact.",
+    ],
+    examples: [
+      ["userdel me", "delete the account named `me` and all its data"],
+      ["logout", "return to guest without deleting anything"],
+    ],
+    seeAlso: ["userdel", "logout", "whoami", "pia"],
+  },
   pipes: {
     concept: true,
     summary: "connect commands with | and redirect with > >>",
