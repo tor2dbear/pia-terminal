@@ -72,7 +72,9 @@ får ett valfritt `deleteAccount()`; `SupabaseAuthAdapter` implementerar; `Memor
   anropar RPC:n + `signOut`; `Memory`/`Fake` no-op/stub så testerna driver flödet.
 - **Kommando:** `userdel` (alias `deluser`) — inloggad-only; namn-bekräftelse;
   på klart → `deleteAccount` → `reloadFs` → guest, "account deleted".
-- **`man privacy`** + tester (Memory: bekräftelse krävs, fel namn nekas, flödet
-  raderar) + changelog-rad. Cutta som en minor.
+- **`man privacy`** (ärlig: vad som lagras, *och* Cloudflare Web Analytics på
+  live-sajten — cookie-fri, aggregerad, ingen persondata; ingen på preview/dev) +
+  tester (Memory: bekräftelse krävs, fel namn nekas, flödet raderar + nollar VFS:en)
+  + changelog-rad. Cutta som en minor.
 
 _Ny idé, scopad + beslutad 2026-08-08. Redo att bygga._

@@ -25,6 +25,13 @@ begin
     raise exception 'not authenticated';
   end if;
 
+  -- Lock my own auth.users row first. A concurrent create_shared_list() on
+  -- another device takes a FK lock on this row when inserting its membership, so
+  -- locking it here forces that insert to wait — then our `delete from
+  -- auth.users` below makes it fail its FK check rather than committing a new
+  -- (soon-orphaned) list after our cleanup ran.
+  perform 1 from auth.users where id = v_uid for update;
+
   -- Serialize with concurrent leave/claim/remove on any of my lists (same list
   -- row lock the ownership RPCs take) so the owner-invariant holds throughout.
   perform 1
@@ -70,6 +77,12 @@ begin
       select 1 from public.shared_list_members m
       where m.list_id = l.id and m.user_id <> v_uid
     );
+
+  -- Delete pending invites addressed to my email too — they're keyed by email,
+  -- not user_id (so they don't cascade), and would otherwise let a new account
+  -- registered with the same address reclaim a pre-deletion share.
+  delete from public.shared_list_invites i
+    where lower(i.email) = (select lower(u.email) from auth.users u where u.id = v_uid);
 
   -- Now delete the auth user. Its app data (filesystems, notifications,
   -- push_subscriptions, reminders, remaining shared_list_members, activity) and

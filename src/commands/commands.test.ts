@@ -411,6 +411,18 @@ describe("auth commands", () => {
     expect(h.ctx.session.user).toBe("guest");
   });
 
+  it("userdel wipes the deleted account's tree from memory (not just server-side)", async () => {
+    const auth = new DeletableAuth();
+    const h = harness(auth);
+    await h.run("login me@example.com pw");
+    h.vfs.writeFile("/home/me/secret.txt", "shh"); // an in-memory cloud file
+    await h.run("userdel me");
+    // The tree is reset to a fresh guest tree — the deleted file can't linger and
+    // get re-persisted into guest storage.
+    expect(h.vfs.getNode("/home/me/secret.txt")).toBeNull();
+    expect(h.vfs.getNode("/home/guest")).not.toBeNull();
+  });
+
   it("userdel refuses a guest, and a backend that can't delete", async () => {
     const guest = harness();
     await guest.run("userdel");

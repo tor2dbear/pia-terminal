@@ -1,6 +1,7 @@
 import type { Command, CommandContext, Session } from "./registry.js";
 import { reconcilePackages } from "../packages/catalog.js";
 import { materializeShared } from "../share/materialize.js";
+import { VFS } from "../vfs/vfs.js";
 
 const GUEST = "guest";
 const VALID_USER = /^[a-z0-9_-]+$/i;
@@ -349,7 +350,13 @@ export const userdel: Command = {
       } catch (err) {
         return ctx.error(`userdel: ${err instanceof Error ? err.message : String(err)}`);
       }
-      await ctx.reloadFs?.(); // drop the (deleted) cloud tree, back to guest-local
+      // Wipe the deleted account's tree from memory *before* reloading — the
+      // guest reload no-ops when guest storage is empty, so without this reset
+      // the cloud tree would survive in memory and `enter` would persist it back
+      // into guest localStorage. Reset to a fresh guest tree, then adopt any
+      // saved guest tree over it.
+      ctx.vfs.root = VFS.seed().root;
+      await ctx.reloadFs?.();
       await enter(ctx, GUEST);
       ctx.print("account deleted — you're back to guest", "accent");
     });
