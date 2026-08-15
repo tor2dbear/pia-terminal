@@ -19,27 +19,27 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_uid uuid := auth.uid();
+  v_uid   uuid := auth.uid();
+  v_email text;
 begin
   if v_uid is null then
     raise exception 'not authenticated';
   end if;
+  select email into v_email from auth.users where id = v_uid;
 
-  -- Lock my own auth.users row first. A concurrent create_shared_list() on
-  -- another device takes a FK lock on this row when inserting its membership, so
-  -- locking it here forces that insert to wait — then our `delete from
-  -- auth.users` below makes it fail its FK check rather than committing a new
-  -- (soon-orphaned) list after our cleanup ran.
-  perform 1 from auth.users where id = v_uid for update;
-
-  -- Serialize with concurrent leave/claim/remove on any of my lists (same list
-  -- row lock the ownership RPCs take) so the owner-invariant holds throughout.
+  -- Take locks in the SAME order the ownership RPCs use — list rows first, then
+  -- the auth row (which claim_invites/create_shared_list lock implicitly via the
+  -- membership FK on insert). A consistent order avoids a deadlock that would
+  -- abort the deletion. Holding the auth row before the cleanup below still means
+  -- no *new* membership can commit between our scan and the `delete from
+  -- auth.users`, so a concurrently-created list can't be left orphaned.
   perform 1
     from public.shared_lists l
     where l.id in (
       select m.list_id from public.shared_list_members m where m.user_id = v_uid
     )
     for update;
+  perform 1 from auth.users where id = v_uid for update;
 
   -- Promote an heir for every list I solely own that still has other members.
   with sole_owned as (
@@ -81,8 +81,18 @@ begin
   -- Delete pending invites addressed to my email too — they're keyed by email,
   -- not user_id (so they don't cascade), and would otherwise let a new account
   -- registered with the same address reclaim a pre-deletion share.
-  delete from public.shared_list_invites i
-    where lower(i.email) = (select lower(u.email) from auth.users u where u.id = v_uid);
+  delete from public.shared_list_invites i where lower(i.email) = lower(v_email);
+
+  -- Scrub my email out of *other* users' notifications. notify_on_invite() bakes
+  -- the inviter's email into the recipient's notification body (that row is the
+  -- recipient's, so it doesn't cascade from my auth.users delete). Redact it back
+  -- to the same 'someone' fallback the trigger uses, so no email of mine survives
+  -- in someone else's data.
+  if v_email is not null then
+    update public.notifications
+      set body = replace(body, v_email, 'someone')
+      where position(v_email in body) > 0;
+  end if;
 
   -- Now delete the auth user. Its app data (filesystems, notifications,
   -- push_subscriptions, reminders, remaining shared_list_members, activity) and

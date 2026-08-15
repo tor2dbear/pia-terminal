@@ -17,9 +17,13 @@ Nästan allt **cascade-raderas** när `auth.users`-raden tas bort (`on delete
 cascade`):
 - `filesystems` (hela VFS-trädet) · `notifications` · `push_subscriptions` ·
   `reminders` · `shared_list_members` · `shared_list_activity`.
-- `shared_list_invites` keyas på e-post, inte user_id → en invite *adresserad*
-  till din e-post blir en dinglande rad (harmlös; städa ev. på e-post).
+- `shared_list_invites` keyas på e-post, inte user_id → RPC:n raderar även invites
+  *adresserade till din e-post* (annars kan ett nytt konto med samma mejl claima).
 - `shared_lists.created_by` → `on delete set null` (listan överlever).
+- **`notifications.body`** bäddar in inbjudarens e-post (`notify_on_invite`) i
+  *mottagarens* rad → cascade:ar inte. RPC:n scrubbar din e-post → 'someone'.
+- **Lås-ordning:** lista-rader → auth-rad (samma som `claim_invites`), annars
+  deadlock som kan avbryta raderingen.
 
 **Enda icke-triviala biten:** en delad lista du är *ensam ägare* till blir
 **ägarlös** när din medlemsrad cascade-raderas — exakt orphan-problemet från
