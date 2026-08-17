@@ -105,9 +105,11 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    är orört (separat tsconfig; `dist-engine/` är gitignore:at).
 
 ## Kvar (release-beslut, inte kod)
-- **Licens**: `package.json` säger `UNLICENSED` som platshållare — välj licens
-  (motorn är tänkt att öppen-källas) innan första publiceringen. `npm publish`
-  körs från `dist-engine/` och är en manuell release-handling (kräver npm-konto).
+- **Licens**: ~~`UNLICENSED` platshållare~~ → **MIT vald** (2026-08-17).
+  `build-engine.mjs` sätter `license: "MIT"`, skriver en `LICENSE`-fil in i
+  `dist-engine/` och listar den i `files`, så den publicerade tarballen bär
+  licensen. `npm publish` körs från `dist-engine/` och är en manuell
+  release-handling (kräver `npm login` med npm-kontot) — kvarvarande blockerare.
 - **Valfri renhet**: motorns `Command`/`Terminal` defaultar fortfarande till PIA:s
   `CommandContext`, så typytan (och en död, tree-shakebar `share/store.js`) drar
   med PIA-typer i paketet. Att byta default till `CoreCommandContext` och flytta
