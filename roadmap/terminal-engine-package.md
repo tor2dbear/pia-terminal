@@ -104,12 +104,28 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
    registrerat kommando, `VFS.seed`, `tokenize` och `parseSequence`. App-bygget
    är orört (separat tsconfig; `dist-engine/` är gitignore:at).
 
-## Kvar (release-beslut, inte kod)
-- **Licens**: ~~`UNLICENSED` platshållare~~ → **MIT vald** (2026-08-17).
-  `build-engine.mjs` sätter `license: "MIT"`, skriver en `LICENSE`-fil in i
-  `dist-engine/` och listar den i `files`, så den publicerade tarballen bär
-  licensen. `npm publish` körs från `dist-engine/` och är en manuell
-  release-handling (kräver `npm login` med npm-kontot) — kvarvarande blockerare.
+## Publicerad (2026-08-17)
+- **Licens**: ~~`UNLICENSED` platshållare~~ → **MIT** (PR #121). `build-engine.mjs`
+  sätter `license: "MIT"`, skriver en `LICENSE`-fil in i `dist-engine/` och listar
+  den i `files`, så den publicerade tarballen bär licensen.
+- **Uppe på npm**: [`pia-terminal-engine@0.15.0`](https://www.npmjs.com/package/pia-terminal-engine)
+  — publikt, `npm install pia-terminal-engine`. Publicerat manuellt från
+  `dist-engine/` med 2FA (npm kräver tvåfaktor för publicering).
+
+### Så uppdaterar du paketet (för framtida-dig)
+Paketet är en **frivillig ögonblicksbild**, skild från appen/sajten — sajten
+deployar av sig själv via Cloudflare Pages och rör inte npm. Publicera bara om på
+nytt när (a) själva motorkoden (`src/engine/`-grafen) ändrats *och* (b) du vill att
+npm-konsumenterna ska få det. Ren app-ändring (kommandon, teman, spel) → motorn
+oförändrad → ingen ompublicering. Flöde (npm tillåter inte samma version två gånger):
+```sh
+# 1. höj "version" i package.json (SemVer), t.ex. 0.15.0 → 0.15.1
+npm run build:engine
+cd dist-engine && npm publish   # + OTP från authenticator-appen
+```
+(Versionen speglar appens `package.json` — höj den innan bygget.)
+
+## Kvar (valfritt)
 - **Valfri renhet**: motorns `Command`/`Terminal` defaultar fortfarande till PIA:s
   `CommandContext`, så typytan (och en död, tree-shakebar `share/store.js`) drar
   med PIA-typer i paketet. Att byta default till `CoreCommandContext` och flytta
@@ -117,5 +133,5 @@ PIA:s egna. Löst genom att dela den (se plan, steg 1).
   PIA-kommandofiler; sparat som eget beslut.
 
 _Status `done`. Motorn är utlyft, generisk, öppningsbar som egen sida, och
-paketerbar/verifierad som npm — grunden ("två saker på samma motor") är på plats.
-Faktisk publicering + licensval är en manuell release-handling._
+**publicerad på npm** (`pia-terminal-engine@0.15.0`, MIT) — grunden ("två saker på
+samma motor", nu paketerad och ute i världen) är på plats._

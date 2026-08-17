@@ -117,8 +117,21 @@ adventure) built on that API alone, opened at `/adventure/` and sharing the same
 context: PIA extends `CoreCommandContext` with its own fields via
 `TerminalOptions.extendContext`; a leaner shell runs on the core alone.
 
-`npm run build:engine` builds the engine as a standalone, installable npm package
-into `dist-engine/`.
+The engine is published to npm as
+**[`pia-terminal-engine`](https://www.npmjs.com/package/pia-terminal-engine)**
+(MIT):
+
+```sh
+npm install pia-terminal-engine
+```
+
+`npm run build:engine` assembles that package into `dist-engine/` (JS + `.d.ts` +
+a generated `package.json`, README and `LICENSE`). It's a **snapshot separate
+from the app** — the live site deploys on its own via Cloudflare Pages and never
+touches npm. Re-publish only when the engine graph (`src/engine/`) itself changed
+*and* consumers should get it: bump `version` in `package.json` (npm rejects a
+duplicate version), then `npm run build:engine && cd dist-engine && npm publish`
+(publishing needs 2FA).
 
 ---
 
