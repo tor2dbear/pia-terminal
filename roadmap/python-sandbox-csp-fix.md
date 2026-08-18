@@ -2,7 +2,8 @@
 title: python i prod — sandbox-CSP tappas av Cloudflare clean-URL
 status: now
 tags: [wasm, deploy, bugfix]
-updated: 2026-08-12
+updated: 2026-08-18
+priority: high
 ---
 
 ## Mål
