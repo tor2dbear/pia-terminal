@@ -12,4 +12,4 @@ created: 2026-08-19
 
 
 ## Öppna frågor
-- 
+-
