@@ -454,6 +454,7 @@ available commands:
   uniq         collapse adjacent duplicate lines (needs sorted input)
   upload       upload a file from your computer into the current directory
   useradd      create an account and log in (add email + password with a backend)
+  userdel      delete your account and all its data (irreversible)
   usermod      rename the current user (home directory and files follow)
   verify       confirm you control your account's email (needed to accept shared lists)
   version      print the PIA version

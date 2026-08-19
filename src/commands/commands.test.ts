@@ -47,6 +47,14 @@ class RejectingAuthWithInvite extends PasswordAuthWithInvite {
   }
 }
 
+/** …that can delete the account (records that it was asked to). */
+class DeletableAuth extends PasswordAuth {
+  deleted = false;
+  async deleteAccount(): Promise<void> {
+    this.deleted = true;
+  }
+}
+
 /** A test harness: runs commands over a real VFS and captures output. */
 function harness(auth: AuthAdapter = new MemoryAuthAdapter()) {
   const vfs = VFS.seed();
@@ -381,6 +389,49 @@ describe("auth commands", () => {
     const h = harness();
     await h.run("logout");
     expect(h.lines.at(-1)?.cls).toBe("error");
+  });
+
+  it("userdel needs you to retype your username, then deletes the account", async () => {
+    const auth = new DeletableAuth();
+    const h = harness(auth);
+    await h.run("login me@example.com pw"); // session.user → "me"
+    expect(h.ctx.session.user).toBe("me");
+
+    await h.run("userdel"); // no confirmation
+    expect(auth.deleted).toBe(false);
+    expect(h.text().join("\n")).toContain("userdel me"); // the confirm hint
+    expect(h.ctx.session.user).toBe("me"); // still logged in
+
+    await h.run("userdel wrong"); // mismatched name
+    expect(auth.deleted).toBe(false);
+    expect(h.ctx.session.user).toBe("me");
+
+    await h.run("userdel me"); // correct → deletes and drops to guest
+    expect(auth.deleted).toBe(true);
+    expect(h.ctx.session.user).toBe("guest");
+  });
+
+  it("userdel wipes the deleted account's tree from memory (not just server-side)", async () => {
+    const auth = new DeletableAuth();
+    const h = harness(auth);
+    await h.run("login me@example.com pw");
+    h.vfs.writeFile("/home/me/secret.txt", "shh"); // an in-memory cloud file
+    await h.run("userdel me");
+    // The tree is reset to a fresh guest tree — the deleted file can't linger and
+    // get re-persisted into guest storage.
+    expect(h.vfs.getNode("/home/me/secret.txt")).toBeNull();
+    expect(h.vfs.getNode("/home/guest")).not.toBeNull();
+  });
+
+  it("userdel refuses a guest, and a backend that can't delete", async () => {
+    const guest = harness();
+    await guest.run("userdel");
+    expect(guest.lines.at(-1)?.cls).toBe("error"); // "log in first"
+
+    const noDelete = harness(new PasswordAuth()); // cloud, but no deleteAccount
+    await noDelete.run("login me@example.com pw");
+    await noDelete.run("userdel me");
+    expect(noDelete.text().join("\n")).toContain("needs a backend account");
   });
 
   it("files created while logged in live under that user's home", async () => {
