@@ -7,25 +7,54 @@ import { WILD_STAR, WILD_QUES } from "./glob.js";
 const shield = (ch: string, inQuotes: boolean): string =>
   !inQuotes ? ch : ch === "*" ? WILD_STAR : ch === "?" ? WILD_QUES : ch;
 
+/** Which quote we are inside, or `null` at the top level. */
+type Quote = '"' | "'" | null;
+
 /**
- * Split a command line into tokens. Supports double quotes so arguments with
- * spaces survive (e.g. `touch "my notes.txt"`). Operators (`|`, `>`, `>>`) are
- * treated as ordinary text here — {@link parsePipeline} handles those.
+ * Advance the quote state at `line[i]`. Returns the new state when the
+ * character is a quote *delimiter* (the caller consumes it), or `undefined`
+ * when it is ordinary text.
+ *
+ * Both quote kinds work, and each is literal inside the other — `"don't"` and
+ * `'say "hi"'` both keep their inner quote, as in a real shell. PIA doesn't
+ * expand variables, so `'…'` and `"…"` are otherwise the same.
+ *
+ * The one deliberate divergence: an *unpaired* `'` is a plain apostrophe rather
+ * than an open quote, so `echo don't` works. A real shell would open a
+ * continuation prompt to finish the quote; PIA has no such prompt, and silently
+ * swallowing the apostrophe (what an unpaired `"` does) reads as a bug in
+ * everyday prose. A `'` is therefore a delimiter only when the line holds
+ * another one to close it.
+ */
+function quoteStep(line: string, i: number, quote: Quote): Quote | undefined {
+  const ch = line[i];
+  if (quote !== null) return ch === quote ? null : undefined;
+  if (ch === '"') return '"';
+  if (ch === "'" && line.indexOf("'", i + 1) !== -1) return "'";
+  return undefined;
+}
+
+/**
+ * Split a command line into tokens. Supports quotes so arguments with spaces
+ * survive (e.g. `touch "my notes.txt"`, `python -c 'print(1)'`). Operators
+ * (`|`, `>`, `>>`) are treated as ordinary text here — {@link parsePipeline}
+ * handles those.
  */
 export function tokenize(line: string): string[] {
   const tokens: string[] = [];
   let current = "";
-  let inQuotes = false;
+  let quote: Quote = null;
   let hasToken = false;
 
   for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
+    const step = quoteStep(line, i, quote);
+    if (step !== undefined) {
+      quote = step;
       hasToken = true;
       continue;
     }
-    if (ch === " " && !inQuotes) {
+    const ch = line[i];
+    if (ch === " " && quote === null) {
       if (hasToken) {
         tokens.push(current);
         current = "";
@@ -33,7 +62,7 @@ export function tokenize(line: string): string[] {
       }
       continue;
     }
-    current += shield(ch, inQuotes);
+    current += shield(ch, quote !== null);
     hasToken = true;
   }
   if (hasToken) tokens.push(current);
@@ -63,7 +92,7 @@ export type ParseResult =
 function lex(line: string): string[] {
   const tokens: string[] = [];
   let current = "";
-  let inQuotes = false;
+  let quote: Quote = null;
   let hasToken = false;
   const flush = (): void => {
     if (hasToken) {
@@ -74,13 +103,14 @@ function lex(line: string): string[] {
   };
 
   for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
+    const step = quoteStep(line, i, quote);
+    if (step !== undefined) {
+      quote = step;
       hasToken = true;
       continue;
     }
-    if (!inQuotes) {
+    const ch = line[i];
+    if (quote === null) {
       if (ch === " ") {
         flush();
         continue;
@@ -101,7 +131,7 @@ function lex(line: string): string[] {
         continue;
       }
     }
-    current += shield(ch, inQuotes);
+    current += shield(ch, quote !== null);
     hasToken = true;
   }
   flush();
@@ -169,7 +199,7 @@ function splitSequence(line: string): { connector: Connector | null; text: strin
   const segments: { connector: Connector | null; text: string }[] = [];
   let text = "";
   let connector: Connector | null = null;
-  let inQuotes = false;
+  let quote: Quote = null;
   const cut = (next: Connector): void => {
     segments.push({ connector, text });
     connector = next;
@@ -177,10 +207,12 @@ function splitSequence(line: string): { connector: Connector | null; text: strin
   };
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
+    const step = quoteStep(line, i, quote);
+    // Quotes are kept in the text: the segment is re-lexed by parsePipeline.
+    if (step !== undefined) {
+      quote = step;
       text += ch;
-    } else if (inQuotes) {
+    } else if (quote !== null) {
       text += ch;
     } else if (ch === ";") {
       cut(";");

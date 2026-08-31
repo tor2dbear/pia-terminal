@@ -1,21 +1,36 @@
 ---
 title: "shell: enkla citattecken (`'…'`) tokeniseras inte"
-status: inbox
+status: done
 tags: [terminal, shell]
 updated: 2026-08-31
 ---
 
 ## Mål
-`tokenize()` förstår bara **dubbla** citattecken. Enkla citat följer med in i
-argumentet som vanliga tecken — så `echo 'hello world'` skriver `'hello world'`
-med citattecknen kvar, och `python -c 'print(6*7)'` skickar strängen
-`'print(6*7)'` till Python, som då evaluerar ett *stränglitteral* och skriver
+`tokenize()` förstod bara **dubbla** citattecken. Enkla citat följde med in i
+argumentet som vanliga tecken — så `echo 'hello world'` skrev `'hello world'`
+med citattecknen kvar, och `python -c 'print(6*7)'` skickade strängen
+`'print(6*7)'` till Python, som då evaluerade ett *stränglitteral* och skrev
 `print(6*7)` istället för `42`. Tyst fel: inget felmeddelande, bara fel svar.
 
 Upptäckt 2026-08-31 vid verifiering av `python-sandbox-csp-fix` i en riktig
 browser.
 
-## Varför det spelar roll
+## Levererat
+`tokenize()`, `lex()` och `splitSequence()` delar nu en `quoteStep()` — ett
+citat-tillstånd (`null` / `"` / `'`) istället för en boolean — så alla tre
+lexerna är eniga om var ett citat börjar och slutar. Bägge citatslagen fungerar,
+och vart och ett är literalt inuti det andra (`"don't"`, `'say "hi"'`), precis som
+i ett riktigt skal. Glob-skyddet (`shield()`) gäller nu bägge, så `'*.md'` är
+literalt likt `"*.md"`.
+
+`python -c 'print(6*7)'` ger **42** i browsern (var `print(6*7)`), och
+`echo 'hello world'` skriver `hello world` utan citattecken.
+
+Tester: 8 nya parse-tester + 4 end-to-end i jsdom-terminalen (citat, apostrof,
+citerat filnamn, glob-skydd), och två tour-rader (`echo 'both quote kinds work'`,
+`echo don't`) så regressionen syns i guldfilen.
+
+## Varför det spelade roll
 - **Idiom-brott.** I varje riktigt skal är `'…'` det *starkare* citatet (ingen
   expansion alls). Att bara stödja `"…"` är precis den sortens divergens
   CLAUDE.md säger att vi ska undvika — och den är inte ens ett medvetet val,
@@ -40,8 +55,18 @@ browser.
   har ingen `>`-fortsättningsprompt — enklaste ärliga regeln är att en *oparad*
   `'` behandlas som ett vanligt tecken.
 
-## Öppna frågor
-- Oparad `'` → literal (ovan), eller fel (`unexpected EOF while looking for
-  matching quote`)? Literal är snällare mot `don't`; fel är mer skal-likt.
-- `\'`-escape inuti dubbla citat och tvärtom — värt det, eller överkurs för v1?
-- Ska touren få en rad som visar bägge citatslagen, så regressionen fångas?
+## Öppna frågor (avgjorda)
+- **Oparad `'`:** → **literal apostrof**. Ett riktigt skal öppnar en
+  fortsättningsprompt för att avsluta citatet; PIA har ingen sådan, och att tyst
+  svälja apostrofen (det en oparad `"` gör) läser som en bugg i vanlig text.
+  Regeln: `'` är avgränsare bara när raden har en till som stänger den. Divergensen
+  är medveten och dokumenterad i koden.
+- **Backslash-escape (`\'`, `\"`):** ❌ inte nu. PIA expanderar inga variabler, så
+  citatslagen skiljer sig inte åt i övrigt — escapes vore lager utan vinst. Egen
+  puck den dag expansion finns.
+- **Tour-rad:** ✅ tillagd (se ovan).
+
+### Kvar (medvetet)
+En oparad `"` sväljs fortfarande tyst (`echo "hi` → `hi`), oförändrat sedan
+tidigare. Asymmetrin är avsiktlig: lookahead-regeln finns för att skydda
+apostrofer i prosa, och ingen skriver ett ensamt `"` av misstag.

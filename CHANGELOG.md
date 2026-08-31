@@ -22,6 +22,13 @@ log and grouped into milestones.
   follow-up.)
 
 ### Fixed
+- **Single quotes now work in the shell.** The tokenizer only understood double
+  quotes, so `echo 'hello world'` printed the quotes back at you and
+  `python -c 'print(6*7)'` handed Python a *string literal* — it echoed the code
+  instead of printing `42`, with no error to explain it. Both quote kinds now
+  quote, and each stays literal inside the other (`"don't"`, `'say "hi"'`), as in
+  a real shell. An unpaired `'` is a plain apostrophe, so `echo don't` still says
+  what you meant.
 - **`python` now runs in production.** The Pyodide sandbox iframe ran under the
   app's strict CSP in prod, so its WASM was blocked and `python` hung silently.
   Two causes: Cloudflare Pages "clean URLs" 308-redirect `/python-sandbox.html` →

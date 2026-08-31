@@ -939,6 +939,13 @@ describe("filename globbing", () => {
     expect(out(root)).toContain("*.md");
   });
 
+  it("single quotes protect a wildcard just as well", async () => {
+    const root = mount();
+    await runLine(root, "touch a.md");
+    await runLine(root, "echo '*.md'");
+    expect(out(root)).toContain("*.md");
+  });
+
   it("leaves a non-matching pattern literal", async () => {
     const root = mount();
     await runLine(root, "echo *.zip");
@@ -961,6 +968,30 @@ describe("filename globbing", () => {
     await runLine(root, "touch b.md");
     await runLine(root, "ls *.md");
     expect(out(root)).toContain("a.md  b.md");
+  });
+});
+
+describe("quoting", () => {
+  const out = (root: HTMLElement) =>
+    [...root.querySelectorAll(".term-line")].map((n) => n.textContent);
+
+  it("strips single quotes like double ones", async () => {
+    const root = mount();
+    await runLine(root, "echo 'hello world'");
+    expect(out(root)).toContain("hello world");
+  });
+
+  it("keeps an apostrophe in ordinary text", async () => {
+    const root = mount();
+    await runLine(root, "echo don't");
+    expect(out(root)).toContain("don't");
+  });
+
+  it("keeps a single-quoted filename in one piece", async () => {
+    const root = mount();
+    await runLine(root, "touch 'my notes.txt'");
+    await runLine(root, "ls");
+    expect(root.textContent).toContain("my notes.txt"); // one file, not two
   });
 });
 
