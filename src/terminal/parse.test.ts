@@ -21,6 +21,40 @@ describe("tokenize", () => {
     expect(tokenize('echo ""')).toEqual(["echo", ""]);
   });
 
+  it("keeps single-quoted spans together", () => {
+    expect(tokenize("touch 'mina filer.txt'")).toEqual([
+      "touch",
+      "mina filer.txt",
+    ]);
+  });
+
+  it("passes single-quoted code through verbatim", () => {
+    expect(tokenize("python -c 'print(1 + 1)'")).toEqual([
+      "python",
+      "-c",
+      "print(1 + 1)",
+    ]);
+  });
+
+  it("keeps each quote kind literal inside the other", () => {
+    expect(tokenize(`echo "don't"`)).toEqual(["echo", "don't"]);
+    expect(tokenize(`echo 'say "hi"'`)).toEqual(["echo", 'say "hi"']);
+  });
+
+  it("treats a word-internal ' as a plain apostrophe", () => {
+    expect(tokenize("echo don't")).toEqual(["echo", "don't"]);
+    // Two apostrophes in prose must not pair up into a quoted span.
+    expect(tokenize("echo it's John's")).toEqual(["echo", "it's", "John's"]);
+  });
+
+  it("treats an unclosed ' as a plain apostrophe", () => {
+    expect(tokenize("echo 'unclosed")).toEqual(["echo", "'unclosed"]);
+  });
+
+  it("keeps an empty single-quoted token", () => {
+    expect(tokenize("echo ''")).toEqual(["echo", ""]);
+  });
+
   it("returns nothing for blank input", () => {
     expect(tokenize("   ")).toEqual([]);
   });
@@ -62,6 +96,12 @@ describe("parsePipeline", () => {
   it("keeps a quoted pipe literal", () => {
     const p = unwrap('echo "a | b"');
     expect(p.stages).toEqual([{ name: "echo", args: ["a | b"] }]);
+  });
+
+  it("keeps a single-quoted pipe and redirect literal", () => {
+    const p = unwrap("echo 'a | b > c'");
+    expect(p.stages).toEqual([{ name: "echo", args: ["a | b > c"] }]);
+    expect(p.redirect).toBeNull();
   });
 
   it("rejects a leading pipe", () => {
@@ -110,6 +150,26 @@ describe("parseSequence", () => {
     const it = items('echo "a && b ; c"');
     expect(it).toHaveLength(1);
     expect(it[0].pipeline.stages[0].args).toEqual(["a && b ; c"]);
+  });
+
+  it("shields operators inside single quotes too", () => {
+    const it = items("echo 'a && b ; c'");
+    expect(it).toHaveLength(1);
+    expect(it[0].pipeline.stages[0].args).toEqual(["a && b ; c"]);
+  });
+
+  it("still splits on an operator after a single-quoted span", () => {
+    const it = items("echo 'a b' && echo c");
+    expect(it).toHaveLength(2);
+    expect(it[0].pipeline.stages[0].args).toEqual(["a b"]);
+    expect(it[1].pipeline.stages[0].args).toEqual(["c"]);
+  });
+
+  it("does not let prose apostrophes shield an operator", () => {
+    const it = items("echo don't && echo won't");
+    expect(it).toHaveLength(2);
+    expect(it[0].pipeline.stages[0].args).toEqual(["don't"]);
+    expect(it[1].pipeline.stages[0].args).toEqual(["won't"]);
   });
 
   it("allows a trailing semicolon", () => {

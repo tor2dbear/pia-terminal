@@ -119,6 +119,8 @@ const TOUR: string[] = [
   "ls *.txt",
   "echo hi && echo bye",
   "cat nope.txt || echo recovered",
+  "echo 'both quote kinds work'",
+  "echo don't && echo won't",
 
   'echo "# shell scripts (sh)"',
   'echo "mkdir demo" > build.sh',

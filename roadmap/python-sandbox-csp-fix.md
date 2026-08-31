@@ -1,8 +1,8 @@
 ---
 title: python i prod — sandbox-CSP tappas av Cloudflare clean-URL
-status: now
+status: done
 tags: [wasm, deploy, bugfix]
-updated: 2026-08-18
+updated: 2026-08-31
 priority: medium
 ---
 
@@ -53,12 +53,23 @@ matchar `/*`.
   nollställer `ready`/`frame` vid fel så nästa körning kan återförsöka — så en
   framtida regression *syns* som ett fel istället för en tyst hang.
 
-## Verifiering
-- Lokalt: `npm run build` → `dist/_headers` innehåller `/python-sandbox`-regeln.
-- WASM/redirect kan **inte** reproduceras i vitest/`vite preview` (bara
-  Cloudflare gör 308:an) → slutverifiering mot **PR-previewens** Cloudflare-URL:
-  `curl` att `/python-sandbox` nu har looser CSP, och kör `python -c` i headless
-  Chromium mot previewen.
+## Verifiering ✅ (2026-08-31, mot live-prod)
+Fixen är mergad (#119) och deployad — `python` kör i produktion.
+
+- `curl https://pia.tor2dbear.com/python-sandbox` → **bara** den looser CSP:n
+  (`wasm-unsafe-eval` + `worker-src blob:`). Den strikta CSP:n ligger på `/` och
+  läcker inte längre ner via `/*`. `/python-sandbox.html` → 308 → samma sida,
+  samma headers. `/pyodide/*.js|.wasm|.zip` = 200.
+- End-to-end i headless Chromium mot en lokal server som återskapar Cloudflares
+  beteende exakt (clean-URL-308 + `_headers`-append, med prods headers verifierade
+  identiska via `curl`): `brew install python` → `python -c "print(41+1)"` → `42`,
+  och `import sys; print(sys.version)` → `3.12.1`. Inga console-fel, sandbox-iframen
+  laddar. (Prod-URL:en kunde inte nås direkt från agent-miljöns nät — därför
+  emuleringen; header-vägen är den enda skillnaden och den är curl-verifierad.)
+- **Dubbla `X-Frame-Options` visade sig ofarliga:** sandbox-sidan får både
+  `SAMEORIGIN` (sin egen regel) och `DENY` (ärvt från `/*`) — samma append-fälla
+  som CSP:n. Iframen laddar ändå, eftersom CSP:ns `frame-ancestors 'self'`
+  (en header) går före XFO. Verifierat i browsern, inte bara i teorin.
 
 ## Öppna frågor
 - Alternativ till (A): peka iframen på `/python-sandbox` (utan `.html`) och

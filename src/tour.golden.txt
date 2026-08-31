@@ -74,6 +74,11 @@ bye
 guest@pia:~$ cat nope.txt || echo recovered
 no such file: /home/guest/nope.txt
 recovered
+guest@pia:~$ echo 'both quote kinds work'
+both quote kinds work
+guest@pia:~$ echo don't && echo won't
+don't
+won't
 guest@pia:~$ echo "# shell scripts (sh)"
 # shell scripts (sh)
 guest@pia:~$ echo "mkdir demo" > build.sh
@@ -465,8 +470,8 @@ available commands:
 
 type `help <command>` for usage.
 guest@pia:~$ history | tail -5
-115  about
-116  date -u
-117  exit
-118  help
-119  history | tail -5
+117  about
+118  date -u
+119  exit
+120  help
+121  history | tail -5

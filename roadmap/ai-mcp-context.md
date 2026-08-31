@@ -1,9 +1,25 @@
 ---
 title: AI-kontext via MCP-connector
-status: now
+status: done
 tags: [mcp, ai]
-updated: 2026-08-09
+updated: 2026-08-31
 ---
+
+## Verifierat live (2026-08-31) ✅
+Connectorn är deployad och **verifierad från en riktig AI-klient**: en Claude-session
+kopplad mot `pia.tor2dbear.com/mcp` listade hemmet över MCP (`.pia/`, `docs/`,
+`garden/`, `handla.list`, `inbox/`, `shared/`, `todo/`) och fick `instructions`-briefen
+med rätt token-namn och scope. Puckens egen exit-regel ("deployad och verifierad från
+en riktig AI-klient") är därmed uppfylld → `done`.
+
+**Kvar att göra själv, om du vill:** samma sak från *Claude på iOS* — connectorn läggs
+till på claude.ai i webben och synkar till mobilen, så det är en klick-verifiering,
+inte kod.
+
+**Vidare spår (ej beslutade, arkiverade här):** MCP-*resurser* (läsbar hjälp/changelog
+on demand — nästa nivå efter `instructions`), och en diff-/bekräftelse-gate innan en
+agent-write landar. Bägge hör hemma i en ny inbox-puck den dagen de blir aktuella;
+riktningen "en röst *in* i PIA" bor redan i `ai-host-persona`.
 
 ## Levererat (v6 — server `instructions` / PIA presenterar sig)
 `initialize` returnerar nu ett `instructions`-fält (en hint klienten lägger i
@@ -57,7 +73,8 @@ service role; `oauth_codes` håller en rå token i max 10 min mellan authorize o
 exchange, sen raderas den). Hela flödet verifierat end-to-end mot live-funktionen.
 Bearer-vägen (terminal + egna skript) kvar oförändrad.
 
-**Kvar:** verifiera från Claude på iOS mot den deployade connectorn.
+**Kvar:** ~~verifiera från Claude på iOS mot den deployade connectorn~~ — verifierad
+från en riktig AI-klient 2026-08-31, se överst.
 
 ## Levererat (v1 — kod klar, deploy kvar)
 `mcp`-kommandot + en Supabase Edge Function som exponerar användarens
@@ -153,9 +170,11 @@ skäl (*lärande + portfolio + kul*, "chatta med min lilla dator"), inte som
   lagrat per rad, enforced i edge-funktionen.
 - **Diff-/bekräftelse-gate på write.** v1 skriver rakt (guardad mot krock men utan
   människa-i-loop). Vill vi ha en förhandsgranskning innan en agent-write landar?
-- **OAuth istället för klistrad token.** "Rätt" men överkurs — bearer räcker för v1.
+  Kvar som idé — se "vidare spår" överst.
+- **OAuth istället för klistrad token.** ✅ Levererat i v2 — OAuth 2.1 med DCR + PKCE,
+  eftersom Claudes connector-UI inte tar en inklistrad token.
 - Värt det jämfört med motor-extraktionen (se `terminal-engine-package`)? Bägge
   kan leva; MCP är mer aktuellt, motorn visar djupare ingenjörskonst.
 
-_Befordrad till `now` (kod klar). Går till `done` när funktionen är deployad och
-verifierad från en riktig AI-klient._
+_Befordrad till `now` (kod klar), och till `done` 2026-08-31: funktionen är deployad
+och verifierad från en riktig AI-klient._

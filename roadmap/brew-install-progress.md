@@ -1,8 +1,8 @@
 ---
 title: "brew install: ärlig installationsceremoni"
-status: now
+status: done
 tags: [packages, system]
-updated: 2026-08-08
+updated: 2026-08-31
 ---
 
 ## Levererat (Nivå 1 + 2)
@@ -20,10 +20,20 @@ same-origin (CSP `connect-src 'self'`, likt `ping`) via `src/packages/sizes.ts`,
 memoiserat och best-effort (null → storleken utelämnas). Grindat på
 `import.meta.env.PROD`, så dev/test/tour aldrig fetchar → deterministiskt.
 
-**Kvar:**
-- **Nivå 2b:** animerad bar/spinner under laddningen — kräver en uppdaterbar
-  utdatarad. Egen puck: `live-output-line.md`.
-- **Nivå 3:** kosmetisk pacing (fejka tid) — öppen fråga, default avvisa.
+Verifierat i prod-bygget 2026-08-31 (headless Chromium): `brew install python`
+skriver `==> Fetching python… (2.3 kB)` → `==> Registering: python` →
+`installed python ✓`, och `/package-sizes.json` serveras på prod (200).
+
+**Kvar — men inte i den här pucken:**
+- **Nivå 2b** (animerad bar/spinner) lever vidare som egen puck:
+  `live-output-line.md`. Det är den som är det öppna spåret.
+- **Nivå 3** (kosmetisk pacing) — **avvisad**, enligt default. Vi fejkar inte tid;
+  samma linje som för äggen och `pv`.
+- **`apt`-flavored etiketter** och en ceremoni för `brew uninstall` är kvar som
+  små, ej beslutade idéer — plocka upp dem tillsammans med `live-output-line`
+  om det blir aktuellt.
+
+Det beslutade spåret (Nivå 1 + 2) är levererat och i produktion → `done`.
 
 ## Mål
 Ge `brew install` en känsla av att något faktiskt *installeras* — men **ärligt**,
@@ -83,14 +93,11 @@ Fin idiom-detalj utan lögn.
 - **Nivå 2:** ja i mån av bygg-stöd — det är där "äkta bytes"-magin sitter.
   Kräver storleks-manifest injicerat vid bygget.
 
-## Öppna frågor
-- **Nivå 3 (kosmetisk sleep):** avvisa rakt av, eller tillåt som ett *dokumenterat*
-  ceremoni-beslut (accepterad divergens à la `share→URL`)? Default: avvisa.
-- **Storleks-manifest:** hur surfa den verkliga gzip-chunkstorleken vid bygget
-  (vite-manifest/plugin)? Genomförbarhet + hur den matas in i runtime (som
-  `VERSION`).
-- **Determinism i touren:** importens timing är icke-deterministisk. Visa
-  *storlek* (deterministiskt) snarare än tid, eller redigera progress-raderna i
-  golden så touren förblir stabil.
-- **Uninstall:** ska `brew uninstall` få en motsvarande (kort) ceremoni, eller
-  hålla sig till dagens enda rad?
+## Öppna frågor (avgjorda)
+- **Nivå 3 (kosmetisk sleep):** ❌ avvisad — vi fejkar inte tid.
+- **Storleks-manifest:** ✅ löst — vite-pluginen `packageSizes` räknar gzip-storleken
+  i `generateBundle` och emitterar `package-sizes.json`, som prod-bygget fetchar
+  same-origin.
+- **Determinism i touren:** ✅ löst — storleken visas bara i `PROD`, så touren
+  (dev/test) skriver `==> Fetching <name>…` utan siffra och guldfilen är stabil.
+- **Uninstall-ceremoni / `apt`-etiketter:** ej beslutat, flyttat till spåret ovan.
