@@ -11,6 +11,30 @@ const shield = (ch: string, inQuotes: boolean): string =>
 type Quote = '"' | "'" | null;
 
 /**
+ * Where a word can start or end: the line's edge, a space, or an operator.
+ * `undefined` is the edge (index -1 or past the end).
+ */
+const isWordEdge = (ch: string | undefined): boolean =>
+  ch === undefined || ch === " " || ";|&><".includes(ch);
+
+/**
+ * Whether the `'` at `line[i]` opens a quoted span, or is a prose apostrophe.
+ *
+ * A quote *delimiter* sits at the edge of a word: `'a b'`, never `don't`. So a
+ * `'` opens a span only when it starts a word **and** a later `'` ends one.
+ * Both halves matter — pairing any two apostrophes on the line would make
+ * `echo don't && echo won't` a single quoted span with the `&&` shielded
+ * inside it (which is, for what it's worth, exactly what bash does).
+ */
+function opensSingleQuote(line: string, i: number): boolean {
+  if (!isWordEdge(line[i - 1])) return false;
+  for (let j = i + 1; j < line.length; j++) {
+    if (line[j] === "'" && isWordEdge(line[j + 1])) return true;
+  }
+  return false;
+}
+
+/**
  * Advance the quote state at `line[i]`. Returns the new state when the
  * character is a quote *delimiter* (the caller consumes it), or `undefined`
  * when it is ordinary text.
@@ -19,18 +43,17 @@ type Quote = '"' | "'" | null;
  * `'say "hi"'` both keep their inner quote, as in a real shell. PIA doesn't
  * expand variables, so `'…'` and `"…"` are otherwise the same.
  *
- * The one deliberate divergence: an *unpaired* `'` is a plain apostrophe rather
- * than an open quote, so `echo don't` works. A real shell would open a
- * continuation prompt to finish the quote; PIA has no such prompt, and silently
- * swallowing the apostrophe (what an unpaired `"` does) reads as a bug in
- * everyday prose. A `'` is therefore a delimiter only when the line holds
- * another one to close it.
+ * The one deliberate divergence is {@link opensSingleQuote}: a word-internal
+ * `'` is an apostrophe, not an open quote, so `echo don't` works. A real shell
+ * would open a continuation prompt to finish the quote; PIA has no such prompt,
+ * and silently swallowing the apostrophe (what an unpaired `"` does) reads as a
+ * bug in everyday prose.
  */
 function quoteStep(line: string, i: number, quote: Quote): Quote | undefined {
   const ch = line[i];
   if (quote !== null) return ch === quote ? null : undefined;
   if (ch === '"') return '"';
-  if (ch === "'" && line.indexOf("'", i + 1) !== -1) return "'";
+  if (ch === "'" && opensSingleQuote(line, i)) return "'";
   return undefined;
 }
 

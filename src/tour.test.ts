@@ -120,7 +120,7 @@ const TOUR: string[] = [
   "echo hi && echo bye",
   "cat nope.txt || echo recovered",
   "echo 'both quote kinds work'",
-  "echo don't",
+  "echo don't && echo won't",
 
   'echo "# shell scripts (sh)"',
   'echo "mkdir demo" > build.sh',

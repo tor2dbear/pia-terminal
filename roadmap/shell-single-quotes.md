@@ -26,9 +26,9 @@ literalt likt `"*.md"`.
 `python -c 'print(6*7)'` ger **42** i browsern (var `print(6*7)`), och
 `echo 'hello world'` skriver `hello world` utan citattecken.
 
-Tester: 8 nya parse-tester + 4 end-to-end i jsdom-terminalen (citat, apostrof,
+Tester: 10 nya parse-tester + 4 end-to-end i jsdom-terminalen (citat, apostrof,
 citerat filnamn, glob-skydd), och två tour-rader (`echo 'both quote kinds work'`,
-`echo don't`) så regressionen syns i guldfilen.
+`echo don't && echo won't`) så regressionen syns i guldfilen.
 
 ## Varför det spelade roll
 - **Idiom-brott.** I varje riktigt skal är `'…'` det *starkare* citatet (ingen
@@ -56,11 +56,19 @@ citerat filnamn, glob-skydd), och två tour-rader (`echo 'both quote kinds work'
   `'` behandlas som ett vanligt tecken.
 
 ## Öppna frågor (avgjorda)
-- **Oparad `'`:** → **literal apostrof**. Ett riktigt skal öppnar en
+- **Apostrof i prosa:** → **literal**. Ett riktigt skal öppnar en
   fortsättningsprompt för att avsluta citatet; PIA har ingen sådan, och att tyst
   svälja apostrofen (det en oparad `"` gör) läser som en bugg i vanlig text.
-  Regeln: `'` är avgränsare bara när raden har en till som stänger den. Divergensen
-  är medveten och dokumenterad i koden.
+  Regeln: en `'` är avgränsare bara när den **börjar ett ord** *och* en senare `'`
+  **avslutar ett ord** (ordgräns = radkant, blanksteg eller en operator).
+  Divergensen är medveten och dokumenterad i koden.
+
+  Första versionen parade ihop vilka två apostrofer som helst på raden, vilket
+  codex fångade i review: `echo don't && echo won't` blev då *ett* citerat span
+  med `&&` skyddat inuti — ett enda trasigt `echo`. (Bash gör exakt samma sak,
+  men här är det fel beteende: hela poängen med undantaget är att prosa-apostrofer
+  ska vara ofarliga.) Ordgräns-regeln fixar det, och gör dessutom
+  `echo it's John's` till två ord istället för ett.
 - **Backslash-escape (`\'`, `\"`):** ❌ inte nu. PIA expanderar inga variabler, så
   citatslagen skiljer sig inte åt i övrigt — escapes vore lager utan vinst. Egen
   puck den dag expansion finns.

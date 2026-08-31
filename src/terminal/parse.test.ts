@@ -41,8 +41,14 @@ describe("tokenize", () => {
     expect(tokenize(`echo 'say "hi"'`)).toEqual(["echo", 'say "hi"']);
   });
 
-  it("treats an unpaired ' as a plain apostrophe", () => {
+  it("treats a word-internal ' as a plain apostrophe", () => {
     expect(tokenize("echo don't")).toEqual(["echo", "don't"]);
+    // Two apostrophes in prose must not pair up into a quoted span.
+    expect(tokenize("echo it's John's")).toEqual(["echo", "it's", "John's"]);
+  });
+
+  it("treats an unclosed ' as a plain apostrophe", () => {
+    expect(tokenize("echo 'unclosed")).toEqual(["echo", "'unclosed"]);
   });
 
   it("keeps an empty single-quoted token", () => {
@@ -157,6 +163,13 @@ describe("parseSequence", () => {
     expect(it).toHaveLength(2);
     expect(it[0].pipeline.stages[0].args).toEqual(["a b"]);
     expect(it[1].pipeline.stages[0].args).toEqual(["c"]);
+  });
+
+  it("does not let prose apostrophes shield an operator", () => {
+    const it = items("echo don't && echo won't");
+    expect(it).toHaveLength(2);
+    expect(it[0].pipeline.stages[0].args).toEqual(["don't"]);
+    expect(it[1].pipeline.stages[0].args).toEqual(["won't"]);
   });
 
   it("allows a trailing semicolon", () => {
