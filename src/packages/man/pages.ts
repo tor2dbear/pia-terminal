@@ -111,6 +111,30 @@ export const MANPAGES: Record<string, ManPage> = {
     ],
     seeAlso: ["help", "brew", "pipes", "config", "tutor"],
   },
+  privacy: {
+    concept: true,
+    summary: "what PIA stores about you, and how to delete it",
+    description: [
+      "As a guest, everything lives in your browser — no account, nothing sent " +
+        "anywhere. PIA is a small personal project, not a product: no ads, no " +
+        "selling data, no cross-site tracking.",
+      "The one exception, and only on the live site (pia.tor2dbear.com): Cloudflare " +
+        "Web Analytics, a cookie-free beacon that reports aggregate page-load timing. " +
+        "It sets no cookies, holds no personal data, and can't follow you elsewhere. " +
+        "PR previews and `npm run dev` don't load it.",
+      "If you log in (optional), a cloud account stores only what it needs to sync: " +
+        "your email, your files, the checklists you share, your reminders, and this " +
+        "device's push subscription. Access is scoped to you (Row-Level Security).",
+      "You can take it all back: `userdel <your-username>` permanently deletes your " +
+        "account and everything above. It's irreversible, so you retype your name to " +
+        "confirm. `logout` just returns to guest and leaves the account intact.",
+    ],
+    examples: [
+      ["userdel me", "delete the account named `me` and all its data"],
+      ["logout", "return to guest without deleting anything"],
+    ],
+    seeAlso: ["userdel", "logout", "whoami", "pia"],
+  },
   pipes: {
     concept: true,
     summary: "connect commands with | and redirect with > >>",

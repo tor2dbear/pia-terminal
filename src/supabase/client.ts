@@ -45,6 +45,11 @@ export interface SupabaseLike {
     }>;
     signOut(): Promise<{ error: { message: string } | null }>;
   };
+  /** Call a Postgres RPC (SECURITY DEFINER functions) — e.g. account deletion. */
+  rpc(
+    fn: string,
+    args?: Record<string, unknown>,
+  ): Promise<{ data: unknown; error: { message: string } | null }>;
   // The filesystems table: read the tree + its updated_at (the optimistic-
   // concurrency token), insert a first row, or guardedly update the row we last
   // read. Deliberately narrow — see SupabaseStorageAdapter.

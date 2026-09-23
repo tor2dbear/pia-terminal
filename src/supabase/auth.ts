@@ -65,6 +65,15 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     if (error) throw new Error(error.message);
   }
 
+  async deleteAccount(): Promise<void> {
+    // A SECURITY DEFINER RPC deletes the auth.users row; all app data + auth
+    // child rows cascade from it (see supabase/account.sql). Then clear the now-
+    // invalid local session (best-effort — the JWT is dead anyway).
+    const { error } = await this.client.rpc("delete_own_account");
+    if (error) throw new Error(error.message);
+    await this.client.auth.signOut();
+  }
+
   async setPassword(password: string): Promise<void> {
     const { error } = await this.client.auth.updateUser({ password });
     if (error) throw new Error(error.message);

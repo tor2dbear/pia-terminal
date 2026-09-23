@@ -26,6 +26,13 @@ export interface AuthAdapter {
   /** Log out the current session. */
   logout(): Promise<void>;
   /**
+   * Permanently delete the current account and all its data (the `userdel`
+   * command), then clear the local session. Irreversible. Optional — only a real
+   * backend implements it; local/guest auth omits it (there's nothing to delete
+   * server-side).
+   */
+  deleteAccount?(): Promise<void>;
+  /**
    * Send a passwordless magic-link invite to `email`. Clicking it creates the
    * account (if new) and lands them logged in at `redirectTo`. Optional — only
    * a backend that can send email implements it; local/guest auth omits it.

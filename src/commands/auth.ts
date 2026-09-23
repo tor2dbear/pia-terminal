@@ -1,6 +1,7 @@
 import type { Command, CommandContext, Session } from "./registry.js";
 import { reconcilePackages } from "../packages/catalog.js";
 import { materializeShared } from "../share/materialize.js";
+import { VFS } from "../vfs/vfs.js";
 
 const GUEST = "guest";
 const VALID_USER = /^[a-z0-9_-]+$/i;
@@ -321,6 +322,47 @@ export const logout: Command = {
   },
 };
 
+export const userdel: Command = {
+  name: "userdel",
+  help: "delete your account and all its data (irreversible)",
+  usage: "userdel <your-username>   (retype your name to confirm)",
+  aliases: ["deluser"],
+  async run(args, ctx) {
+    if (ctx.session.user === GUEST) return ctx.error("userdel: log in first");
+    if (!ctx.auth.deleteAccount) {
+      return ctx.error("userdel: account deletion needs a backend account");
+    }
+    const me = ctx.session.user;
+    // Destructive and irreversible → require you to retype your username as the
+    // confirmation argument (the way `rm` makes you name the file). No arg, or a
+    // mismatch, just shows what would be deleted and how to confirm.
+    if (args[0] !== me) {
+      ctx.error("userdel: this permanently deletes your account and ALL its data");
+      ctx.print("  your files, shared-list memberships, reminders and push subscriptions", "dim");
+      ctx.print(`to confirm, run:  userdel ${me}`, "accent");
+      return;
+    }
+    const blocked = accountBlocked(ctx);
+    if (blocked) return ctx.error(`userdel: ${blocked}`);
+    return withTransition(ctx, async () => {
+      try {
+        await ctx.auth.deleteAccount!();
+      } catch (err) {
+        return ctx.error(`userdel: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      // Wipe the deleted account's tree from memory *before* reloading — the
+      // guest reload no-ops when guest storage is empty, so without this reset
+      // the cloud tree would survive in memory and `enter` would persist it back
+      // into guest localStorage. Reset to a fresh guest tree, then adopt any
+      // saved guest tree over it.
+      ctx.vfs.root = VFS.seed().root;
+      await ctx.reloadFs?.();
+      await enter(ctx, GUEST);
+      ctx.print("account deleted — you're back to guest", "accent");
+    });
+  },
+};
+
 export const authCommands: Command[] = [
   login,
   useradd,
@@ -329,4 +371,5 @@ export const authCommands: Command[] = [
   verify,
   invite,
   logout,
+  userdel,
 ];
